@@ -50,24 +50,28 @@ const createVideoModule = (
 // Teachers
 export const teachers: Record<string, Teacher> = {
   ko: {
+    id: "ko",
     name: "Koichiro Aitani",
     role: "Professor for Urban planning and design",
     email: "aitani.koichiro.195@m.kyushu-u.ac.jp",
     avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=200&auto=format&fit=crop"
   },
   kazu: {
+    id: "kazu",
     name: "Kazuki Nakaike",
     role: "Assistant Professor",
     email: "nakaike.kazuki.192@m.kyushu-u.ac.jp",
     avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=200&auto=format&fit=crop"
   },
   korbinian: {
+    id: "korbinian",
     name: "Korbinian Enzinger",
     role: "Associate Professor",
     email: "enzinger.korbinian.135@m.kyushu-u.ac.jp",
     avatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?q=80&w=200&auto=format&fit=crop"
   },
   takuro: {
+    id: "takuro",
     name: "Takuro Ogawa",
     role: "Associate Professor",
     email: "ogawa.takuro.326@m.kyushu-u.ac.jp",

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { TOPICS } from './constants';
-import { Topic, ViewState, User, Comment, QuizAttempt } from './types';
+import { TOPICS, teachers as INITIAL_TEACHERS } from './constants';
+import { Topic, ViewState, User, Comment, QuizAttempt, Teacher } from './types';
 import TopicGraph from './components/TopicGraph';
 import TopicDetail from './components/TopicDetail';
 import Login from './components/Login';
@@ -18,6 +18,31 @@ const App: React.FC = () => {
   
   // App Data State (mutable for Admin Builder)
   const [currentTopics, setCurrentTopics] = useState<Topic[]>(TOPICS);
+  // Transform initial teachers Record to Array
+  const [currentTeachers, setCurrentTeachers] = useState<Teacher[]>(Object.entries(INITIAL_TEACHERS).map(([key, t]) => ({...t, id: key})));
+  // Mock Users State
+  const [currentUsers, setCurrentUsers] = useState<User[]>([
+      {
+          id: 'admin',
+          email: 'admin@d-be.com',
+          name: 'Administrator',
+          avatar: `https://ui-avatars.com/api/?name=Admin&background=334155&color=fff`,
+          role: 'admin',
+          password: 'admin',
+          allowedTopics: TOPICS.map(t => t.id),
+          stats: { modulesCompleted: 0, totalModules: 0, lastActive: 'Now', quizScores: [] }
+      },
+      {
+          id: 'demo',
+          email: 'demo@d-be.com',
+          name: 'Demo Student',
+          avatar: `https://ui-avatars.com/api/?name=Demo&background=0D8ABC&color=fff`,
+          role: 'student',
+          password: 'demo',
+          allowedTopics: TOPICS.map(t => t.id), // All access by default
+          stats: { modulesCompleted: 5, totalModules: 20, lastActive: 'Yesterday', quizScores: [] }
+      }
+  ]);
 
   // Dashboard State
   const [showWelcomeOverlay, setShowWelcomeOverlay] = useState(true);
@@ -67,21 +92,41 @@ const App: React.FC = () => {
       localStorage.setItem('dbe_quiz_state', JSON.stringify(quizProgress));
   }, [quizProgress]);
 
-  // Derived Teachers List
-  const uniqueTeachers = useMemo(() => {
-      const map = new Map();
+  // Derived Locked State based on User Permissions
+  const lockedTopicIds = useMemo(() => {
+      if (!currentUser || currentUser.role === 'admin') return new Set<string>();
+      
+      const allowed = new Set(currentUser.allowedTopics || []);
+      const locked = new Set<string>();
+      
       currentTopics.forEach(t => {
-          if(!map.has(t.teacher.email)) {
-              map.set(t.teacher.email, t.teacher);
+          if (!allowed.has(t.id)) {
+              locked.add(t.id);
           }
       });
-      return Array.from(map.values());
-  }, [currentTopics]);
+      return locked;
+  }, [currentUser, currentTopics]);
+
+  // Derived Teachers List (from state now)
+  const uniqueTeachers = useMemo(() => {
+      const map = new Map();
+      // Use currentTopics teachers to ensure we show active teachers, 
+      // OR just use currentTeachers state directly if we want to show all available instructors.
+      // Let's use currentTeachers state for the Teachers Tab list.
+      return currentTeachers;
+  }, [currentTeachers]);
 
   const handleLogin = (user: User) => {
-      setCurrentUser(user);
+      // In a real app, we check the DB. Here we check the mock state.
+      const foundUser = currentUsers.find(u => u.email === user.email);
+      if (foundUser) {
+          setCurrentUser(foundUser);
+      } else {
+          // Fallback for ad-hoc logins from Login component if not in DB (legacy behavior)
+          setCurrentUser(user);
+      }
       setViewState(ViewState.HOME);
-      setShowWelcomeOverlay(true); // Reset welcome screen on new login
+      setShowWelcomeOverlay(true); 
   };
 
   const handleLogout = () => {
@@ -91,8 +136,13 @@ const App: React.FC = () => {
   };
 
   const handleTopicSelect = (topic: Topic, subTopicId?: string) => {
+    // Check User Permissions first
+    if (lockedTopicIds.has(topic.id)) {
+        alert("This module is currently locked for your account.");
+        return;
+    }
+
     // Check Prerequisites
-    // A prerequisite is a topic that is in relatedTopics AND has a lower level
     const prerequisites = currentTopics.filter(t => 
         t.relatedTopics.includes(topic.id) && t.level < topic.level
     );
@@ -118,10 +168,16 @@ const App: React.FC = () => {
     setSelectedSubTopicId(undefined);
   };
 
-  const handleApplyAdminChanges = (newTopics: Topic[]) => {
+  const handleApplyAdminChanges = (newTopics: Topic[], newTeachers: Teacher[], newUsers: User[]) => {
       setCurrentTopics(newTopics);
-      // In a real app, you would POST to server here.
-      // For this demo, we update the state directly.
+      setCurrentTeachers(newTeachers);
+      setCurrentUsers(newUsers);
+      
+      // If current user was updated, refresh session
+      if (currentUser) {
+          const freshUser = newUsers.find(u => u.id === currentUser.id);
+          if (freshUser) setCurrentUser(freshUser);
+      }
   };
 
   const toggleSubTopicCompletion = (subTopicId: string) => {
@@ -143,13 +199,11 @@ const App: React.FC = () => {
               [subTopicId]: [...(prev[subTopicId] || []), quizData]
           }));
           
-          // Only mark as complete if passed
           if (quizData.passed) {
               setSubmittedExercises(prev => new Set(prev).add(subTopicId));
               setCompletedSubTopics(prev => new Set(prev).add(subTopicId));
           }
       } else {
-          // Regular Upload exercise
           setSubmittedExercises(prev => new Set(prev).add(subTopicId));
           setCompletedSubTopics(prev => new Set(prev).add(subTopicId));
       }
@@ -236,13 +290,15 @@ const App: React.FC = () => {
   };
 
   if (viewState === ViewState.LOGIN) {
-      return <Login onLogin={handleLogin} />;
+      return <Login onLogin={handleLogin} validUsers={currentUsers} />;
   }
 
   if (viewState === ViewState.ADMIN_BUILDER && currentUser?.role === 'admin') {
       return (
         <AdminBuilder 
             initialTopics={currentTopics} 
+            initialTeachers={currentTeachers}
+            initialUsers={currentUsers}
             onApplyChanges={handleApplyAdminChanges}
             onExit={() => setViewState(ViewState.HOME)}
         />
@@ -398,6 +454,7 @@ const App: React.FC = () => {
                             topics={currentTopics} 
                             onSelectTopic={handleTopicSelect} 
                             completedSubTopics={completedSubTopics}
+                            lockedTopicIds={lockedTopicIds}
                         />
                     </div>
                 )}
@@ -425,8 +482,12 @@ const App: React.FC = () => {
                                              <div className="flex flex-col items-center text-center">
                                                 <img src={t.avatar} alt={t.name} className="w-24 h-24 rounded-full mb-4 object-cover border-4 border-slate-800 group-hover:border-blue-500/50 transition-colors" />
                                                 <h3 className="text-xl font-bold text-white mb-1 group-hover:text-blue-400 transition-colors">{t.name}</h3>
-                                                <p className="text-slate-400 text-sm mb-6">{t.role}</p>
+                                                <p className="text-slate-400 text-sm mb-4">{t.role}</p>
                                                 
+                                                {t.bio && (
+                                                    <p className="text-slate-500 text-xs line-clamp-2 mb-6 h-8">{t.bio}</p>
+                                                )}
+
                                                 <div className="w-full bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 mb-6">
                                                     <div className="text-xs text-slate-500 font-mono mb-1 uppercase tracking-wider">Modules Taught</div>
                                                     <div className="text-lg font-bold text-white">

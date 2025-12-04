@@ -58,10 +58,12 @@ export interface SubTopic {
 }
 
 export interface Teacher {
+  id: string;
   name: string;
   role: string;
   email: string;
   avatar: string;
+  bio?: string; // Short description
 }
 
 export interface Topic {
@@ -90,9 +92,20 @@ export enum ViewState {
   ADMIN_BUILDER = 'ADMIN_BUILDER'
 }
 
+export interface UserStats {
+  modulesCompleted: number;
+  totalModules: number;
+  lastActive: string;
+  quizScores: { quizTitle: string; score: number }[];
+}
+
 export interface User {
+  id: string;
   email: string;
+  password?: string; // For mock auth
   name: string;
   avatar: string;
   role?: 'student' | 'admin';
+  allowedTopics?: string[]; // IDs of allowed topics. If undefined/empty, allow all? Or assume strict.
+  stats?: UserStats; // Mock stats for admin
 }

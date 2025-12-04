@@ -5,9 +5,10 @@ import { User } from '../types';
 
 interface LoginProps {
   onLogin: (user: User) => void;
+  validUsers?: User[];
 }
 
-const Login: React.FC<LoginProps> = ({ onLogin }) => {
+const Login: React.FC<LoginProps> = ({ onLogin, validUsers }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -20,35 +21,48 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
 
     // Mock Authentication Delay
     setTimeout(() => {
-      // Mock Validation Logic
-      if (email.endsWith('@university.edu') || email === 'demo@d-be.com') {
-        if (password.length >= 6) {
-             onLogin({
-                 email: email,
-                 name: email.split('@')[0],
-                 avatar: `https://ui-avatars.com/api/?name=${email}&background=0D8ABC&color=fff`,
-                 role: 'student'
-             });
+        if (validUsers) {
+            // Check against dynamic list from Admin Builder
+            const foundUser = validUsers.find(u => u.email === email && u.password === password);
+            if (foundUser) {
+                onLogin(foundUser);
+            } else {
+                setError('Invalid credentials.');
+                setIsLoading(false);
+            }
         } else {
-            setError('Invalid credentials.');
-            setIsLoading(false);
+            // Fallback Legacy Mock Logic (if validUsers is not provided)
+            if (email.endsWith('@university.edu') || email === 'demo@d-be.com') {
+                if (password.length >= 6) {
+                    onLogin({
+                        id: `legacy-${Date.now()}`,
+                        email: email,
+                        name: email.split('@')[0],
+                        avatar: `https://ui-avatars.com/api/?name=${email}&background=0D8ABC&color=fff`,
+                        role: 'student'
+                    });
+                } else {
+                    setError('Invalid credentials.');
+                    setIsLoading(false);
+                }
+            } else if (email === 'admin@d-be.com') {
+                if (password.length >= 6) {
+                    onLogin({
+                        id: 'admin-legacy',
+                        email: email,
+                        name: "Administrator",
+                        avatar: `https://ui-avatars.com/api/?name=Admin&background=334155&color=fff`,
+                        role: 'admin'
+                    });
+                } else {
+                    setError('Invalid admin credentials.');
+                    setIsLoading(false);
+                }
+            } else {
+                setError('Access denied. Please use your university email.');
+                setIsLoading(false);
+            }
         }
-      } else if (email === 'admin@d-be.com') {
-         if (password.length >= 6) {
-             onLogin({
-                 email: email,
-                 name: "Administrator",
-                 avatar: `https://ui-avatars.com/api/?name=Admin&background=334155&color=fff`,
-                 role: 'admin'
-             });
-         } else {
-             setError('Invalid admin credentials.');
-             setIsLoading(false);
-         }
-      } else {
-        setError('Access denied. Please use your university email.');
-        setIsLoading(false);
-      }
     }, 1000);
   };
 

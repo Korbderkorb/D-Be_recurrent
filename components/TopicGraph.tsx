@@ -2,12 +2,13 @@
 import React, { useEffect, useRef, useMemo, useState } from 'react';
 import * as d3 from 'd3';
 import { Topic } from '../types';
-import { Check } from 'lucide-react';
+import { Check, Lock } from 'lucide-react';
 
 interface TopicGraphProps {
   topics: Topic[];
   onSelectTopic: (topic: Topic) => void;
   completedSubTopics: Set<string>;
+  lockedTopicIds?: Set<string>; // IDs of topics the user cannot access
 }
 
 // Layout Constants
@@ -17,7 +18,7 @@ const LEVEL_SPACING = 500;
 const NODE_SPACING = 280;  
 const CONNECTOR_OFFSET = 15; 
 
-const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, completedSubTopics }) => {
+const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, completedSubTopics, lockedTopicIds = new Set() }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
@@ -60,6 +61,9 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
     let completed = 0;
     let total = 0;
     topics.forEach(t => {
+        // If lockedTopicIds is provided, we exclude them from stats
+        if (lockedTopicIds.has(t.id)) return;
+
         t.subTopics.forEach(st => {
             total++;
             if (completedSubTopics.has(st.id)) completed++;
@@ -70,12 +74,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
         total, 
         percent: total > 0 ? Math.round((completed/total)*100) : 0 
     };
-  }, [topics, completedSubTopics]);
-
-  const isComplete = useMemo(() => (topic: Topic) => {
-    const stats = getProgressStats(topic);
-    return stats.total > 0 && stats.percent === 100;
-  }, [getProgressStats]);
+  }, [topics, completedSubTopics, lockedTopicIds]);
 
   useEffect(() => {
     if (!topics.length || !svgRef.current || !containerRef.current) return;
@@ -83,7 +82,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
     const width = containerRef.current.clientWidth;
     const height = containerRef.current.clientHeight;
 
-    // --- 1. Layout Engine (Multi-Pass Barycentric Sweep) ---
+    // --- 1. Layout Engine ---
     
     const levels: Record<number, Topic[]> = {};
     let maxLevel = 0;
@@ -111,13 +110,11 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
     // Initial Positions
     for (let lvl = 1; lvl <= maxLevel; lvl++) {
         const nodes = levels[lvl] || [];
-        // Initial sort by relationship or index to keep some stability
         applySpacing(nodes, 100 + (lvl - 1) * LEVEL_SPACING);
     }
 
-    // Iterative Refinement (10 Passes) to minimize global crossings
+    // Iterative Refinement
     for (let i = 0; i < 10; i++) {
-        // Forward Pass (Align with parents)
         for (let lvl = 2; lvl <= maxLevel; lvl++) {
             const currentNodes = levels[lvl] || [];
             const nodesWithWeight = currentNodes.map(node => {
@@ -133,7 +130,6 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
             applySpacing(nodesWithWeight.map(n => n.node), 100 + (lvl - 1) * LEVEL_SPACING);
         }
 
-        // Backward Pass (Align with children)
         for (let lvl = maxLevel - 1; lvl >= 1; lvl--) {
             const currentNodes = levels[lvl] || [];
             const nodesWithWeight = currentNodes.map(node => {
@@ -151,8 +147,6 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
     }
 
     // --- 2. Edge Routing & Port Sorting ---
-    
-    // 2a. Create intermediate node objects
     const nodes = topics.map(t => {
         const pos = nodePositions.get(t.id) || { x: 0, y: 0 };
         const stats = getProgressStats(t);
@@ -161,11 +155,11 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
             x: pos.x,
             y: pos.y,
             stats,
-            complete: stats.percent === 100
+            complete: stats.percent === 100,
+            locked: lockedTopicIds.has(t.id)
         };
     });
 
-    // 2b. Generate all links first
     interface LinkData {
         source: typeof nodes[0];
         target: typeof nodes[0];
@@ -190,8 +184,6 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
         });
     });
 
-    // 2c. Sort Ports to minimize local crossings
-    // For each node, sort its OUTGOING links based on the Y position of the TARGET
     nodes.forEach(node => {
         const outgoing = allLinks.filter(l => l.source.id === node.id);
         outgoing.sort((a, b) => a.target.y - b.target.y);
@@ -201,7 +193,6 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
         });
     });
 
-    // For each node, sort its INCOMING links based on the Y position of the SOURCE
     nodes.forEach(node => {
         const incoming = allLinks.filter(l => l.target.id === node.id);
         incoming.sort((a, b) => a.source.y - b.source.y);
@@ -224,7 +215,6 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
             transformRef.current = event.transform; 
         });
 
-    // Initial Zoom Fit Logic (Only if first render or zoom is identity)
     const isZoomIdentity = transformRef.current.k === 1 && transformRef.current.x === 0 && transformRef.current.y === 0;
 
     const minX = d3.min(nodes, d => d.x) || 0;
@@ -256,7 +246,6 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
 
     svg.call(zoom);
     
-    // Apply transform: use current if available to maintain zoom across filter changes, else use initial fit
     if (!isZoomIdentity) {
         svg.call(zoom.transform, transformRef.current);
     } else {
@@ -289,7 +278,9 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
             .attr("xlink:href", node.imageUrl)
             .attr("width", NODE_WIDTH)
             .attr("height", NODE_HEIGHT - 40)
-            .attr("preserveAspectRatio", "xMidYMid slice");
+            .attr("preserveAspectRatio", "xMidYMid slice")
+            // Grayscale if locked
+            .attr("filter", node.locked ? "grayscale(100%)" : "none");
     });
 
     zoomGroup.append("rect")
@@ -300,7 +291,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
         .attr("fill", "url(#cross-pattern)");
 
     // Links
-    const linkSelection = zoomGroup.selectAll(".link")
+    zoomGroup.selectAll(".link")
         .data(allLinks)
         .enter()
         .append("path")
@@ -328,20 +319,22 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
         .attr("stroke", d => d.active ? "#4ade80" : "#64748b")
         .attr("stroke-width", d => d.active ? 4 : 2)
         .attr("stroke-dasharray", d => d.active ? "0" : "6,6")
-        // Grey out link if either source or target is hidden
         .attr("opacity", d => {
             const sourceHidden = hiddenTeacherEmails.has(d.source.teacher.email);
             const targetHidden = hiddenTeacherEmails.has(d.target.teacher.email);
+            const sourceLocked = d.source.locked;
+            const targetLocked = d.target.locked;
+
             if (sourceHidden || targetHidden) return 0.1;
+            if (sourceLocked || targetLocked) return 0.2; // Dim links connecting locked nodes
             return d.active ? 1.0 : 0.5;
         });
 
-    // Connectors - Source
+    // Connectors
     zoomGroup.selectAll(".connector-source")
         .data(allLinks)
         .enter()
         .append("path")
-        .attr("class", "connector-source transition-all duration-300")
         .attr("d", d => {
             const sIdx = d.sourceIndex || 0;
             const sTot = d.sourceTotal || 1;
@@ -353,18 +346,12 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
         .attr("fill", "#0f172a")
         .attr("stroke", d => d.active ? "#4ade80" : "#64748b")
         .attr("stroke-width", 2)
-        .attr("opacity", d => {
-            const sourceHidden = hiddenTeacherEmails.has(d.source.teacher.email);
-            if (sourceHidden) return 0.1;
-            return 1;
-        });
+        .attr("opacity", d => (hiddenTeacherEmails.has(d.source.teacher.email) || d.source.locked) ? 0.2 : 1);
 
-    // Connectors - Target
     zoomGroup.selectAll(".connector-target")
         .data(allLinks)
         .enter()
         .append("path")
-        .attr("class", "connector-target transition-all duration-300")
         .attr("d", d => {
             const tIdx = d.targetIndex || 0;
             const tTot = d.targetTotal || 1;
@@ -376,11 +363,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
         .attr("fill", "#0f172a")
         .attr("stroke", d => d.active ? "#4ade80" : "#64748b")
         .attr("stroke-width", 2)
-        .attr("opacity", d => {
-            const targetHidden = hiddenTeacherEmails.has(d.target.teacher.email);
-            if (targetHidden) return 0.1;
-            return 1;
-        });
+        .attr("opacity", d => (hiddenTeacherEmails.has(d.target.teacher.email) || d.target.locked) ? 0.2 : 1);
 
     // Nodes
     const nodeGroups = zoomGroup.selectAll(".node")
@@ -389,12 +372,15 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
         .append("g")
         .attr("class", "node group") 
         .attr("transform", d => `translate(${d.x}, ${d.y})`)
-        .attr("cursor", "pointer")
-        // Grey out node if hidden
-        .attr("opacity", d => hiddenTeacherEmails.has(d.teacher.email) ? 0.2 : 1)
-        .style("filter", d => hiddenTeacherEmails.has(d.teacher.email) ? "grayscale(100%)" : "none")
+        .attr("cursor", d => d.locked ? "not-allowed" : "pointer")
+        .attr("opacity", d => {
+            if (hiddenTeacherEmails.has(d.teacher.email)) return 0.2;
+            if (d.locked) return 0.4;
+            return 1;
+        })
+        .style("filter", d => (hiddenTeacherEmails.has(d.teacher.email) || d.locked) ? "grayscale(100%)" : "none")
         .on("click", (e, d) => {
-            if (!hiddenTeacherEmails.has(d.teacher.email)) {
+            if (!hiddenTeacherEmails.has(d.teacher.email) && !d.locked) {
                 onSelectTopic(d);
             }
         });
@@ -413,8 +399,8 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
         .attr("height", NODE_HEIGHT)
         .attr("rx", 0)
         .attr("fill", "#1e293b") 
-        .attr("stroke", d => d.complete ? "#22c55e" : (d.level === 1 ? "#3b82f6" : "#334155"))
-        .attr("stroke-width", d => d.complete || d.level === 1 ? 2 : 1);
+        .attr("stroke", d => d.locked ? "#475569" : (d.complete ? "#22c55e" : (d.level === 1 ? "#3b82f6" : "#334155")))
+        .attr("stroke-width", d => (d.complete || d.level === 1) && !d.locked ? 2 : 1);
 
     nodeGroups.append("rect")
         .attr("x", 1)
@@ -423,6 +409,30 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
         .attr("height", NODE_HEIGHT - 42)
         .attr("fill", d => `url(#img-${d.id})`)
         .attr("opacity", d => d.complete ? 0.9 : 0.6); 
+
+    // Locked Overlay
+    nodeGroups.filter(d => d.locked)
+        .append("rect")
+        .attr("x", 1)
+        .attr("y", 1)
+        .attr("width", NODE_WIDTH - 2)
+        .attr("height", NODE_HEIGHT - 42)
+        .attr("fill", "rgba(15, 23, 42, 0.6)");
+
+    // Locked Icon
+    // Need to use foreignObject to render Lucide icon or just simple SVG path
+    const lockedNodes = nodeGroups.filter(d => d.locked);
+    lockedNodes.append("circle")
+        .attr("cx", NODE_WIDTH / 2)
+        .attr("cy", (NODE_HEIGHT - 42) / 2)
+        .attr("r", 20)
+        .attr("fill", "#0f172a")
+        .attr("stroke", "#475569");
+        
+    lockedNodes.append("path")
+        .attr("d", "M12 11V7a4 4 0 0 0-8 0v4H3v10h18V11h-1zm-4 0h-4V7a2 2 0 1 1 4 0v4z") // Simple lock path
+        .attr("transform", `translate(${NODE_WIDTH/2 - 9}, ${(NODE_HEIGHT - 42)/2 - 10}) scale(0.75)`)
+        .attr("fill", "#94a3b8");
 
     const hoverGroup = nodeGroups.append("g")
         .attr("class", "hover-overlay") 
@@ -445,12 +455,12 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
         .style("font-size", "10px")
         .style("color", "#cbd5e1") 
         .style("overflow", "hidden")
-        .html(d => d.shortDescription);
+        .html(d => d.locked ? "LOCKED: Access restricted by administrator." : d.shortDescription);
 
     // --- Interaction Logic ---
     nodeGroups
         .on("mouseenter", function(event, d) {
-            if (hiddenTeacherEmails.has(d.teacher.email)) return;
+            if (hiddenTeacherEmails.has(d.teacher.email) || d.locked) return;
 
             const hoveredId = d.id;
 
@@ -477,19 +487,6 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
                 .attr("stroke-width", 3)
                 .attr("opacity", 1);
 
-            // 3. Highlight Connectors connected to this node
-            zoomGroup.selectAll(".connector-source")
-                .filter((l: any) => l.source.id === hoveredId)
-                .transition().duration(200)
-                .attr("fill", "#cbd5e1") 
-                .attr("stroke", "#fff");
-
-            zoomGroup.selectAll(".connector-target")
-                .filter((l: any) => l.target.id === hoveredId)
-                .transition().duration(200)
-                .attr("fill", "#cbd5e1") 
-                .attr("stroke", "#fff");
-
             // 4. Highlight Neighbor Nodes
             const neighborIds = new Set();
             allLinks.forEach(l => {
@@ -498,7 +495,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
             });
 
             zoomGroup.selectAll(".node")
-                .filter((n: any) => neighborIds.has(n.id) && !hiddenTeacherEmails.has(n.teacher.email))
+                .filter((n: any) => neighborIds.has(n.id) && !hiddenTeacherEmails.has(n.teacher.email) && !n.locked)
                 .select(".node-body")
                 .transition().duration(200)
                 .attr("stroke", "#fff")
@@ -506,7 +503,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
                 .attr("stroke-opacity", 0.5); 
         })
         .on("mouseleave", function(event, d) {
-            if (hiddenTeacherEmails.has(d.teacher.email)) return;
+            if (hiddenTeacherEmails.has(d.teacher.email) || d.locked) return;
 
             d3.select(this).select(".hover-overlay")
                 .transition().duration(200)
@@ -529,22 +526,15 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
                 .attr("opacity", (l: any) => {
                      const sourceHidden = hiddenTeacherEmails.has(l.source.teacher.email);
                      const targetHidden = hiddenTeacherEmails.has(l.target.teacher.email);
+                     const sourceLocked = l.source.locked;
+                     const targetLocked = l.target.locked;
                      if (sourceHidden || targetHidden) return 0.1;
+                     if (sourceLocked || targetLocked) return 0.2;
                      return l.active ? 1.0 : 0.5;
                 });
             
-            zoomGroup.selectAll(".connector-source")
-                .transition().duration(200)
-                .attr("fill", "#0f172a")
-                .attr("stroke", (l: any) => l.active ? "#4ade80" : "#64748b");
-
-            zoomGroup.selectAll(".connector-target")
-                .transition().duration(200)
-                .attr("fill", "#0f172a")
-                .attr("stroke", (l: any) => l.active ? "#4ade80" : "#64748b");
-
             zoomGroup.selectAll(".node")
-                .filter((n: any) => !hiddenTeacherEmails.has(n.teacher.email))
+                .filter((n: any) => !hiddenTeacherEmails.has(n.teacher.email) && !n.locked)
                 .select(".node-body")
                 .transition().duration(200)
                 .attr("stroke", (n: any) => n.complete ? "#22c55e" : (n.level === 1 ? "#3b82f6" : "#334155"))
@@ -608,7 +598,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
             .attr("opacity", 0); 
     });
 
-  }, [topics, onSelectTopic, completedSubTopics, getProgressStats, isComplete, hiddenTeacherEmails]);
+  }, [topics, onSelectTopic, completedSubTopics, getProgressStats, hiddenTeacherEmails, lockedTopicIds]);
 
   const handleMouseMove = (e: React.MouseEvent) => {
       if (!containerRef.current) return;
