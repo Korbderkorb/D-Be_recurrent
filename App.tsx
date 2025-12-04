@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { TOPICS } from './constants';
 import { Topic, ViewState, User, Comment, QuizAttempt } from './types';
 import TopicGraph from './components/TopicGraph';
@@ -7,7 +7,7 @@ import TopicDetail from './components/TopicDetail';
 import Login from './components/Login';
 import ModuleList from './components/ModuleList';
 import AdminBuilder from './components/AdminBuilder';
-import { BookOpen, Layers, Search, LogOut, LayoutGrid, Network, ArrowRight, Edit3, Lock, AlertTriangle } from 'lucide-react';
+import { BookOpen, Layers, Search, LogOut, LayoutGrid, Network, ArrowRight, ArrowLeft, Edit3, Lock, AlertTriangle, GraduationCap } from 'lucide-react';
 
 const App: React.FC = () => {
   const [viewState, setViewState] = useState<ViewState>(ViewState.LOGIN);
@@ -21,7 +21,8 @@ const App: React.FC = () => {
 
   // Dashboard State
   const [showWelcomeOverlay, setShowWelcomeOverlay] = useState(true);
-  const [dashboardMode, setDashboardMode] = useState<'GRAPH' | 'LIST'>('GRAPH');
+  const [dashboardMode, setDashboardMode] = useState<'GRAPH' | 'LIST' | 'TEACHERS'>('GRAPH');
+  const [selectedTeacherEmail, setSelectedTeacherEmail] = useState<string | null>(null);
 
   // Persistence State
   const [completedSubTopics, setCompletedSubTopics] = useState<Set<string>>(new Set());
@@ -65,6 +66,17 @@ const App: React.FC = () => {
   useEffect(() => {
       localStorage.setItem('dbe_quiz_state', JSON.stringify(quizProgress));
   }, [quizProgress]);
+
+  // Derived Teachers List
+  const uniqueTeachers = useMemo(() => {
+      const map = new Map();
+      currentTopics.forEach(t => {
+          if(!map.has(t.teacher.email)) {
+              map.set(t.teacher.email, t.teacher);
+          }
+      });
+      return Array.from(map.values());
+  }, [currentTopics]);
 
   const handleLogin = (user: User) => {
       setCurrentUser(user);
@@ -310,6 +322,13 @@ const App: React.FC = () => {
                     <LayoutGrid className="w-4 h-4" />
                     <span className="hidden sm:inline">View Progress</span>
                 </button>
+                <button 
+                    onClick={() => setDashboardMode('TEACHERS')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${dashboardMode === 'TEACHERS' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                >
+                    <GraduationCap className="w-4 h-4" />
+                    <span className="hidden sm:inline">Teachers</span>
+                </button>
             </div>
 
             <div className="flex items-center gap-4">
@@ -373,7 +392,7 @@ const App: React.FC = () => {
             )}
 
             <div className="w-full h-full bg-slate-950">
-                {dashboardMode === 'GRAPH' ? (
+                {dashboardMode === 'GRAPH' && (
                     <div className="w-full h-full relative">
                         <TopicGraph 
                             topics={currentTopics} 
@@ -381,12 +400,78 @@ const App: React.FC = () => {
                             completedSubTopics={completedSubTopics}
                         />
                     </div>
-                ) : (
+                )}
+
+                {dashboardMode === 'LIST' && (
                     <ModuleList 
                         topics={currentTopics} 
                         completedSubTopics={completedSubTopics}
                         onSelectTopic={handleTopicSelect}
                     />
+                )}
+
+                {dashboardMode === 'TEACHERS' && (
+                    <div className="w-full h-full bg-slate-950 overflow-y-auto">
+                        {!selectedTeacherEmail ? (
+                            <div className="p-8 max-w-7xl mx-auto">
+                                <h2 className="text-3xl font-bold text-white mb-8">Instructors</h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {uniqueTeachers.map(t => (
+                                        <div 
+                                            key={t.email} 
+                                            onClick={() => setSelectedTeacherEmail(t.email)} 
+                                            className="bg-slate-900 border border-slate-800 rounded-2xl p-6 hover:bg-slate-800 hover:border-slate-700 transition-all cursor-pointer group"
+                                        >
+                                             <div className="flex flex-col items-center text-center">
+                                                <img src={t.avatar} alt={t.name} className="w-24 h-24 rounded-full mb-4 object-cover border-4 border-slate-800 group-hover:border-blue-500/50 transition-colors" />
+                                                <h3 className="text-xl font-bold text-white mb-1 group-hover:text-blue-400 transition-colors">{t.name}</h3>
+                                                <p className="text-slate-400 text-sm mb-6">{t.role}</p>
+                                                
+                                                <div className="w-full bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 mb-6">
+                                                    <div className="text-xs text-slate-500 font-mono mb-1 uppercase tracking-wider">Modules Taught</div>
+                                                    <div className="text-lg font-bold text-white">
+                                                        {currentTopics.filter(top => top.teacher.email === t.email).length}
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center text-blue-500 text-sm font-bold bg-blue-500/10 px-4 py-2 rounded-full border border-blue-500/20 group-hover:bg-blue-500 group-hover:text-white transition-all">
+                                                    View Curriculum <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                                                </div>
+                                             </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col h-full">
+                                <div className="p-6 pb-0 max-w-4xl mx-auto w-full">
+                                    <button onClick={() => setSelectedTeacherEmail(null)} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-4 group">
+                                        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> Back to Instructors
+                                    </button>
+                                    
+                                    {(() => {
+                                        const teacher = uniqueTeachers.find(t => t.email === selectedTeacherEmail);
+                                        return teacher ? (
+                                            <div className="flex items-center gap-4 mb-6 bg-slate-900 border border-slate-800 p-4 rounded-xl">
+                                                <img src={teacher.avatar} alt={teacher.name} className="w-12 h-12 rounded-full border border-slate-700" />
+                                                <div>
+                                                    <h2 className="text-lg font-bold text-white">{teacher.name}</h2>
+                                                    <p className="text-slate-400 text-sm">Instructor Curriculum</p>
+                                                </div>
+                                            </div>
+                                        ) : null;
+                                    })()}
+                                </div>
+                                <div className="flex-1">
+                                    <ModuleList 
+                                        topics={currentTopics.filter(t => t.teacher.email === selectedTeacherEmail)} 
+                                        completedSubTopics={completedSubTopics}
+                                        onSelectTopic={handleTopicSelect}
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 )}
             </div>
 

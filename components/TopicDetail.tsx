@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { ArrowLeft, Clock, PlayCircle, MessageCircle, FileText, CheckCircle2, Circle, AlertTriangle, Upload, Check, HelpCircle, Download, User as UserIcon, Mail, Reply, Copy, Trash2, XCircle, RotateCcw, History, CheckSquare } from 'lucide-react';
+import { ArrowLeft, Clock, PlayCircle, MessageCircle, FileText, CheckCircle2, Circle, AlertTriangle, Upload, Check, HelpCircle, Download, User as UserIcon, Mail, Reply, Copy, Trash2, XCircle, RotateCcw, History, CheckSquare, UploadCloud } from 'lucide-react';
 import { Topic, Comment, User, QuizAttempt } from '../types';
 import VideoPlayer from './VideoPlayer';
 
@@ -52,7 +52,9 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
   // Quiz State
   const [selectedQuizAnswers, setSelectedQuizAnswers] = useState<Record<string, number[]>>({});
   const [showQuizResults, setShowQuizResults] = useState(false);
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  
+  // Upload State
+  const [uploadedFiles, setUploadedFiles] = useState<Record<string, File>>({});
 
   const activeSubTopic = useMemo(() => 
     topic.subTopics.find(st => st.id === activeSubTopicId), 
@@ -70,7 +72,7 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
 
   useEffect(() => {
     // Reset state when changing subtopics
-    setUploadedFile(null);
+    setUploadedFiles({});
     setReplyInputOpen(null);
     setReplyText('');
     setEmailCopied(false);
@@ -170,14 +172,15 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
       setShowQuizResults(false);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, reqKey: string) => {
       if (e.target.files && e.target.files[0]) {
-          setUploadedFile(e.target.files[0]);
+          const file = e.target.files[0];
+          setUploadedFiles(prev => ({ ...prev, [reqKey]: file }));
       }
   };
 
   const submitUpload = () => {
-      if (activeSubTopic && uploadedFile) {
+      if (activeSubTopic) {
           onSubmitExercise(activeSubTopic.id);
       }
   }
@@ -407,17 +410,27 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
                              </div>
                          )}
 
-                         <button 
-                            onClick={() => onToggleComplete(activeSubTopic.id)}
-                            className={`flex items-center gap-2 text-sm px-4 py-2 rounded-full border transition-all ${
-                                isCompleted 
-                                ? 'bg-green-500 text-white border-green-500 hover:bg-green-600' 
-                                : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-500'
-                            }`}
-                         >
-                            {isCompleted ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
-                            {isCompleted ? 'Completed' : 'Mark as Complete'}
-                         </button>
+                         {/* Only show "Mark as Complete" for Video modules. Exercises are auto-completed on submission. */}
+                         {isCompleted && (activeSubTopic.type === 'EXERCISE_UPLOAD' || activeSubTopic.type === 'EXERCISE_QUIZ') ? (
+                             <div className="flex items-center gap-2 text-sm px-4 py-2 rounded-full bg-green-500/10 text-green-500 border border-green-500/20">
+                                 <CheckCircle2 className="w-4 h-4" />
+                                 Completed
+                             </div>
+                         ) : (
+                             (activeSubTopic.type === 'VIDEO' || !activeSubTopic.type) && (
+                                <button 
+                                    onClick={() => onToggleComplete(activeSubTopic.id)}
+                                    className={`flex items-center gap-2 text-sm px-4 py-2 rounded-full border transition-all ${
+                                        isCompleted 
+                                        ? 'bg-green-500 text-white border-green-500 hover:bg-green-600' 
+                                        : 'bg-slate-800 text-slate-300 border-slate-700 hover:border-slate-500'
+                                    }`}
+                                >
+                                    {isCompleted ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
+                                    {isCompleted ? 'Completed' : 'Mark as Complete'}
+                                </button>
+                             )
+                         )}
                      </div>
                   </div>
                   
@@ -445,8 +458,11 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
                                   <p className="text-lg text-slate-300">{activeSubTopic.description}</p>
                                   <h4 className="text-white font-bold mt-4">Deliverables:</h4>
                                   <ul className="list-disc list-inside text-slate-400 space-y-2">
-                                      <li>Project Files</li>
-                                      <li>Documentation</li>
+                                      {activeSubTopic.uploadRequirements && activeSubTopic.uploadRequirements.length > 0 ? (
+                                          activeSubTopic.uploadRequirements.map((req, i) => <li key={i}>{req}</li>)
+                                      ) : (
+                                          <li>Project File</li>
+                                      )}
                                   </ul>
                               </div>
                               
@@ -454,16 +470,42 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
                                   {!isSubmitted ? (
                                       <>
                                           <Upload className="w-10 h-10 text-slate-500 mb-4" />
-                                          <h4 className="text-white font-medium mb-2">Upload your submission</h4>
-                                          <input type="file" onChange={handleFileUpload} className="hidden" id="file-upload" />
-                                          <label htmlFor="file-upload" className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg cursor-pointer font-medium transition-colors">
-                                              Browse Files
-                                          </label>
-                                          {uploadedFile && (
-                                              <div className="mt-4 flex items-center gap-2 text-green-400 text-sm bg-green-500/10 px-3 py-1.5 rounded-full border border-green-500/20">
-                                                  <Check className="w-4 h-4" /> {uploadedFile.name}
-                                              </div>
-                                          )}
+                                          <h4 className="text-white font-medium mb-4">Upload your submission</h4>
+                                          
+                                          {/* Multiple Upload Fields */}
+                                          <div className="w-full max-w-md space-y-4">
+                                              {(activeSubTopic.uploadRequirements && activeSubTopic.uploadRequirements.length > 0) ? (
+                                                  activeSubTopic.uploadRequirements.map((req, i) => (
+                                                      <div key={i} className="flex flex-col gap-1 text-left">
+                                                          <label className="text-xs font-bold text-slate-400 uppercase ml-1">{req}</label>
+                                                          <div className="flex items-center gap-2">
+                                                              <label className="flex-1 flex items-center gap-2 px-4 py-2 bg-slate-800 rounded-lg cursor-pointer hover:bg-slate-700 border border-slate-700 hover:border-slate-600 transition-all group">
+                                                                  <input type="file" onChange={(e) => handleFileUpload(e, req)} className="hidden" />
+                                                                  {uploadedFiles[req] ? <Check className="w-4 h-4 text-green-500" /> : <UploadCloud className="w-4 h-4 text-slate-500 group-hover:text-white" />}
+                                                                  <span className={`text-sm ${uploadedFiles[req] ? 'text-green-400' : 'text-slate-300'}`}>
+                                                                      {uploadedFiles[req] ? uploadedFiles[req].name : 'Choose File...'}
+                                                                  </span>
+                                                              </label>
+                                                          </div>
+                                                      </div>
+                                                  ))
+                                              ) : (
+                                                  /* Default Single Upload */
+                                                  <div className="flex justify-center">
+                                                      <label className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg cursor-pointer font-medium transition-colors flex items-center gap-2">
+                                                          <input type="file" onChange={(e) => handleFileUpload(e, 'default')} className="hidden" />
+                                                          Browse Files
+                                                      </label>
+                                                  </div>
+                                              )}
+                                              
+                                              {/* Show selected file for single upload case if needed */}
+                                              {(!activeSubTopic.uploadRequirements || activeSubTopic.uploadRequirements.length === 0) && uploadedFiles['default'] && (
+                                                  <div className="mt-4 flex items-center justify-center gap-2 text-green-400 text-sm bg-green-500/10 px-3 py-1.5 rounded-full border border-green-500/20 mx-auto w-fit">
+                                                      <Check className="w-4 h-4" /> {uploadedFiles['default'].name}
+                                                  </div>
+                                              )}
+                                          </div>
                                       </>
                                   ) : (
                                       <div className="flex flex-col items-center">
@@ -480,7 +522,11 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
                                 <div className="flex justify-end">
                                     <button 
                                         onClick={submitUpload}
-                                        disabled={!uploadedFile} 
+                                        disabled={
+                                            (activeSubTopic.uploadRequirements && activeSubTopic.uploadRequirements.length > 0)
+                                            ? activeSubTopic.uploadRequirements.some(req => !uploadedFiles[req])
+                                            : !uploadedFiles['default']
+                                        } 
                                         className="px-8 py-3 bg-green-600 hover:bg-green-500 text-white font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-green-500/20"
                                     >
                                         Submit Exercise
@@ -534,8 +580,6 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
                                                       icon = <XCircle className="w-5 h-5" />;
                                                   } else {
                                                       // Not selected.
-                                                      // If passed, we can show everything. If failed, keep neutral to not reveal?
-                                                      // Prompt: "dont give the correct answer" (likely implies for missed ones)
                                                       optClass = "border-slate-800 opacity-50";
                                                   }
                                               } else if (isSelected) {

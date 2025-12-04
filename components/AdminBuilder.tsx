@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Download, Plus, Trash2, Edit2, GripVertical, ChevronRight, Video, Upload, HelpCircle, UploadCloud, RefreshCw, Copy, AlertCircle, Info, Settings, Save, CheckSquare, Square } from 'lucide-react';
+import { Download, Plus, Trash2, Edit2, GripVertical, ChevronRight, Video, Upload, HelpCircle, UploadCloud, RefreshCw, Copy, AlertCircle, Info, Settings, Save, CheckSquare, Square, X } from 'lucide-react';
 import { Topic, SubTopic, Teacher, SubTopicType, QuizQuestion } from '../types';
 import { teachers } from '../constants';
 
@@ -117,6 +117,7 @@ interface ModuleEditorProps {
 const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSubIds, onUpdate, onDelete }) => {
   const [expanded, setExpanded] = useState(false);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
+  const [newUploadReq, setNewUploadReq] = useState('');
 
   const subIdConflict = existingSubIds.includes(module._subId);
 
@@ -200,6 +201,8 @@ const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSu
                              <p className="text-[10px] text-slate-500 mt-1">Changing IDs will reset progress for users who have completed this module.</p>
                         </div>
                     )}
+                    
+                    {/* VIDEO SPECIFIC */}
                     {module.type === 'VIDEO' && (
                          <div className="col-span-12 flex items-end pb-2">
                              <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-700 select-none">
@@ -207,6 +210,56 @@ const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSu
                              </label>
                          </div>
                     )}
+
+                    {/* UPLOAD EXERCISE SPECIFIC */}
+                    {module.type === 'EXERCISE_UPLOAD' && (
+                        <div className="col-span-12 bg-slate-100 p-3 rounded border border-slate-200">
+                             <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Upload Requirements</label>
+                             <div className="space-y-2 mb-3">
+                                 {(module.uploadRequirements || []).map((req, idx) => (
+                                     <div key={idx} className="flex items-center gap-2">
+                                         <span className="text-sm font-medium text-slate-700 bg-white border px-2 py-1 rounded flex-1">{req}</span>
+                                         <button 
+                                            onClick={() => onUpdate({ ...module, uploadRequirements: (module.uploadRequirements || []).filter((_, i) => i !== idx) })}
+                                            className="text-slate-400 hover:text-red-500"
+                                         >
+                                             <X size={14} />
+                                         </button>
+                                     </div>
+                                 ))}
+                                 {(module.uploadRequirements || []).length === 0 && (
+                                     <div className="text-xs text-slate-400 italic">No specific requirements (Single file upload default).</div>
+                                 )}
+                             </div>
+                             <div className="flex gap-2">
+                                 <input 
+                                    type="text" 
+                                    value={newUploadReq}
+                                    onChange={(e) => setNewUploadReq(e.target.value)}
+                                    placeholder="E.g. Rhino Model, Render Image..."
+                                    className="flex-1 p-1.5 text-sm border border-slate-300 rounded focus:ring-1 focus:ring-blue-400 outline-none"
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter' && newUploadReq.trim()) {
+                                            onUpdate({ ...module, uploadRequirements: [...(module.uploadRequirements || []), newUploadReq.trim()] });
+                                            setNewUploadReq('');
+                                        }
+                                    }}
+                                 />
+                                 <button 
+                                    onClick={() => {
+                                        if (newUploadReq.trim()) {
+                                            onUpdate({ ...module, uploadRequirements: [...(module.uploadRequirements || []), newUploadReq.trim()] });
+                                            setNewUploadReq('');
+                                        }
+                                    }}
+                                    className="px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-500"
+                                 >
+                                     Add
+                                 </button>
+                             </div>
+                        </div>
+                    )}
+
                     <div className="col-span-12 mt-2 bg-slate-100/50 p-4 rounded border border-slate-200">
                         <h4 className="text-xs font-bold text-slate-600 uppercase mb-3 flex items-center gap-2"><UploadCloud size={14} /> File Paths</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -215,6 +268,8 @@ const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSu
                              {(module.hasResources !== false || module.resources) && ( <> <PathDisplay label="Notes" path={getGeneratedPath(topicId, module._subId, 'pdf')} /> {module.type === 'VIDEO' && ( <PathDisplay label="Source" path={getGeneratedPath(topicId, module._subId, 'zip')} /> )} </> )}
                         </div>
                     </div>
+                    
+                    {/* QUIZ SPECIFIC */}
                     {module.type === 'EXERCISE_QUIZ' && (
                         <div className="col-span-12 mt-2 pt-4 border-t border-slate-200">
                             <div className="flex justify-between items-center mb-2">
@@ -361,7 +416,7 @@ export default function AdminBuilder({ initialTopics, onApplyChanges, onExit }: 
                  multiSelect: q.multiSelect || false
              }));
 
-             return { ...s, _subId: subId, _key: generateKey(), quizQuestions };
+             return { ...s, _subId: subId, _key: generateKey(), quizQuestions, uploadRequirements: s.uploadRequirements || [] };
           })
         };
     });

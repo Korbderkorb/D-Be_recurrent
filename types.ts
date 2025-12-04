@@ -47,6 +47,7 @@ export interface SubTopic {
   };
   // Exercise Specifics
   exerciseImage?: string; 
+  uploadRequirements?: string[]; // Labels for required upload fields
   // Quiz Specifics
   quizQuestions?: QuizQuestion[];
   
