@@ -1,0 +1,420 @@
+
+import React, { useState, useEffect } from 'react';
+import { TOPICS } from './constants';
+import { Topic, ViewState, User, Comment, QuizAttempt } from './types';
+import TopicGraph from './components/TopicGraph';
+import TopicDetail from './components/TopicDetail';
+import Login from './components/Login';
+import ModuleList from './components/ModuleList';
+import AdminBuilder from './components/AdminBuilder';
+import { BookOpen, Layers, Search, LogOut, LayoutGrid, Network, ArrowRight, Edit3, Lock, AlertTriangle } from 'lucide-react';
+
+const App: React.FC = () => {
+  const [viewState, setViewState] = useState<ViewState>(ViewState.LOGIN);
+  const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
+  const [selectedSubTopicId, setSelectedSubTopicId] = useState<string | undefined>(undefined);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [lockedTopicAlert, setLockedTopicAlert] = useState<{show: boolean, topic: Topic | null, missing: Topic[]} | null>(null);
+  
+  // App Data State (mutable for Admin Builder)
+  const [currentTopics, setCurrentTopics] = useState<Topic[]>(TOPICS);
+
+  // Dashboard State
+  const [showWelcomeOverlay, setShowWelcomeOverlay] = useState(true);
+  const [dashboardMode, setDashboardMode] = useState<'GRAPH' | 'LIST'>('GRAPH');
+
+  // Persistence State
+  const [completedSubTopics, setCompletedSubTopics] = useState<Set<string>>(new Set());
+  const [submittedExercises, setSubmittedExercises] = useState<Set<string>>(new Set());
+  const [topicComments, setTopicComments] = useState<Record<string, Comment[]>>({});
+  const [quizProgress, setQuizProgress] = useState<Record<string, QuizAttempt[]>>({});
+
+  // Responsive Initialization
+  useEffect(() => {
+    if (window.innerWidth < 768) {
+      setDashboardMode('LIST');
+    }
+  }, []);
+
+  // Load from LocalStorage on mount
+  useEffect(() => {
+    const savedProgress = localStorage.getItem('dbe_progress');
+    const savedExercises = localStorage.getItem('dbe_exercises');
+    const savedComments = localStorage.getItem('dbe_comments');
+    const savedQuizProgress = localStorage.getItem('dbe_quiz_state');
+
+    if (savedProgress) setCompletedSubTopics(new Set(JSON.parse(savedProgress)));
+    if (savedExercises) setSubmittedExercises(new Set(JSON.parse(savedExercises)));
+    if (savedComments) setTopicComments(JSON.parse(savedComments));
+    if (savedQuizProgress) setQuizProgress(JSON.parse(savedQuizProgress));
+  }, []);
+
+  // Save to LocalStorage on change
+  useEffect(() => {
+    localStorage.setItem('dbe_progress', JSON.stringify(Array.from(completedSubTopics)));
+  }, [completedSubTopics]);
+
+  useEffect(() => {
+    localStorage.setItem('dbe_exercises', JSON.stringify(Array.from(submittedExercises)));
+  }, [submittedExercises]);
+
+  useEffect(() => {
+    localStorage.setItem('dbe_comments', JSON.stringify(topicComments));
+  }, [topicComments]);
+
+  useEffect(() => {
+      localStorage.setItem('dbe_quiz_state', JSON.stringify(quizProgress));
+  }, [quizProgress]);
+
+  const handleLogin = (user: User) => {
+      setCurrentUser(user);
+      setViewState(ViewState.HOME);
+      setShowWelcomeOverlay(true); // Reset welcome screen on new login
+  };
+
+  const handleLogout = () => {
+      setCurrentUser(null);
+      setSelectedTopic(null);
+      setViewState(ViewState.LOGIN);
+  };
+
+  const handleTopicSelect = (topic: Topic, subTopicId?: string) => {
+    // Check Prerequisites
+    // A prerequisite is a topic that is in relatedTopics AND has a lower level
+    const prerequisites = currentTopics.filter(t => 
+        t.relatedTopics.includes(topic.id) && t.level < topic.level
+    );
+    
+    // Check if all subtopics of prerequisites are completed
+    const missing = prerequisites.filter(p => 
+        p.subTopics.some(st => !completedSubTopics.has(st.id))
+    );
+
+    if (missing.length > 0 && currentUser?.role !== 'admin') {
+        setLockedTopicAlert({ show: true, topic: topic, missing: missing });
+        return;
+    }
+
+    setSelectedTopic(topic);
+    setSelectedSubTopicId(subTopicId);
+    setViewState(ViewState.TOPIC);
+  };
+
+  const handleBackToHome = () => {
+    setViewState(ViewState.HOME);
+    setSelectedTopic(null);
+    setSelectedSubTopicId(undefined);
+  };
+
+  const handleApplyAdminChanges = (newTopics: Topic[]) => {
+      setCurrentTopics(newTopics);
+      // In a real app, you would POST to server here.
+      // For this demo, we update the state directly.
+  };
+
+  const toggleSubTopicCompletion = (subTopicId: string) => {
+    setCompletedSubTopics(prev => {
+        const next = new Set(prev);
+        if (next.has(subTopicId)) {
+            next.delete(subTopicId);
+        } else {
+            next.add(subTopicId);
+        }
+        return next;
+    });
+  };
+
+  const handleExerciseSubmission = (subTopicId: string, quizData?: QuizAttempt) => {
+      if (quizData) {
+          setQuizProgress(prev => ({
+              ...prev,
+              [subTopicId]: [...(prev[subTopicId] || []), quizData]
+          }));
+          
+          // Only mark as complete if passed
+          if (quizData.passed) {
+              setSubmittedExercises(prev => new Set(prev).add(subTopicId));
+              setCompletedSubTopics(prev => new Set(prev).add(subTopicId));
+          }
+      } else {
+          // Regular Upload exercise
+          setSubmittedExercises(prev => new Set(prev).add(subTopicId));
+          setCompletedSubTopics(prev => new Set(prev).add(subTopicId));
+      }
+  };
+
+  const addComment = (subTopicId: string, text: string) => {
+      if (!currentUser) return;
+      const newComment: Comment = {
+          id: Date.now().toString(),
+          user: currentUser.name,
+          avatar: currentUser.avatar,
+          text: text,
+          timestamp: 'Just now',
+          reactions: {},
+          replies: []
+      };
+      
+      setTopicComments(prev => ({
+          ...prev,
+          [subTopicId]: [...(prev[subTopicId] || []), newComment]
+      }));
+  };
+
+  const handleReply = (subTopicId: string, parentCommentId: string, text: string) => {
+      if (!currentUser) return;
+      const newReply: Comment = {
+          id: Date.now().toString(),
+          user: currentUser.name,
+          avatar: currentUser.avatar,
+          text: text,
+          timestamp: 'Just now',
+          reactions: {},
+          replies: []
+      };
+
+      setTopicComments(prev => {
+          const comments = prev[subTopicId] || [];
+          const addReplyToComment = (c: Comment): Comment => {
+              if (c.id === parentCommentId) {
+                  return { ...c, replies: [...c.replies, newReply] };
+              }
+              if (c.replies.length > 0) {
+                  return { ...c, replies: c.replies.map(addReplyToComment) };
+              }
+              return c;
+          };
+          return { ...prev, [subTopicId]: comments.map(addReplyToComment) };
+      });
+  };
+
+  const handleDeleteComment = (subTopicId: string, commentId: string) => {
+      setTopicComments(prev => {
+          const comments = prev[subTopicId] || [];
+          const deleteComment = (list: Comment[]): Comment[] => {
+              return list
+                  .filter(c => c.id !== commentId) 
+                  .map(c => ({
+                      ...c,
+                      replies: deleteComment(c.replies) 
+                  }));
+          };
+          return { ...prev, [subTopicId]: deleteComment(comments) };
+      });
+  };
+
+  const handleReaction = (subTopicId: string, commentId: string, emoji: string) => {
+      setTopicComments(prev => {
+          const comments = prev[subTopicId] || [];
+          const updateReactions = (c: Comment): Comment => {
+              if (c.id === commentId) {
+                  const currentCount = c.reactions[emoji] || 0;
+                  return { 
+                      ...c, 
+                      reactions: { ...c.reactions, [emoji]: currentCount + 1 } 
+                  };
+              }
+              if (c.replies.length > 0) {
+                  return { ...c, replies: c.replies.map(r => updateReactions(r)) };
+              }
+              return c;
+          };
+          return { ...prev, [subTopicId]: comments.map(updateReactions) };
+      });
+  };
+
+  if (viewState === ViewState.LOGIN) {
+      return <Login onLogin={handleLogin} />;
+  }
+
+  if (viewState === ViewState.ADMIN_BUILDER && currentUser?.role === 'admin') {
+      return (
+        <AdminBuilder 
+            initialTopics={currentTopics} 
+            onApplyChanges={handleApplyAdminChanges}
+            onExit={() => setViewState(ViewState.HOME)}
+        />
+      );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-slate-200 selection:bg-blue-500/30 font-sans">
+      
+      {/* Prerequisite Alert Modal */}
+      {lockedTopicAlert && lockedTopicAlert.show && (
+          <div className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="bg-slate-900 border border-slate-700 rounded-2xl p-8 max-w-md w-full shadow-2xl relative overflow-hidden animate-in zoom-in-95">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-yellow-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
+                  
+                  <div className="flex flex-col items-center text-center">
+                      <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center mb-6 ring-4 ring-slate-800 ring-offset-2 ring-offset-slate-900">
+                          <Lock className="w-8 h-8 text-yellow-500" />
+                      </div>
+                      
+                      <h3 className="text-xl font-bold text-white mb-2">Topic Locked</h3>
+                      <p className="text-slate-400 mb-6">
+                          To access <span className="text-white font-medium">{lockedTopicAlert.topic?.title}</span>, you must first complete the following prerequisites:
+                      </p>
+
+                      <div className="w-full bg-slate-800/50 rounded-xl p-4 mb-6 border border-slate-700/50 text-left">
+                          <ul className="space-y-3">
+                              {lockedTopicAlert.missing.map(p => (
+                                  <li key={p.id} className="flex items-center gap-3 text-sm text-slate-300">
+                                      <div className="w-6 h-6 rounded-full bg-slate-700 flex items-center justify-center shrink-0 border border-slate-600">
+                                          <AlertTriangle className="w-3 h-3 text-yellow-500" />
+                                      </div>
+                                      <span>{p.title}</span>
+                                  </li>
+                              ))}
+                          </ul>
+                      </div>
+
+                      <button 
+                          onClick={() => setLockedTopicAlert(null)}
+                          className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-xl transition-colors w-full"
+                      >
+                          I Understand
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {viewState === ViewState.HOME && (
+        <div className="h-screen flex flex-col relative overflow-hidden">
+          
+          {/* Navigation Bar */}
+          <nav className="h-20 border-b border-slate-800 bg-slate-950/90 backdrop-blur fixed w-full z-40 flex items-center justify-between px-6 lg:px-8">
+            <div className="flex items-center gap-3">
+               <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-900/20">
+                  <Layers className="text-white w-6 h-6" />
+               </div>
+               <div className="hidden sm:block">
+                   <span className="text-xl font-bold block leading-none text-white">D-Be</span>
+                   <span className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Recurrent Program</span>
+               </div>
+            </div>
+            
+            <div className="flex bg-slate-900 p-1 rounded-lg border border-slate-800">
+                <button 
+                    onClick={() => setDashboardMode('GRAPH')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${dashboardMode === 'GRAPH' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                >
+                    <Network className="w-4 h-4" />
+                    <span className="hidden sm:inline">Knowledge Graph</span>
+                </button>
+                <button 
+                    onClick={() => setDashboardMode('LIST')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${dashboardMode === 'LIST' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                >
+                    <LayoutGrid className="w-4 h-4" />
+                    <span className="hidden sm:inline">View Progress</span>
+                </button>
+            </div>
+
+            <div className="flex items-center gap-4">
+                {currentUser?.role === 'admin' && (
+                    <button 
+                        onClick={() => setViewState(ViewState.ADMIN_BUILDER)}
+                        className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                    >
+                        <Edit3 className="w-4 h-4" />
+                        Curriculum Builder
+                    </button>
+                )}
+
+                {currentUser && (
+                    <div className="flex items-center gap-3 border-l border-slate-800 pl-4">
+                        <img src={currentUser.avatar} alt="User" className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700" />
+                        <button onClick={handleLogout} className="text-slate-400 hover:text-red-400 transition-colors p-2" title="Logout">
+                            <LogOut className="w-5 h-5" />
+                        </button>
+                    </div>
+                )}
+            </div>
+          </nav>
+
+          {/* Main Content Area */}
+          <div className="flex-1 pt-20 h-full relative">
+            
+            {showWelcomeOverlay && (
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-500">
+                    <div className="bg-slate-900 border border-slate-800 p-10 rounded-3xl max-w-2xl w-full shadow-2xl relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
+                        
+                        <div className="relative z-10">
+                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold uppercase tracking-wider mb-6">
+                                <BookOpen className="w-3 h-3" /> Welcome, {currentUser?.name.split(' ')[0]}
+                            </div>
+                            
+                            <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-6 leading-tight">
+                                Digital Built <br />
+                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">Environment</span>
+                            </h1>
+                            
+                            <p className="text-slate-400 text-lg mb-8 leading-relaxed">
+                                You are currently logged into the <strong>Recurrent Program</strong>. 
+                                Navigate the knowledge graph to access your assigned video tutorials, 
+                                spanning from fundamental modeling to advanced robotic fabrication.
+                            </p>
+
+                            <div className="flex flex-col sm:flex-row gap-4">
+                                <button 
+                                    onClick={() => setShowWelcomeOverlay(false)}
+                                    className="px-8 py-3.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-500 transition-colors flex items-center justify-center gap-2 group shadow-lg shadow-blue-900/20"
+                                >
+                                    Continue to Dashboard
+                                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <div className="w-full h-full bg-slate-950">
+                {dashboardMode === 'GRAPH' ? (
+                    <div className="w-full h-full relative">
+                        <TopicGraph 
+                            topics={currentTopics} 
+                            onSelectTopic={handleTopicSelect} 
+                            completedSubTopics={completedSubTopics}
+                        />
+                    </div>
+                ) : (
+                    <ModuleList 
+                        topics={currentTopics} 
+                        completedSubTopics={completedSubTopics}
+                        onSelectTopic={handleTopicSelect}
+                    />
+                )}
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {viewState === ViewState.TOPIC && selectedTopic && (
+        <TopicDetail 
+            topic={selectedTopic} 
+            topics={currentTopics}
+            initialSubTopicId={selectedSubTopicId}
+            currentUser={currentUser}
+            onBack={handleBackToHome} 
+            completedSubTopics={completedSubTopics}
+            submittedExercises={submittedExercises}
+            quizProgress={quizProgress}
+            onToggleComplete={toggleSubTopicCompletion}
+            onSubmitExercise={handleExerciseSubmission}
+            userComments={topicComments}
+            onAddComment={addComment}
+            onReply={handleReply}
+            onReaction={handleReaction}
+            onDeleteComment={handleDeleteComment}
+        />
+      )}
+    </div>
+  );
+};
+
+export default App;
