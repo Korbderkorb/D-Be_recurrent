@@ -1,0 +1,151 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - email: string (required)
+    //   - name: string (required)
+    //   - role: string (required, 'admin' or 'student')
+    //   - avatar: string (optional)
+    //   - allowedTopics: list (optional)
+    //   - stats: map (optional)
+    //
+    // Collection: progress
+    // Document ID: {userId}
+    // Fields:
+    //   - completedSubTopics: list (required)
+    //   - submittedExercises: list (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isBootstrapAdmin() {
+      return isAuthenticated() && request.auth.token.email == "korbinian.enzinger@gmail.com";
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        ((exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin') ||
+         isBootstrapAdmin());
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['email', 'name', 'role']) &&
+             data.email is string && data.email.size() < 200 &&
+             data.name is string && data.name.size() < 100 &&
+             data.role in ['admin', 'student'] &&
+             (!('status' in data) || data.status in ['pending', 'active']);
+    }
+
+    function isValidProgress(data) {
+      return data.completedSubTopics is list && data.completedSubTopics.size() < 1000 &&
+             data.submittedExercises is list && data.submittedExercises.size() < 1000;
+    }
+
+    function isValidComment(comment) {
+      return comment.keys().hasAll(['id', 'user', 'text', 'timestamp']) &&
+             comment.id is string &&
+             comment.user is string && comment.user.size() < 100 &&
+             comment.text is string && comment.text.size() < 2000 &&
+             comment.timestamp is string;
+    }
+
+    function isValidQuizAttempt(attempt) {
+      return attempt.timestamp is string &&
+             attempt.answers is map &&
+             attempt.passed is bool;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      // Allow read if:
+      // 1. Authenticated and reading own UID doc
+      // 2. Authenticated and reading own Email doc (for claiming)
+      // 3. Admin reading anything
+      allow read: if isAuthenticated() && (
+        userId == request.auth.uid || 
+        userId == request.auth.token.email ||
+        isAdmin()
+      );
+      
+      // Allow create if:
+      // 1. Admin is creating it (for invitations)
+      // 2. User is creating their own UID doc AND they have a pending invitation
+      //    CRITICAL: Must match the role they were invited with to prevent escalation
+      allow create: if isAdmin() || (
+        isOwner(userId) && 
+        exists(/databases/$(database)/documents/users/$(request.auth.token.email)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.status == 'pending' &&
+        request.resource.data.role == get(/databases/$(database)/documents/users/$(request.auth.token.email)).data.role
+      );
+      
+      // Allow update if:
+      // 1. Owner or Admin
+      //    CRITICAL: Only bootstrap admin can change roles
+      allow update: if (isOwner(userId) || isAdmin()) && 
+                    isValidUser(request.resource.data) && 
+                    (request.resource.data.role == resource.data.role || isBootstrapAdmin());
+      
+      // Allow delete if:
+      // 1. Admin
+      // 2. User is deleting their own PENDING doc (email as ID) after claiming it
+      allow delete: if isAdmin() || (
+        isAuthenticated() && 
+        userId == request.auth.token.email && 
+        resource.data.status == 'pending'
+      );
+    }
+
+    match /admin_only/check {
+      allow read: if isAdmin();
+    }
+
+    match /progress/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isOwner(userId) && isValidProgress(request.resource.data);
+    }
+
+    match /comments/{subTopicId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && 
+                    request.resource.data.comments is list && 
+                    request.resource.data.comments.size() < 500;
+    }
+
+    match /quizAttempts/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow write: if isOwner(userId) && 
+                    request.resource.data.attempts is map &&
+                    request.resource.data.attempts.size() < 200;
+    }
+
+    match /topics/{topicId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /teachers/{teacherId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+  }
+}

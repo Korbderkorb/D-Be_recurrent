@@ -6,21 +6,9 @@ const MEDIA_ROOT = '/media';
 
 // Helper to generate paths based on convention
 const getPath = (topicId: string, subTopicId: string, type: 'video' | 'image' | 'thumb' | 'pdf' | 'zip') => {
-  const extMap = {
-    video: 'mp4',
-    image: 'jpg',
-    thumb: 'jpg',
-    pdf: 'pdf',
-    zip: 'zip'
-  };
-  const fileNameMap = {
-    video: 'video',
-    image: 'image',
-    thumb: 'thumb',
-    pdf: 'lecture-notes',
-    zip: 'source-files'
-  };
-  return `${MEDIA_ROOT}/${topicId}/${subTopicId}/${fileNameMap[type]}.${extMap[type]}`;
+  if (type === 'video') return 'https://vimeo.com/000000000';
+  if (type === 'thumb' || type === 'image') return 'https://picsum.photos/1200/800';
+  return 'https://example.com/file.pdf';
 };
 
 // Helper to build a standard video module with standard resources

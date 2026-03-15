@@ -31,15 +31,12 @@ const getUniqueId = (base: string, existingIds: string[]) => {
 };
 
 const getGeneratedPath = (topicId: string, subId: string | undefined, type: 'video' | 'image' | 'thumb' | 'pdf' | 'zip') => {
-  const safeTopicId = topicId || '[topic-id]';
-  const safeSubId = subId || '[sub-id]';
-  
-  const extMap = { video: 'mp4', image: 'jpg', thumb: 'jpg', pdf: 'pdf', zip: 'zip' };
-  const fileNameMap = { video: 'video', image: 'image', thumb: 'thumb', pdf: 'lecture-notes', zip: 'source-files' };
-  return `${MEDIA_ROOT}/${safeTopicId}/${safeSubId}/${fileNameMap[type]}.${extMap[type]}`;
+  if (type === 'video') return 'https://vimeo.com/000000000';
+  if (type === 'thumb' || type === 'image') return 'https://picsum.photos/1200/800';
+  return 'https://example.com/file.pdf';
 };
 
-const getTopicThumbPath = (topicId: string) => `${MEDIA_ROOT}/${topicId}/topic-thumb.jpg`;
+const getTopicThumbPath = (topicId: string) => `https://picsum.photos/1200/800`;
 
 // --- COMPONENTS ---
 
@@ -147,6 +144,28 @@ const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSu
                     {/* VIDEO SPECIFIC */}
                     {module.type === 'VIDEO' && (
                          <div className="col-span-12 space-y-3 pb-2 border-b border-slate-200 mb-2">
+                             <div>
+                                 <label className="block text-xs font-medium text-slate-500 mb-1">Video URL</label>
+                                 <input 
+                                     type="text" 
+                                     value={module.videoUrl || ''} 
+                                     onChange={e => onUpdate({ ...module, videoUrl: e.target.value })} 
+                                     placeholder={getGeneratedPath(topicId, module._subId, 'video')}
+                                     className="w-full p-2 text-sm border border-slate-200 rounded focus:border-blue-400 outline-none bg-white font-mono text-slate-600" 
+                                 />
+                             </div>
+                             
+                             <div>
+                                 <label className="block text-xs font-medium text-slate-500 mb-1">Poster Image URL (Thumbnail)</label>
+                                 <input 
+                                     type="text" 
+                                     value={module.posterUrl || ''} 
+                                     onChange={e => onUpdate({ ...module, posterUrl: e.target.value })} 
+                                     placeholder={getGeneratedPath(topicId, module._subId, 'thumb')}
+                                     className="w-full p-2 text-sm border border-slate-200 rounded focus:border-blue-400 outline-none bg-white font-mono text-slate-600" 
+                                 />
+                             </div>
+                             
                              <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-700 select-none font-bold mt-2">
                                 <input 
                                     type="checkbox" 
@@ -364,7 +383,7 @@ interface AdminBuilderProps {
   initialTopics: Topic[];
   initialTeachers: Teacher[];
   initialUsers: User[];
-  onApplyChanges: (newTopics: Topic[], newTeachers: Teacher[], newUsers: User[]) => void;
+  onApplyChanges: (newTopics: Topic[], newTeachers: Teacher[], newUsers: User[]) => Promise<void>;
   onExit: () => void;
 }
 
@@ -382,6 +401,7 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
 
   const [confirmationOpen, setConfirmationOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   // Initialize
   useEffect(() => {
@@ -479,6 +499,8 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
         title: 'New Module',
         description: 'Desc',
         duration: '10:00',
+        videoUrl: getGeneratedPath(topicId, subId, 'video'),
+        posterUrl: getGeneratedPath(topicId, subId, 'thumb'),
         comments: [],
         hasResources: true,
         resources: { notesUrl: '', sourceUrl: '' },
@@ -513,14 +535,15 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
 
   // --- HANDLERS FOR USERS ---
   const handleAddUser = () => {
+      const email = `student${users.length + 1}@university.edu`;
       const newUser: User = {
-          id: `u_${Date.now()}`,
-          email: `student${users.length+1}@university.edu`,
-          password: 'password123',
+          id: email, // Use email as ID for pending users
+          email: email,
           name: "New Student",
           avatar: `https://ui-avatars.com/api/?name=Student&background=random`,
           role: 'student',
-          allowedTopics: topics.map(t => t.id), // Default all access?
+          status: 'pending',
+          allowedTopics: topics.map(t => t.id),
           stats: {
               modulesCompleted: 0,
               totalModules: topics.reduce((acc, t) => acc + t.subTopics.length, 0),
@@ -532,8 +555,20 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
       setEditingUserId(newUser.id);
   };
 
-  const handleUpdateUser = (updated: User) => {
-      setUsers(prev => prev.map(u => u.id === updated.id ? updated : u));
+  const handleUpdateUser = (oldId: string, updated: User) => {
+      setUsers(prev => prev.map(u => {
+          if (u.id === oldId) {
+              // If pending and email changed, update ID to match email
+              if (u.status === 'pending' && u.email !== updated.email) {
+                  return { ...updated, id: updated.email };
+              }
+              return updated;
+          }
+          return u;
+      }));
+      if (editingUserId === oldId) {
+          setEditingUserId(updated.status === 'pending' ? updated.email : updated.id);
+      }
   };
 
   const handleDeleteUser = (id: string) => {
@@ -550,31 +585,39 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
       } else {
           newAllowed = [...currentAllowed, topicId];
       }
-      handleUpdateUser({ ...user, allowedTopics: newAllowed });
+      handleUpdateUser(user.id, { ...user, allowedTopics: newAllowed });
   };
 
 
   // --- APPLY ALL ---
-  const handleApply = () => {
-      // Reconstitute topics with teacher objects
-      const finalTopics = topics.map(t => {
-          const { _key, teacherKey, variableName, subListVariableName, ...rest } = t;
-          const assignedTeacher = teachers.find(tch => tch.id === teacherKey) || teachers[0];
-          
-          return {
-              ...rest,
-              teacher: assignedTeacher,
-              subTopics: t.subTopics.map(s => {
-                  const { _key: sk, _subId, hasResources, ...sRest } = s;
-                  if (hasResources === false) sRest.resources = undefined;
-                  return sRest;
-              })
-          } as Topic;
-      });
+  const handleApply = async () => {
+      setIsSaving(true);
+      try {
+          // Reconstitute topics with teacher objects
+          const finalTopics = topics.map(t => {
+              const { _key, teacherKey, variableName, subListVariableName, ...rest } = t;
+              const assignedTeacher = teachers.find(tch => tch.id === teacherKey) || teachers[0];
+              
+              return {
+                  ...rest,
+                  teacher: assignedTeacher,
+                  subTopics: t.subTopics.map(s => {
+                      const { _key: sk, _subId, hasResources, ...sRest } = s;
+                      if (hasResources === false) sRest.resources = undefined;
+                      return sRest;
+                  })
+              } as Topic;
+          });
 
-      onApplyChanges(finalTopics, teachers, users);
-      setConfirmationOpen(false);
-      alert("Changes applied successfully!");
+          await onApplyChanges(finalTopics, teachers, users);
+          setConfirmationOpen(false);
+          alert("Changes applied successfully!");
+      } catch (error) {
+          console.error("Failed to apply changes:", error);
+          alert("Failed to apply changes. Please try again.");
+      } finally {
+          setIsSaving(false);
+      }
   };
 
   return (
@@ -608,8 +651,13 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
               </div>
           </div>
           <div className="flex items-center gap-3">
-              <button onClick={() => setConfirmationOpen(true)} className="bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-green-900/20">
-                  <Save size={16} /> Apply Changes
+              <button 
+                onClick={() => setConfirmationOpen(true)} 
+                disabled={isSaving}
+                className="bg-green-600 hover:bg-green-500 disabled:bg-slate-700 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-green-900/20"
+              >
+                  {isSaving ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
+                  {isSaving ? 'Saving...' : 'Apply Changes'}
               </button>
               <button onClick={onExit} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg text-sm font-medium transition-all">
                   Exit
@@ -623,8 +671,11 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
                   <h3 className="text-xl font-bold text-slate-900 mb-2">Apply Changes?</h3>
                   <p className="text-slate-600 mb-6">This will update the live application state for all tabs (Curriculum, Teachers, Users).</p>
                   <div className="flex justify-end gap-3">
-                      <button onClick={() => setConfirmationOpen(false)} className="px-4 py-2 text-slate-500 hover:bg-slate-100 rounded-lg">Cancel</button>
-                      <button onClick={handleApply} className="px-6 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-500">Yes, Apply</button>
+                      <button onClick={() => setConfirmationOpen(false)} disabled={isSaving} className="px-4 py-2 text-slate-500 hover:bg-slate-100 rounded-lg disabled:opacity-50">Cancel</button>
+                      <button onClick={handleApply} disabled={isSaving} className="px-6 py-2 bg-green-600 text-white font-bold rounded-lg hover:bg-green-500 disabled:bg-slate-700 flex items-center gap-2">
+                          {isSaving && <RefreshCw size={16} className="animate-spin" />}
+                          {isSaving ? 'Applying...' : 'Yes, Apply'}
+                      </button>
                   </div>
               </div>
           </div>
@@ -872,22 +923,23 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
                                                   <div className="grid grid-cols-2 gap-4">
                                                       <div>
                                                           <label className="text-xs font-medium text-slate-500">Name</label>
-                                                          <input className="w-full p-2 border rounded text-sm bg-white" value={user.name} onChange={e => handleUpdateUser({...user, name: e.target.value})} />
+                                                          <input className="w-full p-2 border rounded text-sm bg-white" value={user.name} onChange={e => handleUpdateUser(user.id, {...user, name: e.target.value})} />
                                                       </div>
                                                       <div>
                                                           <label className="text-xs font-medium text-slate-500">Role</label>
-                                                          <select className="w-full p-2 border rounded text-sm bg-white" value={user.role} onChange={e => handleUpdateUser({...user, role: e.target.value as any})}>
+                                                          <select className="w-full p-2 border rounded text-sm bg-white" value={user.role} onChange={e => handleUpdateUser(user.id, {...user, role: e.target.value as any})}>
                                                               <option value="student">Student</option>
                                                               <option value="admin">Admin</option>
                                                           </select>
                                                       </div>
                                                       <div>
                                                           <label className="text-xs font-medium text-slate-500">Email (Login)</label>
-                                                          <input className="w-full p-2 border rounded text-sm bg-white" value={user.email} onChange={e => handleUpdateUser({...user, email: e.target.value})} />
+                                                          <input className="w-full p-2 border rounded text-sm bg-white" value={user.email} onChange={e => handleUpdateUser(user.id, {...user, email: e.target.value})} />
                                                       </div>
-                                                      <div>
-                                                          <label className="text-xs font-medium text-slate-500">Password</label>
-                                                          <input className="w-full p-2 border rounded text-sm font-mono bg-white" value={user.password} onChange={e => handleUpdateUser({...user, password: e.target.value})} />
+                                                      <div className="flex items-end">
+                                                          <div className="text-[10px] text-slate-400 italic bg-slate-50 p-2 rounded border border-slate-100 w-full">
+                                                              {user.status === 'pending' ? 'User has not activated their account yet.' : 'User is active and linked to Firebase Auth.'}
+                                                          </div>
                                                       </div>
                                                   </div>
                                                   

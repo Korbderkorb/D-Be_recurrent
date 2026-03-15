@@ -1,0 +1,100 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and progress data",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" },
+        "name": { "type": "string" },
+        "avatar": { "type": "string" },
+        "role": { "type": "string", "enum": ["admin", "student"] },
+        "status": { "type": "string", "enum": ["pending", "active"] },
+        "allowedTopics": { "type": "array", "items": { "type": "string" } },
+        "stats": {
+          "type": "object",
+          "properties": {
+            "modulesCompleted": { "type": "number" },
+            "totalModules": { "type": "number" },
+            "lastActive": { "type": "string" }
+          }
+        }
+      },
+      "required": ["email", "name", "role"]
+    },
+    "Progress": {
+      "title": "Progress",
+      "description": "User progress tracking for subtopics",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "completedSubTopics": { "type": "array", "items": { "type": "string" } },
+        "submittedExercises": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["userId"]
+    },
+    "Topic": {
+      "title": "Topic",
+      "description": "Curriculum topic with subtopics",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "shortDescription": { "type": "string" },
+        "fullDescription": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "color": { "type": "string" },
+        "level": { "type": "number" },
+        "subTopics": { "type": "array", "items": { "type": "object" } },
+        "relatedTopics": { "type": "array", "items": { "type": "string" } },
+        "teacher": { "$ref": "Teacher" }
+      },
+      "required": ["id", "title", "subTopics"]
+    },
+    "Teacher": {
+      "title": "Teacher",
+      "description": "Teacher profile information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "role": { "type": "string" },
+        "email": { "type": "string" },
+        "avatar": { "type": "string" },
+        "bio": { "type": "string" }
+      },
+      "required": ["id", "name", "email"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents"
+    },
+    "progress/{userId}": {
+      "schema": "Progress",
+      "description": "User progress documents"
+    },
+    "topics/{topicId}": {
+      "schema": "Topic",
+      "description": "Curriculum topic documents"
+    },
+    "teachers/{teacherId}": {
+      "schema": "Teacher",
+      "description": "Teacher profile documents"
+    },
+    "comments/{subTopicId}": {
+      "schema": "object",
+      "description": "Comments for a specific subtopic"
+    },
+    "quizAttempts/{userId}": {
+      "schema": "object",
+      "description": "Quiz attempts for a user"
+    },
+    "admin_only/check": {
+      "schema": "object",
+      "description": "Canary document for admin status verification"
+    }
+  }
+}

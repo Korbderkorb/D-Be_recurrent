@@ -106,6 +106,7 @@ export interface User {
   name: string;
   avatar: string;
   role?: 'student' | 'admin';
+  status?: 'pending' | 'active';
   allowedTopics?: string[]; // IDs of allowed topics. If undefined/empty, allow all? Or assume strict.
   stats?: UserStats; // Mock stats for admin
 }

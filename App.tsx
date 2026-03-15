@@ -1,5 +1,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
+import { auth, db } from './firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
+import { doc, getDoc, setDoc, deleteDoc, onSnapshot, getDocFromServer, collection, getDocs, query } from 'firebase/firestore';
 import { TOPICS, teachers as INITIAL_TEACHERS } from './constants';
 import { Topic, ViewState, User, Comment, QuizAttempt, Teacher } from './types';
 import TopicGraph from './components/TopicGraph';
@@ -14,35 +17,295 @@ const App: React.FC = () => {
   const [selectedTopic, setSelectedTopic] = useState<Topic | null>(null);
   const [selectedSubTopicId, setSelectedSubTopicId] = useState<string | undefined>(undefined);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
   const [lockedTopicAlert, setLockedTopicAlert] = useState<{show: boolean, topic: Topic | null, missing: Topic[]} | null>(null);
-  
-  // App Data State (mutable for Admin Builder)
-  const [currentTopics, setCurrentTopics] = useState<Topic[]>(TOPICS);
-  // Transform initial teachers Record to Array
-  const [currentTeachers, setCurrentTeachers] = useState<Teacher[]>(Object.entries(INITIAL_TEACHERS).map(([key, t]) => ({...t, id: key})));
-  // Mock Users State
-  const [currentUsers, setCurrentUsers] = useState<User[]>([
-      {
-          id: 'admin',
-          email: 'admin@d-be.com',
-          name: 'Administrator',
-          avatar: `https://ui-avatars.com/api/?name=Admin&background=334155&color=fff`,
-          role: 'admin',
-          password: 'admin',
-          allowedTopics: TOPICS.map(t => t.id),
-          stats: { modulesCompleted: 0, totalModules: 0, lastActive: 'Now', quizScores: [] }
+
+  // Firestore Error Handling
+  enum OperationType {
+    CREATE = 'create',
+    UPDATE = 'update',
+    DELETE = 'delete',
+    LIST = 'list',
+    GET = 'get',
+    WRITE = 'write',
+  }
+
+  interface FirestoreErrorInfo {
+    error: string;
+    operationType: OperationType;
+    path: string | null;
+    authInfo: {
+      userId: string | undefined;
+      email: string | null | undefined;
+      emailVerified: boolean | undefined;
+      isAnonymous: boolean | undefined;
+      tenantId: string | null | undefined;
+      providerInfo: {
+        providerId: string;
+        displayName: string | null;
+        email: string | null;
+        photoUrl: string | null;
+      }[];
+    }
+  }
+
+  const handleFirestoreError = (error: unknown, operationType: OperationType, path: string | null) => {
+    const errInfo: FirestoreErrorInfo = {
+      error: error instanceof Error ? error.message : String(error),
+      authInfo: {
+        userId: auth.currentUser?.uid,
+        email: auth.currentUser?.email,
+        emailVerified: auth.currentUser?.emailVerified,
+        isAnonymous: auth.currentUser?.isAnonymous,
+        tenantId: auth.currentUser?.tenantId,
+        providerInfo: auth.currentUser?.providerData.map(provider => ({
+          providerId: provider.providerId,
+          displayName: provider.displayName,
+          email: provider.email,
+          photoUrl: provider.photoURL
+        })) || []
       },
-      {
-          id: 'demo',
-          email: 'demo@d-be.com',
-          name: 'Demo Student',
-          avatar: `https://ui-avatars.com/api/?name=Demo&background=0D8ABC&color=fff`,
-          role: 'student',
-          password: 'demo',
-          allowedTopics: TOPICS.map(t => t.id), // All access by default
-          stats: { modulesCompleted: 5, totalModules: 20, lastActive: 'Yesterday', quizScores: [] }
+      operationType,
+      path
+    }
+    console.error('Firestore Error: ', JSON.stringify(errInfo));
+    // throw new Error(JSON.stringify(errInfo)); // We'll just log for now to avoid crashing the whole app if one listener fails
+  };
+
+  // Test Connection
+  useEffect(() => {
+    const testConnection = async () => {
+      try {
+        await getDocFromServer(doc(db, 'test', 'connection'));
+      } catch (error) {
+        if (error instanceof Error && error.message.includes('the client is offline')) {
+          console.error("Please check your Firebase configuration.");
+        }
       }
-  ]);
+    };
+    testConnection();
+  }, []);
+
+  // Auth Listener
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+          let userData: User;
+          
+          if (userDoc.exists()) {
+            userData = userDoc.data() as User;
+          } else {
+            // Only the bootstrap admin can auto-create their profile if it's missing
+            // Others must be pre-approved via the Admin Builder and use First Time Login
+            if (firebaseUser.email === "korbinian.enzinger@gmail.com") {
+              userData = {
+                id: firebaseUser.uid,
+                email: firebaseUser.email || '',
+                name: firebaseUser.displayName || 'Admin',
+                avatar: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=Admin&background=0D8ABC&color=fff`,
+                role: 'admin',
+                status: 'active',
+                allowedTopics: TOPICS.map(t => t.id),
+                stats: { modulesCompleted: 0, totalModules: TOPICS.length, lastActive: 'Just now', quizScores: [] }
+              };
+              await setDoc(doc(db, 'users', firebaseUser.uid), userData);
+            } else {
+              throw new Error("User record not found. Please use 'First Time Login' if you were invited.");
+            }
+          }
+
+          // Verify admin status
+          // 1. Bootstrap Admin (Hardcoded Email)
+          if (firebaseUser.email === "korbinian.enzinger@gmail.com") {
+            if (userData.role !== 'admin') {
+              userData.role = 'admin';
+              await setDoc(doc(db, 'users', firebaseUser.uid), { role: 'admin' }, { merge: true });
+            }
+          }
+          // Note: Other admins are verified via their role in the database.
+          // The security rules now strictly control who can have the 'admin' role.
+
+          setCurrentUser(userData);
+          setViewState(ViewState.HOME);
+        } catch (error) {
+          handleFirestoreError(error, OperationType.GET, `users/${firebaseUser.uid}`);
+          auth.signOut();
+        }
+      } else {
+        setCurrentUser(null);
+        setViewState(ViewState.LOGIN);
+      }
+      setIsAuthReady(true);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Progress Sync from Firestore
+  useEffect(() => {
+    if (!currentUser || !isAuthReady) return;
+
+    const unsubscribe = onSnapshot(doc(db, 'progress', currentUser.id), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setCompletedSubTopics(new Set(data.completedSubTopics || []));
+        setSubmittedExercises(new Set(data.submittedExercises || []));
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, `progress/${currentUser.id}`);
+    });
+
+    return () => unsubscribe();
+  }, [currentUser, isAuthReady]);
+
+  // Quiz Progress Sync from Firestore
+  useEffect(() => {
+    if (!currentUser || !isAuthReady) return;
+
+    const unsubscribe = onSnapshot(doc(db, 'quizAttempts', currentUser.id), (docSnap) => {
+      if (docSnap.exists()) {
+        setQuizProgress(docSnap.data().attempts || {});
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, `quizAttempts/${currentUser.id}`);
+    });
+
+    return () => unsubscribe();
+  }, [currentUser, isAuthReady]);
+
+  // Comments Sync from Firestore (for selected subtopic)
+  useEffect(() => {
+    if (!selectedSubTopicId || !isAuthReady) return;
+
+    const unsubscribe = onSnapshot(doc(db, 'comments', selectedSubTopicId), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setTopicComments(prev => ({
+          ...prev,
+          [selectedSubTopicId]: data.comments || []
+        }));
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, `comments/${selectedSubTopicId}`);
+    });
+
+    return () => unsubscribe();
+  }, [selectedSubTopicId, isAuthReady]);
+  
+  // App Data State (synced from Firestore)
+  const [currentTopics, setCurrentTopics] = useState<Topic[]>([]);
+  const [currentTeachers, setCurrentTeachers] = useState<Teacher[]>([]);
+  const [isCurriculumLoaded, setIsCurriculumLoaded] = useState(false);
+  // Users State
+  const [currentUsers, setCurrentUsers] = useState<User[]>([]);
+  const [isUsersLoaded, setIsUsersLoaded] = useState(false);
+
+  // Sync all users if admin
+  useEffect(() => {
+    if (currentUser?.role !== 'admin' || !isAuthReady) {
+      setCurrentUsers([]);
+      setIsUsersLoaded(false);
+      return;
+    }
+
+    const unsubscribe = onSnapshot(collection(db, 'users'), (snapshot) => {
+      const users: User[] = [];
+      snapshot.forEach((doc) => {
+        users.push(doc.data() as User);
+      });
+      setCurrentUsers(users);
+      setIsUsersLoaded(true);
+    }, (error) => {
+      // If we lose admin access, this will trigger
+      if (error.message.includes('insufficient permissions')) {
+        setIsUsersLoaded(false);
+      } else {
+        handleFirestoreError(error, OperationType.LIST, 'users');
+      }
+    });
+
+    return () => unsubscribe();
+  }, [currentUser?.role, isAuthReady]);
+
+  // Topics Sync from Firestore
+  useEffect(() => {
+    if (!isAuthReady) return;
+
+    const unsubscribe = onSnapshot(collection(db, 'topics'), (snapshot) => {
+      const topics: Topic[] = [];
+      snapshot.forEach((doc) => {
+        topics.push(doc.data() as Topic);
+      });
+      if (topics.length > 0) {
+        setCurrentTopics(topics.sort((a, b) => a.level - b.level));
+        setIsCurriculumLoaded(true);
+      } else if (currentUser?.email === "korbinian.enzinger@gmail.com") {
+        // Bootstrap admin will trigger initialization if empty
+        setIsCurriculumLoaded(false);
+      } else {
+        // Fallback to constants if empty and not admin (though ideally it shouldn't be empty)
+        setCurrentTopics(TOPICS);
+        setIsCurriculumLoaded(true);
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'topics');
+    });
+
+    return () => unsubscribe();
+  }, [isAuthReady, currentUser?.email]);
+
+  // Teachers Sync from Firestore
+  useEffect(() => {
+    if (!isAuthReady) return;
+
+    const unsubscribe = onSnapshot(collection(db, 'teachers'), (snapshot) => {
+      const teachers: Teacher[] = [];
+      snapshot.forEach((doc) => {
+        teachers.push(doc.data() as Teacher);
+      });
+      if (teachers.length > 0) {
+        setCurrentTeachers(teachers);
+      } else {
+        setCurrentTeachers(Object.entries(INITIAL_TEACHERS).map(([key, t]) => ({...t, id: key})));
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'teachers');
+    });
+
+    return () => unsubscribe();
+  }, [isAuthReady]);
+
+  // Initialization logic for Bootstrap Admin
+  useEffect(() => {
+    if (currentUser?.email !== "korbinian.enzinger@gmail.com" || !isAuthReady || isCurriculumLoaded) return;
+
+    const initCurriculum = async () => {
+      try {
+        const topicsSnap = await getDocs(query(collection(db, 'topics')));
+        if (topicsSnap.empty) {
+          console.log("Initializing topics in Firestore...");
+          for (const topic of TOPICS) {
+            await setDoc(doc(db, 'topics', topic.id), topic);
+          }
+        }
+
+        const teachersSnap = await getDocs(query(collection(db, 'teachers')));
+        if (teachersSnap.empty) {
+          console.log("Initializing teachers in Firestore...");
+          const teachersList = Object.entries(INITIAL_TEACHERS).map(([key, t]) => ({...t, id: key}));
+          for (const teacher of teachersList) {
+            await setDoc(doc(db, 'teachers', teacher.id), teacher);
+          }
+        }
+        setIsCurriculumLoaded(true);
+      } catch (error) {
+        handleFirestoreError(error, OperationType.WRITE, 'initialization');
+      }
+    };
+
+    initCurriculum();
+  }, [currentUser, isAuthReady, isCurriculumLoaded]);
 
   // Dashboard State
   const [showWelcomeOverlay, setShowWelcomeOverlay] = useState(true);
@@ -75,22 +338,24 @@ const App: React.FC = () => {
     if (savedQuizProgress) setQuizProgress(JSON.parse(savedQuizProgress));
   }, []);
 
-  // Save to LocalStorage on change
+  // Save Progress to Firestore
   useEffect(() => {
-    localStorage.setItem('dbe_progress', JSON.stringify(Array.from(completedSubTopics)));
-  }, [completedSubTopics]);
-
-  useEffect(() => {
-    localStorage.setItem('dbe_exercises', JSON.stringify(Array.from(submittedExercises)));
-  }, [submittedExercises]);
-
-  useEffect(() => {
-    localStorage.setItem('dbe_comments', JSON.stringify(topicComments));
-  }, [topicComments]);
-
-  useEffect(() => {
-      localStorage.setItem('dbe_quiz_state', JSON.stringify(quizProgress));
-  }, [quizProgress]);
+    if (!currentUser || !isAuthReady) return;
+    
+    const syncProgress = async () => {
+        try {
+            await setDoc(doc(db, 'progress', currentUser.id), {
+                userId: currentUser.id,
+                completedSubTopics: Array.from(completedSubTopics),
+                submittedExercises: Array.from(submittedExercises)
+            }, { merge: true });
+        } catch (error) {
+            handleFirestoreError(error, OperationType.WRITE, `progress/${currentUser.id}`);
+        }
+    };
+    
+    syncProgress();
+  }, [completedSubTopics, submittedExercises, currentUser, isAuthReady]);
 
   // Derived Locked State based on User Permissions
   const lockedTopicIds = useMemo(() => {
@@ -117,22 +382,20 @@ const App: React.FC = () => {
   }, [currentTeachers]);
 
   const handleLogin = (user: User) => {
-      // In a real app, we check the DB. Here we check the mock state.
-      const foundUser = currentUsers.find(u => u.email === user.email);
-      if (foundUser) {
-          setCurrentUser(foundUser);
-      } else {
-          // Fallback for ad-hoc logins from Login component if not in DB (legacy behavior)
-          setCurrentUser(user);
-      }
+      // This is now handled by onAuthStateChanged
       setViewState(ViewState.HOME);
       setShowWelcomeOverlay(true); 
   };
 
-  const handleLogout = () => {
-      setCurrentUser(null);
-      setSelectedTopic(null);
-      setViewState(ViewState.LOGIN);
+  const handleLogout = async () => {
+      try {
+          await signOut(auth);
+          setCurrentUser(null);
+          setSelectedTopic(null);
+          setViewState(ViewState.LOGIN);
+      } catch (error) {
+          console.error("Logout error", error);
+      }
   };
 
   const handleTopicSelect = (topic: Topic, subTopicId?: string) => {
@@ -168,11 +431,66 @@ const App: React.FC = () => {
     setSelectedSubTopicId(undefined);
   };
 
-  const handleApplyAdminChanges = (newTopics: Topic[], newTeachers: Teacher[], newUsers: User[]) => {
-      setCurrentTopics(newTopics);
-      setCurrentTeachers(newTeachers);
+  const handleApplyAdminChanges = async (newTopics: Topic[], newTeachers: Teacher[], newUsers: User[]) => {
+      // Persist topics
+      for (const topic of newTopics) {
+          try {
+              await setDoc(doc(db, 'topics', topic.id), topic);
+          } catch (error) {
+              handleFirestoreError(error, OperationType.WRITE, `topics/${topic.id}`);
+          }
+      }
+      // Handle deleted topics
+      const deletedTopics = currentTopics.filter(oldT => !newTopics.find(newT => newT.id === oldT.id));
+      for (const topic of deletedTopics) {
+          try {
+              await deleteDoc(doc(db, 'topics', topic.id));
+          } catch (error) {
+              handleFirestoreError(error, OperationType.DELETE, `topics/${topic.id}`);
+          }
+      }
+
+      // Persist teachers
+      for (const teacher of newTeachers) {
+          try {
+              await setDoc(doc(db, 'teachers', teacher.id), teacher);
+          } catch (error) {
+              handleFirestoreError(error, OperationType.WRITE, `teachers/${teacher.id}`);
+          }
+      }
+      // Handle deleted teachers
+      const deletedTeachers = currentTeachers.filter(oldT => !newTeachers.find(newT => newT.id === oldT.id));
+      for (const teacher of deletedTeachers) {
+          try {
+              await deleteDoc(doc(db, 'teachers', teacher.id));
+          } catch (error) {
+              handleFirestoreError(error, OperationType.DELETE, `teachers/${teacher.id}`);
+          }
+      }
+
+      // Find deleted users
+      const deletedUsers = currentUsers.filter(oldUser => !newUsers.find(newUser => newUser.id === oldUser.id));
+      for (const user of deletedUsers) {
+          try {
+              await deleteDoc(doc(db, 'users', user.id));
+          } catch (error) {
+              handleFirestoreError(error, OperationType.DELETE, `users/${user.id}`);
+          }
+      }
+
+      // Persist user changes to Firestore
+      for (const user of newUsers) {
+          try {
+              // Ensure we don't overwrite an active user with a pending one if IDs mismatch
+              // (Though AdminBuilder should handle this, it's a safety check)
+              await setDoc(doc(db, 'users', user.id), user, { merge: true });
+          } catch (error) {
+              handleFirestoreError(error, OperationType.WRITE, `users/${user.id}`);
+          }
+      }
+
       setCurrentUsers(newUsers);
-      
+
       // If current user was updated, refresh session
       if (currentUser) {
           const freshUser = newUsers.find(u => u.id === currentUser.id);
@@ -192,12 +510,26 @@ const App: React.FC = () => {
     });
   };
 
-  const handleExerciseSubmission = (subTopicId: string, quizData?: QuizAttempt) => {
+  const handleExerciseSubmission = async (subTopicId: string, quizData?: QuizAttempt) => {
       if (quizData) {
+          const newAttempts = [...(quizProgress[subTopicId] || []), quizData];
           setQuizProgress(prev => ({
               ...prev,
-              [subTopicId]: [...(prev[subTopicId] || []), quizData]
+              [subTopicId]: newAttempts
           }));
+          
+          if (currentUser) {
+              try {
+                  await setDoc(doc(db, 'quizAttempts', currentUser.id), {
+                      attempts: {
+                          ...quizProgress,
+                          [subTopicId]: newAttempts
+                      }
+                  }, { merge: true });
+              } catch (error) {
+                  handleFirestoreError(error, OperationType.WRITE, `quizAttempts/${currentUser.id}`);
+              }
+          }
           
           if (quizData.passed) {
               setSubmittedExercises(prev => new Set(prev).add(subTopicId));
@@ -209,84 +541,118 @@ const App: React.FC = () => {
       }
   };
 
-  const addComment = (subTopicId: string, text: string) => {
+  const addComment = async (subTopicId: string, text: string) => {
       if (!currentUser) return;
       const newComment: Comment = {
           id: Date.now().toString(),
           user: currentUser.name,
           avatar: currentUser.avatar,
           text: text,
-          timestamp: 'Just now',
+          timestamp: new Date().toLocaleString(),
           reactions: {},
           replies: []
       };
       
+      const updatedComments = [...(topicComments[subTopicId] || []), newComment];
+      
       setTopicComments(prev => ({
           ...prev,
-          [subTopicId]: [...(prev[subTopicId] || []), newComment]
+          [subTopicId]: updatedComments
       }));
+
+      try {
+          await setDoc(doc(db, 'comments', subTopicId), {
+              comments: updatedComments
+          }, { merge: true });
+      } catch (error) {
+          handleFirestoreError(error, OperationType.WRITE, `comments/${subTopicId}`);
+      }
   };
 
-  const handleReply = (subTopicId: string, parentCommentId: string, text: string) => {
+  const handleReply = async (subTopicId: string, parentCommentId: string, text: string) => {
       if (!currentUser) return;
       const newReply: Comment = {
           id: Date.now().toString(),
           user: currentUser.name,
           avatar: currentUser.avatar,
           text: text,
-          timestamp: 'Just now',
+          timestamp: new Date().toLocaleString(),
           reactions: {},
           replies: []
       };
 
-      setTopicComments(prev => {
-          const comments = prev[subTopicId] || [];
-          const addReplyToComment = (c: Comment): Comment => {
-              if (c.id === parentCommentId) {
-                  return { ...c, replies: [...c.replies, newReply] };
-              }
-              if (c.replies.length > 0) {
-                  return { ...c, replies: c.replies.map(addReplyToComment) };
-              }
-              return c;
-          };
-          return { ...prev, [subTopicId]: comments.map(addReplyToComment) };
-      });
+      const comments = topicComments[subTopicId] || [];
+      const addReplyToComment = (c: Comment): Comment => {
+          if (c.id === parentCommentId) {
+              return { ...c, replies: [...c.replies, newReply] };
+          }
+          if (c.replies.length > 0) {
+              return { ...c, replies: c.replies.map(addReplyToComment) };
+          }
+          return c;
+      };
+      const updatedComments = comments.map(addReplyToComment);
+
+      setTopicComments(prev => ({ ...prev, [subTopicId]: updatedComments }));
+
+      try {
+          await setDoc(doc(db, 'comments', subTopicId), {
+              comments: updatedComments
+          }, { merge: true });
+      } catch (error) {
+          handleFirestoreError(error, OperationType.WRITE, `comments/${subTopicId}`);
+      }
   };
 
-  const handleDeleteComment = (subTopicId: string, commentId: string) => {
-      setTopicComments(prev => {
-          const comments = prev[subTopicId] || [];
-          const deleteComment = (list: Comment[]): Comment[] => {
-              return list
-                  .filter(c => c.id !== commentId) 
-                  .map(c => ({
-                      ...c,
-                      replies: deleteComment(c.replies) 
-                  }));
-          };
-          return { ...prev, [subTopicId]: deleteComment(comments) };
-      });
+  const handleDeleteComment = async (subTopicId: string, commentId: string) => {
+      const comments = topicComments[subTopicId] || [];
+      const deleteComment = (list: Comment[]): Comment[] => {
+          return list
+              .filter(c => c.id !== commentId) 
+              .map(c => ({
+                  ...c,
+                  replies: deleteComment(c.replies) 
+              }));
+      };
+      const updatedComments = deleteComment(comments);
+      
+      setTopicComments(prev => ({ ...prev, [subTopicId]: updatedComments }));
+
+      try {
+          await setDoc(doc(db, 'comments', subTopicId), {
+              comments: updatedComments
+          }, { merge: true });
+      } catch (error) {
+          handleFirestoreError(error, OperationType.WRITE, `comments/${subTopicId}`);
+      }
   };
 
-  const handleReaction = (subTopicId: string, commentId: string, emoji: string) => {
-      setTopicComments(prev => {
-          const comments = prev[subTopicId] || [];
-          const updateReactions = (c: Comment): Comment => {
-              if (c.id === commentId) {
-                  const currentCount = c.reactions[emoji] || 0;
-                  return { 
-                      ...c, 
-                      reactions: { ...c.reactions, [emoji]: currentCount + 1 } 
-                  };
-              }
-              if (c.replies.length > 0) {
-                  return { ...c, replies: c.replies.map(r => updateReactions(r)) };
-              }
-              return c;
-          };
-          return { ...prev, [subTopicId]: comments.map(updateReactions) };
-      });
+  const handleReaction = async (subTopicId: string, commentId: string, emoji: string) => {
+      const comments = topicComments[subTopicId] || [];
+      const updateReactions = (c: Comment): Comment => {
+          if (c.id === commentId) {
+              const currentCount = c.reactions[emoji] || 0;
+              return { 
+                  ...c, 
+                  reactions: { ...c.reactions, [emoji]: currentCount + 1 } 
+              };
+          }
+          if (c.replies.length > 0) {
+              return { ...c, replies: c.replies.map(r => updateReactions(r)) };
+          }
+          return c;
+      };
+      const updatedComments = comments.map(updateReactions);
+
+      setTopicComments(prev => ({ ...prev, [subTopicId]: updatedComments }));
+
+      try {
+          await setDoc(doc(db, 'comments', subTopicId), {
+              comments: updatedComments
+          }, { merge: true });
+      } catch (error) {
+          handleFirestoreError(error, OperationType.WRITE, `comments/${subTopicId}`);
+      }
   };
 
   if (viewState === ViewState.LOGIN) {
