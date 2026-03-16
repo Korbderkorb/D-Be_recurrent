@@ -404,6 +404,8 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
 
   // Initialize
   useEffect(() => {
+    if (isSaving) return; // Don't overwrite local state while saving
+    
     setTeachers(initialTeachers);
     setUsers(initialUsers);
 

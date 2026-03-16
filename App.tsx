@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, deleteDoc, onSnapshot, getDocFromServer, collection, getDocs, query } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, onSnapshot, getDocFromServer, collection, getDocs, query, writeBatch } from 'firebase/firestore';
 import { MEDIA_ROOT } from './constants';
 import initialCurriculum from './src/data/curriculum.json';
 import { Topic, ViewState, User, Comment, QuizAttempt, Teacher } from './types';
@@ -439,69 +439,51 @@ const App: React.FC = () => {
   };
 
   const handleApplyAdminChanges = async (newTopics: Topic[], newTeachers: Teacher[], newUsers: User[]) => {
+      const batch = writeBatch(db);
+
       // Persist topics
       for (const topic of newTopics) {
-          try {
-              await setDoc(doc(db, 'topics', topic.id), topic);
-          } catch (error) {
-              handleFirestoreError(error, OperationType.WRITE, `topics/${topic.id}`);
-          }
+          batch.set(doc(db, 'topics', topic.id), topic);
       }
       // Handle deleted topics
       const deletedTopics = currentTopics.filter(oldT => !newTopics.find(newT => newT.id === oldT.id));
       for (const topic of deletedTopics) {
-          try {
-              await deleteDoc(doc(db, 'topics', topic.id));
-          } catch (error) {
-              handleFirestoreError(error, OperationType.DELETE, `topics/${topic.id}`);
-          }
+          batch.delete(doc(db, 'topics', topic.id));
       }
 
       // Persist teachers
       for (const teacher of newTeachers) {
-          try {
-              await setDoc(doc(db, 'teachers', teacher.id), teacher);
-          } catch (error) {
-              handleFirestoreError(error, OperationType.WRITE, `teachers/${teacher.id}`);
-          }
+          batch.set(doc(db, 'teachers', teacher.id), teacher);
       }
       // Handle deleted teachers
       const deletedTeachers = currentTeachers.filter(oldT => !newTeachers.find(newT => newT.id === oldT.id));
       for (const teacher of deletedTeachers) {
-          try {
-              await deleteDoc(doc(db, 'teachers', teacher.id));
-          } catch (error) {
-              handleFirestoreError(error, OperationType.DELETE, `teachers/${teacher.id}`);
-          }
+          batch.delete(doc(db, 'teachers', teacher.id));
       }
 
       // Find deleted users
       const deletedUsers = currentUsers.filter(oldUser => !newUsers.find(newUser => newUser.id === oldUser.id));
       for (const user of deletedUsers) {
-          try {
-              await deleteDoc(doc(db, 'users', user.id));
-          } catch (error) {
-              handleFirestoreError(error, OperationType.DELETE, `users/${user.id}`);
-          }
+          batch.delete(doc(db, 'users', user.id));
       }
 
-      // Persist user changes to Firestore
+      // Persist user changes
       for (const user of newUsers) {
-          try {
-              // Ensure we don't overwrite an active user with a pending one if IDs mismatch
-              // (Though AdminBuilder should handle this, it's a safety check)
-              await setDoc(doc(db, 'users', user.id), user, { merge: true });
-          } catch (error) {
-              handleFirestoreError(error, OperationType.WRITE, `users/${user.id}`);
-          }
+          batch.set(doc(db, 'users', user.id), user, { merge: true });
       }
 
-      setCurrentUsers(newUsers);
-
-      // If current user was updated, refresh session
-      if (currentUser) {
-          const freshUser = newUsers.find(u => u.id === currentUser.id);
-          if (freshUser) setCurrentUser(freshUser);
+      try {
+          await batch.commit();
+          setCurrentUsers(newUsers);
+          
+          // If current user was updated, refresh session
+          if (currentUser) {
+              const freshUser = newUsers.find(u => u.id === currentUser.id);
+              if (freshUser) setCurrentUser(freshUser);
+          }
+      } catch (error) {
+          handleFirestoreError(error, OperationType.WRITE, 'batch-update');
+          throw error; // Re-throw so AdminBuilder knows it failed
       }
   };
 
