@@ -594,20 +594,40 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
   const handleApply = async () => {
       setIsSaving(true);
       try {
+          // Helper to remove undefined values recursively
+          const cleanObject = (obj: any): any => {
+              if (Array.isArray(obj)) {
+                  return obj.map(cleanObject);
+              } else if (obj !== null && typeof obj === 'object') {
+                  return Object.entries(obj).reduce((acc, [key, value]) => {
+                      if (value !== undefined) {
+                          acc[key] = cleanObject(value);
+                      }
+                      return acc;
+                  }, {} as any);
+              }
+              return obj;
+          };
+
           // Reconstitute topics with teacher objects
           const finalTopics = topics.map(t => {
               const { _key, teacherKey, variableName, subListVariableName, ...rest } = t;
               const assignedTeacher = teachers.find(tch => tch.id === teacherKey) || teachers[0];
               
-              return {
+              const topicData = {
                   ...rest,
                   teacher: assignedTeacher,
                   subTopics: t.subTopics.map(s => {
                       const { _key: sk, _subId, hasResources, ...sRest } = s;
-                      if (hasResources === false) sRest.resources = undefined;
+                      // Ensure resources is not undefined
+                      if (hasResources === false) {
+                          sRest.resources = null;
+                      }
                       return sRest;
                   })
-              } as Topic;
+              };
+
+              return cleanObject(topicData) as Topic;
           });
 
           await onApplyChanges(finalTopics, teachers, users);

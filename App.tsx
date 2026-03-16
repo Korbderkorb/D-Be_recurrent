@@ -441,9 +441,24 @@ const App: React.FC = () => {
   const handleApplyAdminChanges = async (newTopics: Topic[], newTeachers: Teacher[], newUsers: User[]) => {
       const batch = writeBatch(db);
 
+      // Helper to remove undefined values recursively
+      const cleanObject = (obj: any): any => {
+          if (Array.isArray(obj)) {
+              return obj.map(cleanObject);
+          } else if (obj !== null && typeof obj === 'object') {
+              return Object.entries(obj).reduce((acc, [key, value]) => {
+                  if (value !== undefined) {
+                      acc[key] = cleanObject(value);
+                  }
+                  return acc;
+              }, {} as any);
+          }
+          return obj;
+      };
+
       // Persist topics
       for (const topic of newTopics) {
-          batch.set(doc(db, 'topics', topic.id), topic);
+          batch.set(doc(db, 'topics', topic.id), cleanObject(topic));
       }
       // Handle deleted topics
       const deletedTopics = currentTopics.filter(oldT => !newTopics.find(newT => newT.id === oldT.id));
@@ -453,7 +468,7 @@ const App: React.FC = () => {
 
       // Persist teachers
       for (const teacher of newTeachers) {
-          batch.set(doc(db, 'teachers', teacher.id), teacher);
+          batch.set(doc(db, 'teachers', teacher.id), cleanObject(teacher));
       }
       // Handle deleted teachers
       const deletedTeachers = currentTeachers.filter(oldT => !newTeachers.find(newT => newT.id === oldT.id));
@@ -469,7 +484,7 @@ const App: React.FC = () => {
 
       // Persist user changes
       for (const user of newUsers) {
-          batch.set(doc(db, 'users', user.id), user, { merge: true });
+          batch.set(doc(db, 'users', user.id), cleanObject(user), { merge: true });
       }
 
       try {

@@ -436,6 +436,7 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
                   
                   {(!activeSubTopic.type || activeSubTopic.type === 'VIDEO') && (
                       <VideoPlayer 
+                          key={activeSubTopic.id}
                           title={activeSubTopic.title} 
                           videoUrl={activeSubTopic.videoUrl} 
                           poster={activeSubTopic.posterUrl}

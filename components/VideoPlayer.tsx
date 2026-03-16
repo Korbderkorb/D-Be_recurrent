@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import ReactPlayer from 'react-player';
 import { Play, Pause, Volume2, VolumeX, Maximize2, AlertCircle } from 'lucide-react';
 import { getPlaceholderPath } from '../constants';
@@ -18,18 +18,80 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ title, videoUrl, poster }) =>
   const [hasError, setHasError] = useState(false);
   const [played, setPlayed] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [isReady, setIsReady] = useState(false);
   
   const playerRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const isMounted = useRef(true);
+
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
+  // Extract URL from iframe snippet if necessary
+  const processedUrl = useMemo(() => {
+    if (!videoUrl) return '';
+    let url = videoUrl.trim();
+    
+    // If it's an iframe snippet, extract the src
+    if (url.includes('<iframe')) {
+      const srcMatch = url.match(/src="([^"]+)"/);
+      if (srcMatch && srcMatch[1]) {
+        url = srcMatch[1];
+        // Decode HTML entities like &amp;
+        url = url.replace(/&amp;/g, '&');
+      }
+    }
+
+    // Standardize Vimeo URLs but keep necessary parameters
+    if (url.includes('player.vimeo.com/video/')) {
+      // react-player handles player.vimeo.com URLs fine, 
+      // but we ensure it's a full URL if it's missing the protocol
+      if (!url.startsWith('http')) {
+        url = 'https:' + (url.startsWith('//') ? '' : '//') + url;
+      }
+    }
+
+    console.log(`VideoPlayer [${title}] loading URL:`, url);
+    return url;
+  }, [videoUrl, title]);
+
+  // Reset state when URL changes to prevent "interrupted play" errors
+  useEffect(() => {
+    setIsPlaying(false);
+    setIsReady(false);
+    setPlayed(0);
+    setHasError(false);
+  }, [processedUrl]);
 
   const togglePlay = () => {
     if (hasError) return;
-    setIsPlaying(!isPlaying);
+    setIsPlaying(prev => !prev);
   };
 
-  const handleError = () => {
-      setHasError(true);
+  const handleError = (e: any) => {
+      if (!isMounted.current) return;
+      console.error("Video Player Error:", e);
+      // Don't immediately show error for Vimeo/YouTube as they might have transient loading issues
+      // or specific embed restrictions that react-player eventually resolves
+      if (!processedUrl.includes('vimeo.com') && !processedUrl.includes('youtube.com')) {
+        setHasError(true);
+      }
       setIsPlaying(false);
+  };
+
+  const handleReady = (player: any) => {
+    if (!isMounted.current) return;
+    setIsReady(true);
+    try {
+      const dur = player.getDuration();
+      if (dur) setDuration(dur);
+    } catch (e) {
+      console.warn("Could not get duration:", e);
+    }
   };
 
   const toggleFullscreen = () => {
@@ -68,11 +130,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ title, videoUrl, poster }) =>
   };
 
   const handleProgress = (state: any) => {
+    if (!isMounted.current) return;
     setPlayed(state.played);
-  };
-
-  const handleDuration = (dur: number) => {
-    setDuration(dur);
   };
 
   const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -82,16 +141,16 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ title, videoUrl, poster }) =>
     playerRef.current?.seekTo(percentage);
   };
 
-  const isNativeSource = videoUrl?.includes('vimeo.com') || videoUrl?.includes('youtube.com') || videoUrl?.includes('youtu.be') || videoUrl?.includes('player.vimeo.com');
+  const isNativeSource = processedUrl?.includes('vimeo.com') || processedUrl?.includes('youtube.com') || processedUrl?.includes('youtu.be') || processedUrl?.includes('player.vimeo.com');
 
   return (
     <div ref={containerRef} className="relative w-full aspect-video bg-black rounded-xl overflow-hidden shadow-2xl group border border-slate-800">
       
-      {!hasError && videoUrl && (
+      {!hasError && processedUrl && (
           <Player
             ref={playerRef}
-            url={videoUrl}
-            playing={isPlaying}
+            url={processedUrl}
+            playing={isPlaying && isReady}
             volume={volume}
             muted={isMuted}
             controls={isNativeSource}
@@ -100,14 +159,19 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ title, videoUrl, poster }) =>
             style={{ position: 'absolute', top: 0, left: 0 }}
             onError={handleError}
             onProgress={handleProgress}
-            onDuration={handleDuration}
+            onReady={handleReady}
             onEnded={() => setIsPlaying(false)}
             config={{
               vimeo: {
                 playerVars: {
-                  title: 0,
-                  byline: 0,
-                  portrait: 0
+                  autopause: 0,
+                  muted: 0
+                }
+              },
+              youtube: {
+                playerVars: {
+                  modestbranding: 1,
+                  rel: 0
                 }
               }
             }}
@@ -122,7 +186,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ title, videoUrl, poster }) =>
             </div>
             <div className="font-mono text-sm font-bold text-slate-400 mb-2 tracking-widest uppercase">Video Source Not Found</div>
             <div className="font-mono text-[10px] text-slate-600 bg-slate-950 px-3 py-1.5 rounded border border-slate-900 break-all max-w-md">
-                {videoUrl || 'Unknown Path'}
+                {processedUrl || videoUrl || 'Unknown Path'}
             </div>
         </div>
       )}
