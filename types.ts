@@ -78,6 +78,7 @@ export interface Topic {
   subTopics: SubTopic[];
   relatedTopics: string[]; // IDs of related topics for the graph
   teacher: Teacher;
+  order?: number;
   
   // Builder Specific Optionals
   teacherKey?: string;

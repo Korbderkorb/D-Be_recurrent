@@ -265,7 +265,7 @@ const App: React.FC = () => {
         topics.push(doc.data() as Topic);
       });
       if (topics.length > 0) {
-        setCurrentTopics(topics.sort((a, b) => a.level - b.level));
+        setCurrentTopics(topics.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)));
         setIsCurriculumLoaded(true);
       } else if (currentUser?.email === BOOTSTRAP_ADMIN_EMAIL) {
         // Bootstrap admin will trigger initialization if empty
@@ -312,12 +312,14 @@ const App: React.FC = () => {
         const topicsSnap = await getDocs(query(collection(db, 'topics')));
         if (topicsSnap.empty) {
           console.log("Initializing topics in Firestore...");
+          let index = 0;
           for (const topic of initialCurriculum.topics) {
             // Reconstitute teacher object from key
             const teacherKey = (topic as any).teacherKey;
             const teacher = (initialCurriculum.teachers as any)[teacherKey] || Object.values(initialCurriculum.teachers)[0];
-            const finalTopic = { ...topic, teacher };
+            const finalTopic = { ...topic, teacher, order: index };
             await setDoc(doc(db, 'topics', topic.id), finalTopic);
+            index++;
           }
         }
 

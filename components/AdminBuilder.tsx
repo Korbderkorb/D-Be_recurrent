@@ -1,5 +1,22 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { 
+  DndContext, 
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Download, Plus, Trash2, Edit2, GripVertical, ChevronRight, Video, Upload, HelpCircle, UploadCloud, RefreshCw, Copy, AlertCircle, Info, Settings, Save, CheckSquare, Square, X, Users, GraduationCap, Layers, UserPlus, Key, Eye, Shield, BarChart3, Search, Lock as LockIcon, Sparkles } from 'lucide-react';
 import { Topic, SubTopic, Teacher, SubTopicType, QuizQuestion, User, LandingConfig } from '../types';
 import { MEDIA_ROOT, getPlaceholderPath } from '../constants';
@@ -415,6 +432,64 @@ const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSu
   );
 };
 
+// --- SORTABLE TOPIC ITEM ---
+interface SortableTopicItemProps {
+    topic: Topic;
+    isSelected: boolean;
+    onSelect: () => void;
+    onDelete: () => void;
+}
+
+const SortableTopicItem = ({ topic, isSelected, onSelect, onDelete }: SortableTopicItemProps) => {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging
+    } = useSortable({ id: topic.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 10 : 1,
+        paddingLeft: `${(topic.level - 1) * 12}px`
+    };
+
+    return (
+        <div 
+            ref={setNodeRef} 
+            style={style}
+            className={`flex items-center group transition-colors hover:bg-white hover:shadow-sm ${isSelected ? 'bg-white border-r-4 border-blue-500 shadow-sm' : 'border-r-4 border-transparent'} ${isDragging ? 'opacity-50 shadow-lg' : ''}`}
+        >
+            <div 
+                {...attributes} 
+                {...listeners} 
+                className="pl-3 text-slate-300 cursor-grab active:cursor-grabbing hover:text-slate-500 flex items-center gap-1"
+            >
+                <GripVertical size={14} />
+                {topic.level > 1 && (
+                    <div className="flex items-center">
+                        {[...Array(topic.level - 1)].map((_, i) => (
+                            <div key={i} className="w-2 h-px bg-slate-200" />
+                        ))}
+                    </div>
+                )}
+            </div>
+            <div onClick={onSelect} className={`flex-1 min-w-0 py-3 pl-2 pr-2 cursor-pointer ${isSelected ? 'text-blue-700 font-semibold' : 'text-slate-600'}`}>
+                <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono bg-slate-100 text-slate-400 px-1 rounded">L{topic.level}</span>
+                    <div className="truncate text-sm">{topic.title}</div>
+                </div>
+            </div>
+            <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-2 mr-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                <Trash2 size={16} />
+            </button>
+        </div>
+    );
+};
+
 // --- MAIN ADMIN BUILDER COMPONENT ---
 
 interface AdminBuilderProps {
@@ -442,6 +517,25 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
 
   const [confirmationOpen, setConfirmationOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      setTopics((items) => {
+        const oldIndex = items.findIndex((t) => t.id === active.id);
+        const newIndex = items.findIndex((t) => t.id === over.id);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  };
 
   // Initialize
   useEffect(() => {
@@ -652,13 +746,14 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
           };
 
           // Reconstitute topics with teacher objects
-          const finalTopics = topics.map(t => {
+          const finalTopics = topics.map((t, index) => {
               const { _key, teacherKey, variableName, subListVariableName, ...rest } = t;
               const assignedTeacher = teachers.find(tch => tch.id === teacherKey) || teachers[0];
               
               const topicData = {
                   ...rest,
                   teacher: assignedTeacher,
+                  order: index,
                   subTopics: t.subTopics.map(s => {
                       const { _key: sk, _subId, hasResources, ...sRest } = s;
                       // Ensure resources is not undefined
@@ -758,16 +853,26 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
               <div className="flex h-full">
                   <aside className="w-64 bg-slate-50 border-r border-slate-200 flex flex-col shrink-0">
                         <div className="flex-1 overflow-y-auto py-2">
-                            {topics.map(topic => (
-                                <div key={topic._key || topic.id} className={`flex items-center group transition-colors hover:bg-white hover:shadow-sm ${selectedTopicId === topic.id ? 'bg-white border-r-4 border-blue-500 shadow-sm' : 'border-r-4 border-transparent'}`}>
-                                <div onClick={() => setSelectedTopicId(topic.id)} className={`flex-1 min-w-0 py-3 pl-4 pr-2 cursor-pointer ${selectedTopicId === topic.id ? 'text-blue-700 font-semibold' : 'text-slate-600'}`}>
-                                    <div className="truncate text-sm">{topic.title}</div>
-                                </div>
-                                <button onClick={(e) => { e.stopPropagation(); handleDeleteTopic(topic.id); }} className="p-2 mr-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <Trash2 size={16} />
-                                </button>
-                                </div>
-                            ))}
+                            <DndContext 
+                                sensors={sensors}
+                                collisionDetection={closestCenter}
+                                onDragEnd={handleDragEnd}
+                            >
+                                <SortableContext 
+                                    items={topics.map(t => t.id)}
+                                    strategy={verticalListSortingStrategy}
+                                >
+                                    {topics.map(topic => (
+                                        <SortableTopicItem 
+                                            key={topic.id}
+                                            topic={topic}
+                                            isSelected={selectedTopicId === topic.id}
+                                            onSelect={() => setSelectedTopicId(topic.id)}
+                                            onDelete={() => handleDeleteTopic(topic.id)}
+                                        />
+                                    ))}
+                                </SortableContext>
+                            </DndContext>
                             <button onClick={handleAddTopic} className="w-full px-4 py-3 text-left text-sm text-blue-600 hover:bg-blue-50 flex items-center gap-2 transition-colors border-t border-slate-100">
                                 <Plus size={16} /> Add Topic
                             </button>

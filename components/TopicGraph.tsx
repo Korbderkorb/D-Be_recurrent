@@ -120,44 +120,17 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
         });
     };
 
-    // Initial Positions
+    // Initial Positions - Order by array index within each level
+    const topicOrderMap = new Map(topics.map((t, i) => [t.id, i]));
+
     for (let lvl = 1; lvl <= maxLevel; lvl++) {
         const nodes = levels[lvl] || [];
-        applySpacing(nodes, 100 + (lvl - 1) * LEVEL_SPACING);
+        // Sort nodes within each level by their original array index
+        const sortedNodes = [...nodes].sort((a, b) => (topicOrderMap.get(a.id) || 0) - (topicOrderMap.get(b.id) || 0));
+        applySpacing(sortedNodes, 100 + (lvl - 1) * LEVEL_SPACING);
     }
 
-    // Iterative Refinement
-    for (let i = 0; i < 10; i++) {
-        for (let lvl = 2; lvl <= maxLevel; lvl++) {
-            const currentNodes = levels[lvl] || [];
-            const nodesWithWeight = currentNodes.map(node => {
-                const parents = topics.filter(p => p.relatedTopics.includes(node.id) && p.level < lvl);
-                let weight = nodePositions.get(node.id)?.y || 0;
-                if (parents.length > 0) {
-                    const sumY = parents.reduce((sum, p) => sum + (nodePositions.get(p.id)?.y || 0), 0);
-                    weight = sumY / parents.length;
-                }
-                return { node, weight };
-            });
-            nodesWithWeight.sort((a, b) => a.weight - b.weight);
-            applySpacing(nodesWithWeight.map(n => n.node), 100 + (lvl - 1) * LEVEL_SPACING);
-        }
-
-        for (let lvl = maxLevel - 1; lvl >= 1; lvl--) {
-            const currentNodes = levels[lvl] || [];
-            const nodesWithWeight = currentNodes.map(node => {
-                const children = topics.filter(t => node.relatedTopics.includes(t.id) && t.level > lvl);
-                let weight = nodePositions.get(node.id)?.y || 0;
-                if (children.length > 0) {
-                    const sumY = children.reduce((sum, c) => sum + (nodePositions.get(c.id)?.y || 0), 0);
-                    weight = sumY / children.length;
-                }
-                return { node, weight };
-            });
-            nodesWithWeight.sort((a, b) => a.weight - b.weight);
-            applySpacing(nodesWithWeight.map(n => n.node), 100 + (lvl - 1) * LEVEL_SPACING);
-        }
-    }
+    // Iterative Refinement - REMOVED to respect manual order
 
     // --- 2. Edge Routing & Port Sorting ---
     const nodes = topics.map(t => {
