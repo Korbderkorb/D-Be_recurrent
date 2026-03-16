@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { Download, Plus, Trash2, Edit2, GripVertical, ChevronRight, Video, Upload, HelpCircle, UploadCloud, RefreshCw, Copy, AlertCircle, Info, Settings, Save, CheckSquare, Square, X, Users, GraduationCap, Layers, UserPlus, Key, Eye, Shield, BarChart3, Search, Lock as LockIcon } from 'lucide-react';
-import { Topic, SubTopic, Teacher, SubTopicType, QuizQuestion, User } from '../types';
+import { Download, Plus, Trash2, Edit2, GripVertical, ChevronRight, Video, Upload, HelpCircle, UploadCloud, RefreshCw, Copy, AlertCircle, Info, Settings, Save, CheckSquare, Square, X, Users, GraduationCap, Layers, UserPlus, Key, Eye, Shield, BarChart3, Search, Lock as LockIcon, Sparkles } from 'lucide-react';
+import { Topic, SubTopic, Teacher, SubTopicType, QuizQuestion, User, LandingConfig } from '../types';
 import { MEDIA_ROOT, getPlaceholderPath } from '../constants';
 const MODULE_TYPES: SubTopicType[] = ['VIDEO', 'EXERCISE_UPLOAD', 'EXERCISE_QUIZ'];
 
@@ -11,24 +11,23 @@ const generateSlug = (text: string): string => {
     .toString()
     .toLowerCase()
     .trim()
-    .replace(/\s+/g, '-')     
-    .replace(/[^\w-]+/g, '')  
-    .replace(/--+/g, '-')     
-    .replace(/^-+/, '')       
-    .replace(/-+$/, '');      
+    .replace(/\s+/g, '_')     
+    .replace(/[^\w_]+/g, '')  
+    .replace(/__+/g, '_')     
+    .replace(/^_+/, '')       
+    .replace(/_+$/, '');      
 };
 
 const generateKey = () => Math.random().toString(36).substr(2, 9);
 
 const getUniqueId = (base: string, existingIds: string[]) => {
-    const baseWithSuffix = `${base}-001`;
-    if (!existingIds.includes(baseWithSuffix)) return baseWithSuffix;
+    if (!existingIds.includes(base)) return base;
     
     let counter = 2;
-    while (existingIds.includes(`${base}-${counter.toString().padStart(3, '0')}`)) {
+    while (existingIds.includes(`${base}_${counter}`)) {
         counter++;
     }
-    return `${base}-${counter.toString().padStart(3, '0')}`;
+    return `${base}_${counter}`;
 };
 
 const getGeneratedPath = (topicId: string, subId: string | undefined, type: 'video' | 'image' | 'thumb' | 'pdf' | 'zip') => {
@@ -90,7 +89,24 @@ const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSu
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [newUploadReq, setNewUploadReq] = useState('');
 
-  const subIdConflict = existingSubIds.includes(module._subId);
+  const subIdConflict = existingSubIds.filter(id => id === module._subId).length > 1;
+
+  const handleTitleChange = (newTitle: string) => {
+    const updates: Partial<SubTopic> = { title: newTitle };
+    if (!module._isManualId) {
+      const slug = generateSlug(newTitle);
+      const otherIds = existingSubIds.filter(id => id !== module._subId) as string[];
+      const uniqueSubId = getUniqueId(slug || 'module', otherIds);
+      updates._subId = uniqueSubId;
+      updates.id = `${topicId}-${uniqueSubId}`;
+    }
+    onUpdate({ ...module, ...updates });
+  };
+
+  const handleIdChange = (newId: string) => {
+    const slug = generateSlug(newId);
+    onUpdate({ ...module, _subId: slug, id: `${topicId}-${slug}` });
+  };
 
   return (
     <div className={`bg-white border rounded-lg transition-all ${expanded ? 'shadow-md border-blue-200 ring-1 ring-blue-100' : 'border-slate-200 hover:border-slate-300'}`}>
@@ -121,15 +137,38 @@ const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSu
         {expanded && (
             <div className="p-4 border-t border-slate-100 bg-slate-50/50">
                 <div className="grid grid-cols-12 gap-4">
-                    <div className="col-span-8">
+                    <div className="col-span-12 md:col-span-8">
                         <label className="block text-xs font-medium text-slate-500 mb-1">Title</label>
-                        <input type="text" value={module.title} onChange={e => onUpdate({ ...module, title: e.target.value })} className="w-full p-2 text-sm border border-slate-200 rounded focus:border-blue-400 outline-none bg-white font-medium" />
+                        <input type="text" value={module.title} onChange={e => handleTitleChange(e.target.value)} className="w-full p-2 text-sm border border-slate-200 rounded focus:border-blue-400 outline-none bg-white font-medium" />
                     </div>
-                    <div className="col-span-4">
+                    <div className="col-span-12 md:col-span-4">
                         <label className="block text-xs font-medium text-slate-500 mb-1">Type</label>
                         <select value={module.type} onChange={e => onUpdate({...module, type: e.target.value as SubTopicType})} className="w-full p-2 text-sm border border-slate-200 rounded focus:border-blue-400 outline-none bg-white">
                             {MODULE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
+                    </div>
+
+                    <div className="col-span-12">
+                        <div className="flex items-center justify-between mb-1">
+                            <label className="block text-xs font-medium text-slate-500">Module ID</label>
+                            <label className="flex items-center gap-1.5 text-[10px] text-slate-400 cursor-pointer select-none">
+                                <input 
+                                    type="checkbox" 
+                                    checked={!!module._isManualId} 
+                                    onChange={e => onUpdate({ ...module, _isManualId: e.target.checked })}
+                                    className="w-3 h-3 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                Manual Edit
+                            </label>
+                        </div>
+                        <input 
+                            type="text" 
+                            value={module._subId || ''} 
+                            onChange={e => handleIdChange(e.target.value)}
+                            disabled={!module._isManualId}
+                            className={`w-full p-2 text-xs font-mono border rounded outline-none transition-colors ${module._isManualId ? 'bg-white border-blue-200 text-blue-700' : 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed'}`} 
+                        />
+                        {subIdConflict && <p className="text-[10px] text-red-500 mt-1 flex items-center gap-1"><AlertCircle size={10} /> This ID is already used by another module in this topic.</p>}
                     </div>
                     <div className="col-span-8">
                          <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
@@ -382,17 +421,19 @@ interface AdminBuilderProps {
   initialTopics: Topic[];
   initialTeachers: Teacher[];
   initialUsers: User[];
-  onApplyChanges: (newTopics: Topic[], newTeachers: Teacher[], newUsers: User[]) => Promise<void>;
+  initialLandingConfig: LandingConfig;
+  onApplyChanges: (newTopics: Topic[], newTeachers: Teacher[], newUsers: User[], newLandingConfig: LandingConfig) => Promise<void>;
   onExit: () => void;
 }
 
-export default function AdminBuilder({ initialTopics, initialTeachers, initialUsers, onApplyChanges, onExit }: AdminBuilderProps) {
-  const [activeTab, setActiveTab] = useState<'CURRICULUM' | 'TEACHERS' | 'USERS'>('CURRICULUM');
+export default function AdminBuilder({ initialTopics, initialTeachers, initialUsers, initialLandingConfig, onApplyChanges, onExit }: AdminBuilderProps) {
+  const [activeTab, setActiveTab] = useState<'CURRICULUM' | 'TEACHERS' | 'USERS' | 'LANDING'>('CURRICULUM');
   
   // States
   const [topics, setTopics] = useState<Topic[]>([]);
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [landingConfig, setLandingConfig] = useState<LandingConfig>(initialLandingConfig);
 
   // Selection States
   const [selectedTopicId, setSelectedTopicId] = useState<string>('');
@@ -408,6 +449,7 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
     
     setTeachers(initialTeachers);
     setUsers(initialUsers);
+    setLandingConfig(initialLandingConfig);
 
     // Hydrate topics with IDs and keys for internal use
     const hydratedTopics = initialTopics.map(t => {
@@ -630,7 +672,7 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
               return cleanObject(topicData) as Topic;
           });
 
-          await onApplyChanges(finalTopics, teachers, users);
+          await onApplyChanges(finalTopics, teachers, users, landingConfig);
           setConfirmationOpen(false);
           alert("Changes applied successfully!");
       } catch (error) {
@@ -668,6 +710,12 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
                     className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${activeTab === 'USERS' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
                   >
                       Users
+                  </button>
+                  <button 
+                    onClick={() => setActiveTab('LANDING')}
+                    className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${activeTab === 'LANDING' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
+                  >
+                      Landing Page
                   </button>
               </div>
           </div>
@@ -734,7 +782,44 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="col-span-2">
                                         <label className="block text-xs font-medium text-slate-500 mb-1">Title</label>
-                                        <input className="w-full p-2 border rounded text-base font-bold text-slate-800 bg-white" value={selectedTopic.title} onChange={e => handleUpdateTopic(selectedTopicId, {...selectedTopic, title: e.target.value})} />
+                                        <input 
+                                            className="w-full p-2 border rounded text-base font-bold text-slate-800 bg-white" 
+                                            value={selectedTopic.title} 
+                                            onChange={e => {
+                                                const newTitle = e.target.value;
+                                                const updates: any = { title: newTitle };
+                                                if (!selectedTopic['_isManualId']) {
+                                                    const slug = generateSlug(newTitle);
+                                                    const otherIds = topics.filter(t => t.id !== selectedTopic.id).map(t => t.id);
+                                                    updates.id = getUniqueId(slug || 'topic', otherIds);
+                                                }
+                                                handleUpdateTopic(selectedTopicId, {...selectedTopic, ...updates});
+                                            }} 
+                                        />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <label className="block text-xs font-medium text-slate-500">Topic ID</label>
+                                            <label className="flex items-center gap-1.5 text-[10px] text-slate-400 cursor-pointer select-none">
+                                                <input 
+                                                    type="checkbox" 
+                                                    checked={!!selectedTopic['_isManualId']} 
+                                                    onChange={e => handleUpdateTopic(selectedTopicId, {...selectedTopic, _isManualId: e.target.checked})}
+                                                    className="w-3 h-3 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                />
+                                                Manual Edit
+                                            </label>
+                                        </div>
+                                        <input 
+                                            type="text" 
+                                            value={selectedTopic.id} 
+                                            disabled={!selectedTopic['_isManualId']}
+                                            onChange={e => {
+                                                const newId = generateSlug(e.target.value);
+                                                handleUpdateTopic(selectedTopicId, {...selectedTopic, id: newId});
+                                            }}
+                                            className={`w-full p-2 text-xs font-mono border rounded outline-none transition-colors ${selectedTopic['_isManualId'] ? 'bg-white border-blue-200 text-blue-700' : 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed'}`} 
+                                        />
                                     </div>
                                     <div>
                                         <label className="block text-xs font-medium text-slate-500 mb-1">Teacher</label>
@@ -912,6 +997,111 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
           )}
 
           {/* USERS TAB */}
+          {activeTab === 'LANDING' && (
+              <div className="flex-1 overflow-y-auto p-8 bg-slate-50">
+                  <div className="max-w-3xl mx-auto">
+                      <div className="flex items-center justify-between mb-8">
+                          <div>
+                              <h2 className="text-2xl font-bold text-slate-900">Landing Page Content</h2>
+                              <p className="text-slate-500 text-sm">Manage the information showcased on the starting page.</p>
+                          </div>
+                      </div>
+
+                      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                          <div className="p-6 space-y-6">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                  <div className="space-y-2">
+                                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Main Title</label>
+                                      <input 
+                                          type="text" 
+                                          value={landingConfig.title} 
+                                          onChange={e => setLandingConfig({...landingConfig, title: e.target.value})}
+                                          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                          placeholder="e.g. Digital Built Environment"
+                                      />
+                                  </div>
+                                  <div className="space-y-2">
+                                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Subtitle</label>
+                                      <input 
+                                          type="text" 
+                                          value={landingConfig.subtitle} 
+                                          onChange={e => setLandingConfig({...landingConfig, subtitle: e.target.value})}
+                                          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                          placeholder="e.g. Recurrent Program"
+                                      />
+                                  </div>
+                              </div>
+
+                              <div className="space-y-2">
+                                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Tag / Badge Text</label>
+                                  <input 
+                                      type="text" 
+                                      value={landingConfig.tag} 
+                                      onChange={e => setLandingConfig({...landingConfig, tag: e.target.value})}
+                                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                      placeholder="e.g. Semester 2025"
+                                  />
+                              </div>
+
+                              <div className="space-y-2">
+                                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Hero Image URL</label>
+                                  <div className="flex gap-4">
+                                      <div className="flex-1">
+                                          <input 
+                                              type="text" 
+                                              value={landingConfig.heroImage} 
+                                              onChange={e => setLandingConfig({...landingConfig, heroImage: e.target.value})}
+                                              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                              placeholder="https://images.unsplash.com/..."
+                                          />
+                                      </div>
+                                      <div className="w-24 h-12 rounded-lg border border-slate-200 overflow-hidden bg-slate-100 shrink-0">
+                                          <img src={landingConfig.heroImage} alt="Preview" className="w-full h-full object-cover" />
+                                      </div>
+                                  </div>
+                              </div>
+
+                              <div className="space-y-2">
+                                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Description (Welcome Overlay)</label>
+                                  <textarea 
+                                      value={landingConfig.description} 
+                                      onChange={e => setLandingConfig({...landingConfig, description: e.target.value})}
+                                      rows={4}
+                                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none"
+                                      placeholder="Describe the program..."
+                                  />
+                              </div>
+
+                              <div className="space-y-2">
+                                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Inspirational Quote (Login Page)</label>
+                                  <textarea 
+                                      value={landingConfig.quote} 
+                                      onChange={e => setLandingConfig({...landingConfig, quote: e.target.value})}
+                                      rows={3}
+                                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none"
+                                      placeholder="Enter a quote..."
+                                  />
+                              </div>
+                          </div>
+                      </div>
+
+                      <div className="mt-8 p-6 bg-blue-50 border border-blue-100 rounded-2xl">
+                          <div className="flex gap-4">
+                              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
+                                  <Sparkles className="text-blue-600 w-5 h-5" />
+                              </div>
+                              <div>
+                                  <h4 className="text-sm font-bold text-blue-900 mb-1">Live Preview</h4>
+                                  <p className="text-xs text-blue-700 leading-relaxed">
+                                      Changes made here will be reflected on the login page and the welcome overlay that users see when they first log in.
+                                  </p>
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+          )}
+
           {activeTab === 'USERS' && (
               <div className="h-full bg-slate-100/50 p-8 overflow-y-auto">
                   <div className="max-w-6xl mx-auto">

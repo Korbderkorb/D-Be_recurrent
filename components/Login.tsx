@@ -4,17 +4,18 @@ import { auth, db } from '../firebase';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
 import { Layers, ArrowRight, Lock, Mail, User as UserIcon, Sparkles } from 'lucide-react';
-import { User } from '../types';
+import { User, LandingConfig } from '../types';
 
 interface LoginProps {
   onLogin: (user: User) => void;
   validUsers?: User[];
   bootstrapAdminEmail: string;
+  landingConfig: LandingConfig;
 }
 
 type AuthMode = 'LOGIN' | 'SIGNUP' | 'FIRST_TIME';
 
-const Login: React.FC<LoginProps> = ({ onLogin, validUsers, bootstrapAdminEmail }) => {
+const Login: React.FC<LoginProps> = ({ onLogin, validUsers, bootstrapAdminEmail, landingConfig }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -122,7 +123,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, validUsers, bootstrapAdminEmail 
       <div className="hidden lg:flex lg:w-1/2 relative flex-col justify-between p-12 overflow-hidden border-r border-slate-800">
         <div className="absolute inset-0 z-0">
              <img 
-                src="https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=2670&auto=format&fit=crop" 
+                src={landingConfig.heroImage} 
                 className="w-full h-full object-cover opacity-20"
                 alt="Architecture"
              />
@@ -131,19 +132,19 @@ const Login: React.FC<LoginProps> = ({ onLogin, validUsers, bootstrapAdminEmail 
 
         <div className="relative z-10">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold uppercase tracking-wider w-fit mb-6">
-                <Layers className="w-3 h-3" /> Semester 2025
+                <Layers className="w-3 h-3" /> {landingConfig.tag}
             </div>
             <h1 className="text-6xl font-extrabold text-white mb-2 leading-tight">
-                D-Be
+                {landingConfig.title}
             </h1>
             <h2 className="text-3xl font-light text-slate-300">
-                Recurrent Program
+                {landingConfig.subtitle}
             </h2>
         </div>
 
         <div className="relative z-10 max-w-md">
             <p className="text-slate-400 text-lg leading-relaxed mb-8">
-                "The Digital Built Environment is not just about tools, but the synthesis of information, geometry, and material performance."
+                "{landingConfig.quote}"
             </p>
             <div className="flex gap-2">
                  <div className="w-12 h-1 bg-blue-500 rounded-full"></div>

@@ -54,6 +54,7 @@ export interface SubTopic {
   // Builder Specific Optionals
   _subId?: string; 
   hasResources?: boolean;
+  _isManualId?: boolean;
   _key?: string;
 }
 
@@ -82,7 +83,17 @@ export interface Topic {
   teacherKey?: string;
   variableName?: string;
   subListVariableName?: string;
+  _isManualId?: boolean;
   _key?: string;
+}
+
+export interface LandingConfig {
+  title: string;
+  subtitle: string;
+  description: string;
+  tag: string;
+  heroImage: string;
+  quote: string;
 }
 
 export enum ViewState {

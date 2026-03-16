@@ -1,7 +1,5 @@
-import React, { useState, useRef, useMemo, useEffect } from 'react';
-import ReactPlayer from 'react-player';
-import { Play, Pause, Volume2, VolumeX, Maximize2, AlertCircle } from 'lucide-react';
-import { getPlaceholderPath } from '../constants';
+import React, { useMemo } from 'react';
+import { AlertCircle } from 'lucide-react';
 
 interface VideoPlayerProps {
   title: string;
@@ -9,258 +7,88 @@ interface VideoPlayerProps {
   poster?: string;
 }
 
-const Player = ReactPlayer as any;
-
-const VideoPlayer: React.FC<VideoPlayerProps> = ({ title, videoUrl, poster }) => {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [volume, setVolume] = useState(0.8);
-  const [isMuted, setIsMuted] = useState(false);
-  const [hasError, setHasError] = useState(false);
-  const [played, setPlayed] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [isReady, setIsReady] = useState(false);
-  
-  const playerRef = useRef<any>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const isMounted = useRef(true);
-
-  useEffect(() => {
-    isMounted.current = true;
-    return () => {
-      isMounted.current = false;
-    };
-  }, []);
-
-  // Extract URL from iframe snippet if necessary
-  const processedUrl = useMemo(() => {
+const VideoPlayer: React.FC<VideoPlayerProps> = ({ title, videoUrl }) => {
+  // Extract and normalize embed URL
+  const embedUrl = useMemo(() => {
     if (!videoUrl) return '';
     let url = videoUrl.trim();
     
-    // If it's an iframe snippet, extract the src
+    // 1. Handle iframe snippets (extract src)
     if (url.includes('<iframe')) {
       const srcMatch = url.match(/src="([^"]+)"/);
       if (srcMatch && srcMatch[1]) {
         url = srcMatch[1];
-        // Decode HTML entities like &amp;
         url = url.replace(/&amp;/g, '&');
       }
     }
 
-    // Standardize Vimeo URLs but keep necessary parameters
-    if (url.includes('player.vimeo.com/video/')) {
-      // react-player handles player.vimeo.com URLs fine, 
-      // but we ensure it's a full URL if it's missing the protocol
-      if (!url.startsWith('http')) {
-        url = 'https:' + (url.startsWith('//') ? '' : '//') + url;
-      }
+    // 2. Normalize YouTube URLs
+    // https://www.youtube.com/watch?v=dQw4w9WgXcQ
+    // https://youtu.be/dQw4w9WgXcQ
+    if (url.includes('youtube.com/watch?v=')) {
+      const videoId = new URL(url).searchParams.get('v');
+      if (videoId) url = `https://www.youtube.com/embed/${videoId}`;
+    } else if (url.includes('youtu.be/')) {
+      const videoId = url.split('youtu.be/')[1]?.split(/[?#]/)[0];
+      if (videoId) url = `https://www.youtube.com/embed/${videoId}`;
+    } else if (url.includes('youtube.com/embed/')) {
+      // Already an embed URL, just ensure protocol
     }
 
-    console.log(`VideoPlayer [${title}] loading URL:`, url);
+    // 3. Normalize Vimeo URLs
+    // https://vimeo.com/1173722623
+    // https://player.vimeo.com/video/1173722623
+    if (url.includes('vimeo.com/') && !url.includes('player.vimeo.com')) {
+      const videoId = url.split('vimeo.com/')[1]?.split(/[?#]/)[0];
+      if (videoId) url = `https://player.vimeo.com/video/${videoId}`;
+    }
+
+    // Ensure protocol
+    if (url.startsWith('//')) {
+      url = 'https:' + url;
+    } else if (url && !url.startsWith('http')) {
+      // If it's just an ID or something else, we might have issues, 
+      // but we assume it's a valid URL or path
+    }
+
+    // Add standard parameters for better embedding
+    if (url.includes('youtube.com/embed/')) {
+      const separator = url.includes('?') ? '&' : '?';
+      url += `${separator}rel=0&modestbranding=1`;
+    } else if (url.includes('player.vimeo.com/video/')) {
+      const separator = url.includes('?') ? '&' : '?';
+      url += `${separator}badge=0&autopause=0&player_id=0&app_id=58479`;
+    }
+
+    console.log(`VideoPlayer [${title}] using Embed URL:`, url);
     return url;
   }, [videoUrl, title]);
 
-  // Reset state when URL changes to prevent "interrupted play" errors
-  useEffect(() => {
-    setIsPlaying(false);
-    setIsReady(false);
-    setPlayed(0);
-    setHasError(false);
-  }, [processedUrl]);
-
-  const togglePlay = () => {
-    if (hasError) return;
-    setIsPlaying(prev => !prev);
-  };
-
-  const handleError = (e: any) => {
-      if (!isMounted.current) return;
-      console.error("Video Player Error:", e);
-      // Don't immediately show error for Vimeo/YouTube as they might have transient loading issues
-      // or specific embed restrictions that react-player eventually resolves
-      if (!processedUrl.includes('vimeo.com') && !processedUrl.includes('youtube.com')) {
-        setHasError(true);
-      }
-      setIsPlaying(false);
-  };
-
-  const handleReady = (player: any) => {
-    if (!isMounted.current) return;
-    setIsReady(true);
-    try {
-      const dur = player.getDuration();
-      if (dur) setDuration(dur);
-    } catch (e) {
-      console.warn("Could not get duration:", e);
-    }
-  };
-
-  const toggleFullscreen = () => {
-      if (!document.fullscreenElement) {
-          containerRef.current?.requestFullscreen();
-      } else {
-          document.exitFullscreen();
-      }
-  };
-
-  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const val = parseFloat(e.target.value);
-      setVolume(val);
-      setIsMuted(val === 0);
-  };
-
-  const toggleMute = () => {
-      if (isMuted) {
-          setVolume(0.8);
-          setIsMuted(false);
-      } else {
-          setVolume(0);
-          setIsMuted(true);
-      }
-  };
-
-  const formatTime = (seconds: number) => {
-    const date = new Date(seconds * 1000);
-    const hh = date.getUTCHours();
-    const mm = date.getUTCMinutes();
-    const ss = date.getUTCSeconds().toString().padStart(2, '0');
-    if (hh) {
-      return `${hh}:${mm.toString().padStart(2, '0')}:${ss}`;
-    }
-    return `${mm}:${ss}`;
-  };
-
-  const handleProgress = (state: any) => {
-    if (!isMounted.current) return;
-    setPlayed(state.played);
-  };
-
-  const handleSeek = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const percentage = x / rect.width;
-    playerRef.current?.seekTo(percentage);
-  };
-
-  const isNativeSource = processedUrl?.includes('vimeo.com') || processedUrl?.includes('youtube.com') || processedUrl?.includes('youtu.be') || processedUrl?.includes('player.vimeo.com');
+  const hasError = !embedUrl;
 
   return (
-    <div ref={containerRef} className="relative w-full aspect-video bg-black rounded-xl overflow-hidden shadow-2xl group border border-slate-800">
-      
-      {!hasError && processedUrl && (
-          <Player
-            ref={playerRef}
-            url={processedUrl}
-            playing={isPlaying && isReady}
-            volume={volume}
-            muted={isMuted}
-            controls={isNativeSource}
-            width="100%"
-            height="100%"
-            style={{ position: 'absolute', top: 0, left: 0 }}
-            onError={handleError}
-            onProgress={handleProgress}
-            onReady={handleReady}
-            onEnded={() => setIsPlaying(false)}
-            config={{
-              vimeo: {
-                playerVars: {
-                  autopause: 0,
-                  muted: 0
-                }
-              },
-              youtube: {
-                playerVars: {
-                  modestbranding: 1,
-                  rel: 0
-                }
-              }
-            }}
-          />
-      )}
-
-      {/* Error State UI - Technical Look */}
-      {hasError && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 border border-slate-800/50 p-8 text-center z-30">
-            <div className="w-16 h-16 rounded-full bg-slate-900 flex items-center justify-center mb-4 border border-slate-800">
-                <AlertCircle className="w-8 h-8 text-slate-600" />
-            </div>
-            <div className="font-mono text-sm font-bold text-slate-400 mb-2 tracking-widest uppercase">Video Source Not Found</div>
-            <div className="font-mono text-[10px] text-slate-600 bg-slate-950 px-3 py-1.5 rounded border border-slate-900 break-all max-w-md">
-                {processedUrl || videoUrl || 'Unknown Path'}
-            </div>
-        </div>
-      )}
-
-      {!hasError && !isPlaying && played === 0 && (
-        <img 
-            src={poster || getPlaceholderPath('thumb')} 
-            alt={title} 
-            className="absolute inset-0 w-full h-full object-cover opacity-80 hover:opacity-60 transition-opacity duration-300 z-10"
-            onClick={togglePlay}
+    <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden shadow-2xl border border-slate-800">
+      {embedUrl ? (
+        <iframe
+          src={embedUrl}
+          title={title}
+          className="absolute inset-0 w-full h-full"
+          frameBorder="0"
+          allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media; web-share"
+          referrerPolicy="strict-origin-when-cross-origin"
+          allowFullScreen
         />
-      )}
-
-      {!isPlaying && !hasError && !isNativeSource && (
-        <div className="absolute inset-0 flex items-center justify-center z-20 cursor-pointer" onClick={togglePlay}>
-          <div className="w-20 h-20 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center hover:scale-110 transition-transform group/play">
-            <Play className="w-8 h-8 text-white ml-1 fill-white opacity-90 group-hover/play:opacity-100" />
+      ) : (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 p-8 text-center">
+          <div className="w-16 h-16 rounded-full bg-slate-900 flex items-center justify-center mb-4 border border-slate-800">
+            <AlertCircle className="w-8 h-8 text-slate-600" />
           </div>
-        </div>
-      )}
-
-      {/* Show play button for native sources only if not started yet */}
-      {!isPlaying && !hasError && isNativeSource && played === 0 && (
-        <div className="absolute inset-0 flex items-center justify-center z-20 cursor-pointer" onClick={togglePlay}>
-          <div className="w-20 h-20 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center hover:scale-110 transition-transform group/play">
-            <Play className="w-8 h-8 text-white ml-1 fill-white opacity-90 group-hover/play:opacity-100" />
+          <div className="font-mono text-sm font-bold text-slate-400 mb-2 tracking-widest uppercase">
+            {hasError ? 'Video URL Missing' : 'Loading Video...'}
           </div>
-        </div>
-      )}
-
-      {!hasError && !isNativeSource && (
-        <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/90 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end z-40">
-            <div 
-              className="w-full h-1 bg-slate-700 rounded-full mb-4 cursor-pointer relative group/progress"
-              onClick={handleSeek}
-            >
-                <div 
-                  className="absolute top-0 left-0 h-full bg-blue-500 rounded-full"
-                  style={{ width: `${played * 100}%` }}
-                ></div>
-                <div 
-                  className="absolute top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full opacity-0 group-hover/progress:opacity-100 shadow transition-opacity"
-                  style={{ left: `${played * 100}%` }}
-                ></div>
-            </div>
-
-            <div className="flex items-center justify-between text-white">
-            <div className="flex items-center gap-4">
-                <button onClick={togglePlay} className="hover:text-blue-400 transition-colors">
-                {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current" />}
-                </button>
-                <div className="text-xs font-mono text-slate-300">
-                  {formatTime(played * duration)} / {formatTime(duration)}
-                </div>
-            </div>
-
-            <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2 group/vol">
-                    <button onClick={toggleMute} className="hover:text-blue-400">
-                        {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
-                    </button>
-                    <input 
-                        type="range" 
-                        min="0" max="1" step="0.1" 
-                        value={isMuted ? 0 : volume}
-                        onChange={handleVolumeChange}
-                        className="w-20 h-1 bg-slate-600 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
-                    />
-                </div>
-                <button onClick={toggleFullscreen} className="hover:text-blue-400">
-                    <Maximize2 className="w-5 h-5" />
-                </button>
-            </div>
-            </div>
+          <div className="font-mono text-[10px] text-slate-600 bg-slate-950 px-3 py-1.5 rounded border border-slate-900 break-all max-w-md">
+            {videoUrl || 'No URL provided'}
+          </div>
         </div>
       )}
     </div>

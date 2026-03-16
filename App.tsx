@@ -5,7 +5,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, deleteDoc, onSnapshot, getDocFromServer, collection, getDocs, query, writeBatch } from 'firebase/firestore';
 import { MEDIA_ROOT } from './constants';
 import initialCurriculum from './src/data/curriculum.json';
-import { Topic, ViewState, User, Comment, QuizAttempt, Teacher } from './types';
+import { Topic, ViewState, User, Comment, QuizAttempt, Teacher, LandingConfig } from './types';
 import TopicGraph from './components/TopicGraph';
 import TopicDetail from './components/TopicDetail';
 import Login from './components/Login';
@@ -145,6 +145,22 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
+  // Landing Config Sync from Firestore
+  useEffect(() => {
+    const unsubscribe = onSnapshot(doc(db, 'config', 'landing'), (docSnap) => {
+      if (docSnap.exists()) {
+        setLandingConfig(docSnap.data() as LandingConfig);
+      }
+    }, (error) => {
+      // It's okay if it doesn't exist yet, we have defaults
+      if (error.code !== 'permission-denied') {
+        handleFirestoreError(error, OperationType.GET, 'config/landing');
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
   // Progress Sync from Firestore
   useEffect(() => {
     if (!currentUser || !isAuthReady) return;
@@ -202,6 +218,14 @@ const App: React.FC = () => {
   const [isCurriculumLoaded, setIsCurriculumLoaded] = useState(false);
   // Users State
   const [currentUsers, setCurrentUsers] = useState<User[]>([]);
+  const [landingConfig, setLandingConfig] = useState<LandingConfig>({
+    title: "Digital Built Environment",
+    subtitle: "Recurrent Program",
+    description: "You are currently logged into the Recurrent Program. Navigate the knowledge graph to access your assigned video tutorials, spanning from fundamental modeling to advanced robotic fabrication.",
+    tag: "Semester 2025",
+    heroImage: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=2670&auto=format&fit=crop",
+    quote: "The Digital Built Environment is not just about tools, but the synthesis of information, geometry, and material performance."
+  });
   const [isUsersLoaded, setIsUsersLoaded] = useState(false);
 
   // Sync all users if admin
@@ -438,7 +462,7 @@ const App: React.FC = () => {
     setSelectedSubTopicId(undefined);
   };
 
-  const handleApplyAdminChanges = async (newTopics: Topic[], newTeachers: Teacher[], newUsers: User[]) => {
+  const handleApplyAdminChanges = async (newTopics: Topic[], newTeachers: Teacher[], newUsers: User[], newLandingConfig?: LandingConfig) => {
       const batch = writeBatch(db);
 
       // Helper to remove undefined values recursively
@@ -455,6 +479,11 @@ const App: React.FC = () => {
           }
           return obj;
       };
+
+      // Persist landing config
+      if (newLandingConfig) {
+          batch.set(doc(db, 'config', 'landing'), cleanObject(newLandingConfig));
+      }
 
       // Persist topics
       for (const topic of newTopics) {
@@ -665,6 +694,7 @@ const App: React.FC = () => {
             onLogin={handleLogin} 
             validUsers={currentUsers} 
             bootstrapAdminEmail={BOOTSTRAP_ADMIN_EMAIL}
+            landingConfig={landingConfig}
         />
       );
   }
@@ -675,6 +705,7 @@ const App: React.FC = () => {
             initialTopics={currentTopics} 
             initialTeachers={currentTeachers}
             initialUsers={currentUsers}
+            initialLandingConfig={landingConfig}
             onApplyChanges={handleApplyAdminChanges}
             onExit={() => setViewState(ViewState.HOME)}
         />
@@ -734,8 +765,8 @@ const App: React.FC = () => {
                   <Layers className="text-white w-6 h-6" />
                </div>
                <div className="hidden sm:block">
-                   <span className="text-xl font-bold block leading-none text-white">D-Be</span>
-                   <span className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Recurrent Program</span>
+                   <span className="text-xl font-bold block leading-none text-white">{landingConfig.title}</span>
+                   <span className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">{landingConfig.subtitle}</span>
                </div>
             </div>
             
@@ -795,18 +826,15 @@ const App: React.FC = () => {
                         
                         <div className="relative z-10">
                             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold uppercase tracking-wider mb-6">
-                                <BookOpen className="w-3 h-3" /> Welcome, {currentUser?.name.split(' ')[0]}
+                                <BookOpen className="w-3 h-3" /> {landingConfig.tag}
                             </div>
                             
                             <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-6 leading-tight">
-                                Digital Built <br />
-                                <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">Environment</span>
+                                {landingConfig.title}
                             </h1>
                             
                             <p className="text-slate-400 text-lg mb-8 leading-relaxed">
-                                You are currently logged into the <strong>Recurrent Program</strong>. 
-                                Navigate the knowledge graph to access your assigned video tutorials, 
-                                spanning from fundamental modeling to advanced robotic fabrication.
+                                {landingConfig.description}
                             </p>
 
                             <div className="flex flex-col sm:flex-row gap-4">

@@ -147,5 +147,10 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow write: if isAdmin();
     }
+
+    match /config/landing {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
   }
 }

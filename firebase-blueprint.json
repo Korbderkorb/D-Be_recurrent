@@ -65,6 +65,20 @@
         "bio": { "type": "string" }
       },
       "required": ["id", "name", "email"]
+    },
+    "LandingConfig": {
+      "title": "LandingConfig",
+      "description": "Configuration for the landing page content",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "subtitle": { "type": "string" },
+        "tag": { "type": "string" },
+        "heroImage": { "type": "string" },
+        "description": { "type": "string" },
+        "quote": { "type": "string" }
+      },
+      "required": ["title", "subtitle", "tag", "heroImage", "description", "quote"]
     }
   },
   "firestore": {
@@ -95,6 +109,10 @@
     "admin_only/check": {
       "schema": "object",
       "description": "Canary document for admin status verification"
+    },
+    "config/landing": {
+      "schema": "LandingConfig",
+      "description": "Global landing page configuration"
     }
   }
 }
