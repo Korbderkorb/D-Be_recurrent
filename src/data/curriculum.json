@@ -1,0 +1,174 @@
+{
+  "teachers": {
+    "ko": {
+      "id": "ko",
+      "name": "Koichiro Aitani",
+      "role": "Professor for Urban planning and design",
+      "email": "aitani.koichiro.195@m.kyushu-u.ac.jp",
+      "avatar": "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?q=80&w=200&auto=format&fit=crop"
+    },
+    "kazu": {
+      "id": "kazu",
+      "name": "Kazuki Nakaike",
+      "role": "Assistant Professor",
+      "email": "nakaike.kazuki.192@m.kyushu-u.ac.jp",
+      "avatar": "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=200&auto=format&fit=crop"
+    },
+    "korbinian": {
+      "id": "korbinian",
+      "name": "Korbinian Enzinger",
+      "role": "Associate Professor",
+      "email": "enzinger.korbinian.135@m.kyushu-u.ac.jp",
+      "avatar": "https://images.unsplash.com/photo-1580489944761-15a19d654956?q=80&w=200&auto=format&fit=crop"
+    },
+    "takuro": {
+      "id": "takuro",
+      "name": "Takuro Ogawa",
+      "role": "Associate Professor",
+      "email": "ogawa.takuro.326@m.kyushu-u.ac.jp",
+      "avatar": "https://images.unsplash.com/photo-1580489944761-15a19d654956?q=80&w=200&auto=format&fit=crop"
+    }
+  },
+  "topics": [
+    {
+      "id": "3d-modeling-001",
+      "title": "3D Modeling",
+      "shortDescription": "Fundamentals of NURBS geometry, coordinate systems, and digital drafting techniques.",
+      "fullDescription": "The core of the digital built environment. Master NURBS and Mesh modeling techniques.",
+      "imageUrl": "https://images.unsplash.com/photo-1617791160505-6f00504e3caf?q=80&w=1000&auto=format&fit=crop",
+      "color": "#3b82f6",
+      "level": 1,
+      "teacherKey": "korbinian",
+      "relatedTopics": ["energy-simulation-001", "digital-surveying-001", "ai-001", "robotic-fabrication-001"],
+      "subTopics": [
+        {
+          "id": "3d-modeling-001-intro",
+          "type": "VIDEO",
+          "title": "Introduction to 3D Space",
+          "description": "Coordinate systems (XYZ) and viewport navigation.",
+          "duration": "05:30",
+          "videoUrl": "https://vimeo.com/000000000",
+          "posterUrl": "https://picsum.photos/1200/800",
+          "comments": [],
+          "resources": {
+            "notesUrl": "https://example.com/file.pdf",
+            "sourceUrl": "https://example.com/file.pdf"
+          }
+        },
+        {
+          "id": "3d-modeling-001-install",
+          "type": "VIDEO",
+          "title": "Installation & Environment",
+          "description": "Setting up Rhino 8 interface layouts.",
+          "duration": "12:15",
+          "videoUrl": "https://vimeo.com/000000000",
+          "posterUrl": "https://picsum.photos/1200/800",
+          "comments": [],
+          "resources": {
+            "notesUrl": "https://example.com/file.pdf",
+            "sourceUrl": "https://example.com/file.pdf"
+          }
+        },
+        {
+          "id": "3d-modeling-001-nurbs-basics",
+          "type": "VIDEO",
+          "title": "NURBS vs Mesh",
+          "description": "Mathematical differences between geometry types.",
+          "duration": "15:45",
+          "videoUrl": "https://vimeo.com/000000000",
+          "posterUrl": "https://picsum.photos/1200/800",
+          "comments": [
+            {
+              "id": "c_init_1",
+              "user": "Alice M.",
+              "avatar": "https://ui-avatars.com/api/?name=Alice",
+              "text": "The explanation of degree 3 curves was very helpful.",
+              "timestamp": "2 days ago",
+              "reactions": { "👍": 1 },
+              "replies": []
+            }
+          ],
+          "resources": {
+            "notesUrl": "https://example.com/file.pdf",
+            "sourceUrl": "https://example.com/file.pdf"
+          }
+        },
+        {
+          "id": "3d-modeling-001-ui-deep-dive",
+          "type": "VIDEO",
+          "title": "Interface Deep Dive",
+          "description": "Command line and layer management.",
+          "duration": "20:00",
+          "videoUrl": "https://vimeo.com/000000000",
+          "posterUrl": "https://picsum.photos/1200/800",
+          "comments": [],
+          "resources": {
+            "notesUrl": "https://example.com/file.pdf",
+            "sourceUrl": "https://example.com/file.pdf"
+          }
+        },
+        {
+          "id": "3d-modeling-001-final-exercise",
+          "type": "EXERCISE_UPLOAD",
+          "title": "Final Exercise: The Pavilion",
+          "description": "Create a parametric pavilion structure using the tools learned. Upload .3dm file.",
+          "duration": "120:00",
+          "exerciseImage": "https://picsum.photos/1200/800",
+          "comments": [],
+          "resources": {
+            "notesUrl": "https://example.com/file.pdf"
+          }
+        }
+      ]
+    },
+    {
+      "id": "energy-simulation-001",
+      "title": "Energy Simulation",
+      "shortDescription": "Environmental analysis including solar gain, thermal mass, and airflow optimization.",
+      "fullDescription": "Simulate environmental factors to optimize energy efficiency.",
+      "imageUrl": "https://images.unsplash.com/photo-1451187580459-43490279c0fa?q=80&w=1000&auto=format&fit=crop",
+      "color": "#10b981",
+      "level": 2,
+      "teacherKey": "kazu",
+      "relatedTopics": [],
+      "subTopics": [
+        {
+          "id": "energy-simulation-001-climate-analysis",
+          "type": "VIDEO",
+          "title": "Climate Data Analysis",
+          "description": "Importing and visualizing .epw weather files.",
+          "duration": "18:00",
+          "videoUrl": "https://vimeo.com/000000000",
+          "posterUrl": "https://picsum.photos/1200/800",
+          "comments": [],
+          "resources": {
+            "notesUrl": "https://example.com/file.pdf",
+            "sourceUrl": "https://example.com/file.pdf"
+          }
+        },
+        {
+          "id": "energy-simulation-001-thermal-mass",
+          "type": "VIDEO",
+          "title": "Thermal Mass & Comfort",
+          "description": "Simulating heat retention in concrete structures.",
+          "duration": "22:30",
+          "videoUrl": "https://vimeo.com/000000000",
+          "posterUrl": "https://picsum.photos/1200/800",
+          "comments": []
+        },
+        {
+          "id": "energy-simulation-001-sim-quiz",
+          "type": "EXERCISE_QUIZ",
+          "title": "Quiz: Environmental Physics",
+          "description": "Test your knowledge on solar gain and thermal bridges.",
+          "duration": "10:00",
+          "comments": [],
+          "quizQuestions": [
+            { "id": "q1", "question": "What does the 'R-value' measure?", "options": ["Light transmission", "Thermal resistance", "Sound dampening", "Structural load"], "correctAnswers": [1], "multiSelect": false },
+            { "id": "q2", "question": "Which file format contains weather data?", "options": [".dwg", ".epw", ".3dm", ".pdf"], "correctAnswers": [1], "multiSelect": false }
+          ]
+        }
+      ]
+    }
+  ]
+}

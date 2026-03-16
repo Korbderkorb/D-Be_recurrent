@@ -5,16 +5,16 @@ import { signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfi
 import { doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
 import { Layers, ArrowRight, Lock, Mail, User as UserIcon, Sparkles } from 'lucide-react';
 import { User } from '../types';
-import { TOPICS } from '../constants';
 
 interface LoginProps {
   onLogin: (user: User) => void;
   validUsers?: User[];
+  bootstrapAdminEmail: string;
 }
 
 type AuthMode = 'LOGIN' | 'SIGNUP' | 'FIRST_TIME';
 
-const Login: React.FC<LoginProps> = ({ onLogin, validUsers }) => {
+const Login: React.FC<LoginProps> = ({ onLogin, validUsers, bootstrapAdminEmail }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -48,7 +48,9 @@ const Login: React.FC<LoginProps> = ({ onLogin, validUsers }) => {
             const userDocRef = doc(db, 'users', email);
             const userDoc = await getDoc(userDocRef);
 
-            if (!userDoc.exists() || userDoc.data().status !== 'pending') {
+            const isBootstrapAdmin = email === bootstrapAdminEmail;
+
+            if (!isBootstrapAdmin && (!userDoc.exists() || userDoc.data().status !== 'pending')) {
                 // Not allowed! Delete the auth user we just created to keep Auth clean
                 await firebaseUser.delete();
                 setError('This email is not pre-approved for registration. Please contact your administrator.');
@@ -56,7 +58,16 @@ const Login: React.FC<LoginProps> = ({ onLogin, validUsers }) => {
                 return;
             }
 
-            const pendingData = userDoc.data() as User;
+            const pendingData = userDoc.exists() ? (userDoc.data() as User) : {
+                id: firebaseUser.uid,
+                email: email,
+                name: 'Admin',
+                avatar: `https://ui-avatars.com/api/?name=Admin&background=0D8ABC&color=fff`,
+                role: 'admin',
+                status: 'active',
+                allowedTopics: [],
+                stats: { modulesCompleted: 0, totalModules: 0, lastActive: 'Just now', quizScores: [] }
+            } as User;
             
             await updateProfile(firebaseUser, { displayName: pendingData.name });
             
@@ -69,8 +80,10 @@ const Login: React.FC<LoginProps> = ({ onLogin, validUsers }) => {
             
             await setDoc(doc(db, 'users', firebaseUser.uid), activeUser);
             
-            // 4. Delete the pending document (which used email as ID)
-            await deleteDoc(userDocRef);
+            // 4. Delete the pending document if it exists (which used email as ID)
+            if (userDoc.exists()) {
+                await deleteDoc(userDocRef);
+            }
             
             onLogin(activeUser);
         } else if (authMode === 'SIGNUP') {

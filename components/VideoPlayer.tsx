@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import ReactPlayer from 'react-player';
 import { Play, Pause, Volume2, VolumeX, Maximize2, AlertCircle } from 'lucide-react';
+import { getPlaceholderPath } from '../constants';
 
 interface VideoPlayerProps {
   title: string;
@@ -81,6 +82,8 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ title, videoUrl, poster }) =>
     playerRef.current?.seekTo(percentage);
   };
 
+  const isNativeSource = videoUrl?.includes('vimeo.com') || videoUrl?.includes('youtube.com') || videoUrl?.includes('youtu.be') || videoUrl?.includes('player.vimeo.com');
+
   return (
     <div ref={containerRef} className="relative w-full aspect-video bg-black rounded-xl overflow-hidden shadow-2xl group border border-slate-800">
       
@@ -91,6 +94,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ title, videoUrl, poster }) =>
             playing={isPlaying}
             volume={volume}
             muted={isMuted}
+            controls={isNativeSource}
             width="100%"
             height="100%"
             style={{ position: 'absolute', top: 0, left: 0 }}
@@ -98,6 +102,15 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ title, videoUrl, poster }) =>
             onProgress={handleProgress}
             onDuration={handleDuration}
             onEnded={() => setIsPlaying(false)}
+            config={{
+              vimeo: {
+                playerVars: {
+                  title: 0,
+                  byline: 0,
+                  portrait: 0
+                }
+              }
+            }}
           />
       )}
 
@@ -116,13 +129,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ title, videoUrl, poster }) =>
 
       {!hasError && !isPlaying && played === 0 && (
         <img 
-            src={poster || "https://picsum.photos/1200/800"} 
+            src={poster || getPlaceholderPath('thumb')} 
             alt={title} 
             className="absolute inset-0 w-full h-full object-cover opacity-80 hover:opacity-60 transition-opacity duration-300 z-10"
+            onClick={togglePlay}
         />
       )}
 
-      {!isPlaying && !hasError && (
+      {!isPlaying && !hasError && !isNativeSource && (
         <div className="absolute inset-0 flex items-center justify-center z-20 cursor-pointer" onClick={togglePlay}>
           <div className="w-20 h-20 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center hover:scale-110 transition-transform group/play">
             <Play className="w-8 h-8 text-white ml-1 fill-white opacity-90 group-hover/play:opacity-100" />
@@ -130,7 +144,16 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ title, videoUrl, poster }) =>
         </div>
       )}
 
-      {!hasError && (
+      {/* Show play button for native sources only if not started yet */}
+      {!isPlaying && !hasError && isNativeSource && played === 0 && (
+        <div className="absolute inset-0 flex items-center justify-center z-20 cursor-pointer" onClick={togglePlay}>
+          <div className="w-20 h-20 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 flex items-center justify-center hover:scale-110 transition-transform group/play">
+            <Play className="w-8 h-8 text-white ml-1 fill-white opacity-90 group-hover/play:opacity-100" />
+          </div>
+        </div>
+      )}
+
+      {!hasError && !isNativeSource && (
         <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/90 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end z-40">
             <div 
               className="w-full h-1 bg-slate-700 rounded-full mb-4 cursor-pointer relative group/progress"

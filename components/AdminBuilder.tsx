@@ -2,8 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Download, Plus, Trash2, Edit2, GripVertical, ChevronRight, Video, Upload, HelpCircle, UploadCloud, RefreshCw, Copy, AlertCircle, Info, Settings, Save, CheckSquare, Square, X, Users, GraduationCap, Layers, UserPlus, Key, Eye, Shield, BarChart3, Search, Lock as LockIcon } from 'lucide-react';
 import { Topic, SubTopic, Teacher, SubTopicType, QuizQuestion, User } from '../types';
-
-const MEDIA_ROOT = '/media';
+import { MEDIA_ROOT, getPlaceholderPath } from '../constants';
 const MODULE_TYPES: SubTopicType[] = ['VIDEO', 'EXERCISE_UPLOAD', 'EXERCISE_QUIZ'];
 
 // --- UTILITIES ---
@@ -22,21 +21,21 @@ const generateSlug = (text: string): string => {
 const generateKey = () => Math.random().toString(36).substr(2, 9);
 
 const getUniqueId = (base: string, existingIds: string[]) => {
-    if (!existingIds.includes(base)) return base;
-    let counter = 1;
-    while (existingIds.includes(`${base}-${counter}`)) {
+    const baseWithSuffix = `${base}-001`;
+    if (!existingIds.includes(baseWithSuffix)) return baseWithSuffix;
+    
+    let counter = 2;
+    while (existingIds.includes(`${base}-${counter.toString().padStart(3, '0')}`)) {
         counter++;
     }
-    return `${base}-${counter}`;
+    return `${base}-${counter.toString().padStart(3, '0')}`;
 };
 
 const getGeneratedPath = (topicId: string, subId: string | undefined, type: 'video' | 'image' | 'thumb' | 'pdf' | 'zip') => {
-  if (type === 'video') return 'https://vimeo.com/000000000';
-  if (type === 'thumb' || type === 'image') return 'https://picsum.photos/1200/800';
-  return 'https://example.com/file.pdf';
+  return getPlaceholderPath(type);
 };
 
-const getTopicThumbPath = (topicId: string) => `https://picsum.photos/1200/800`;
+const getTopicThumbPath = (topicId: string) => getPlaceholderPath('thumb');
 
 // --- COMPONENTS ---
 
@@ -145,12 +144,12 @@ const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSu
                     {module.type === 'VIDEO' && (
                          <div className="col-span-12 space-y-3 pb-2 border-b border-slate-200 mb-2">
                              <div>
-                                 <label className="block text-xs font-medium text-slate-500 mb-1">Video URL</label>
+                                 <label className="block text-xs font-medium text-slate-500 mb-1">Embed Link (Vimeo/YouTube)</label>
                                  <input 
                                      type="text" 
                                      value={module.videoUrl || ''} 
                                      onChange={e => onUpdate({ ...module, videoUrl: e.target.value })} 
-                                     placeholder={getGeneratedPath(topicId, module._subId, 'video')}
+                                     placeholder="https://player.vimeo.com/video/..."
                                      className="w-full p-2 text-sm border border-slate-200 rounded focus:border-blue-400 outline-none bg-white font-mono text-slate-600" 
                                  />
                              </div>

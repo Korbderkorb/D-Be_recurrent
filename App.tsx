@@ -3,7 +3,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, deleteDoc, onSnapshot, getDocFromServer, collection, getDocs, query } from 'firebase/firestore';
-import { TOPICS, teachers as INITIAL_TEACHERS } from './constants';
+import { MEDIA_ROOT } from './constants';
+import initialCurriculum from './src/data/curriculum.json';
 import { Topic, ViewState, User, Comment, QuizAttempt, Teacher } from './types';
 import TopicGraph from './components/TopicGraph';
 import TopicDetail from './components/TopicDetail';
@@ -19,6 +20,8 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [lockedTopicAlert, setLockedTopicAlert] = useState<{show: boolean, topic: Topic | null, missing: Topic[]} | null>(null);
+
+  const BOOTSTRAP_ADMIN_EMAIL = import.meta.env.VITE_BOOTSTRAP_ADMIN_EMAIL || "korbinian.enzinger@gmail.com";
 
   // Firestore Error Handling
   enum OperationType {
@@ -99,7 +102,7 @@ const App: React.FC = () => {
           } else {
             // Only the bootstrap admin can auto-create their profile if it's missing
             // Others must be pre-approved via the Admin Builder and use First Time Login
-            if (firebaseUser.email === "korbinian.enzinger@gmail.com") {
+            if (firebaseUser.email === BOOTSTRAP_ADMIN_EMAIL) {
               userData = {
                 id: firebaseUser.uid,
                 email: firebaseUser.email || '',
@@ -107,8 +110,8 @@ const App: React.FC = () => {
                 avatar: firebaseUser.photoURL || `https://ui-avatars.com/api/?name=Admin&background=0D8ABC&color=fff`,
                 role: 'admin',
                 status: 'active',
-                allowedTopics: TOPICS.map(t => t.id),
-                stats: { modulesCompleted: 0, totalModules: TOPICS.length, lastActive: 'Just now', quizScores: [] }
+                allowedTopics: initialCurriculum.topics.map(t => t.id),
+                stats: { modulesCompleted: 0, totalModules: initialCurriculum.topics.length, lastActive: 'Just now', quizScores: [] }
               };
               await setDoc(doc(db, 'users', firebaseUser.uid), userData);
             } else {
@@ -118,7 +121,7 @@ const App: React.FC = () => {
 
           // Verify admin status
           // 1. Bootstrap Admin (Hardcoded Email)
-          if (firebaseUser.email === "korbinian.enzinger@gmail.com") {
+          if (firebaseUser.email === BOOTSTRAP_ADMIN_EMAIL) {
             if (userData.role !== 'admin') {
               userData.role = 'admin';
               await setDoc(doc(db, 'users', firebaseUser.uid), { role: 'admin' }, { merge: true });
@@ -240,12 +243,12 @@ const App: React.FC = () => {
       if (topics.length > 0) {
         setCurrentTopics(topics.sort((a, b) => a.level - b.level));
         setIsCurriculumLoaded(true);
-      } else if (currentUser?.email === "korbinian.enzinger@gmail.com") {
+      } else if (currentUser?.email === BOOTSTRAP_ADMIN_EMAIL) {
         // Bootstrap admin will trigger initialization if empty
         setIsCurriculumLoaded(false);
       } else {
-        // Fallback to constants if empty and not admin (though ideally it shouldn't be empty)
-        setCurrentTopics(TOPICS);
+        // If empty and not admin, we show empty state or wait for admin to bootstrap
+        setCurrentTopics([]);
         setIsCurriculumLoaded(true);
       }
     }, (error) => {
@@ -267,7 +270,7 @@ const App: React.FC = () => {
       if (teachers.length > 0) {
         setCurrentTeachers(teachers);
       } else {
-        setCurrentTeachers(Object.entries(INITIAL_TEACHERS).map(([key, t]) => ({...t, id: key})));
+        setCurrentTeachers([]);
       }
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'teachers');
@@ -278,22 +281,26 @@ const App: React.FC = () => {
 
   // Initialization logic for Bootstrap Admin
   useEffect(() => {
-    if (currentUser?.email !== "korbinian.enzinger@gmail.com" || !isAuthReady || isCurriculumLoaded) return;
+    if (currentUser?.email !== BOOTSTRAP_ADMIN_EMAIL || !isAuthReady || isCurriculumLoaded) return;
 
     const initCurriculum = async () => {
       try {
         const topicsSnap = await getDocs(query(collection(db, 'topics')));
         if (topicsSnap.empty) {
           console.log("Initializing topics in Firestore...");
-          for (const topic of TOPICS) {
-            await setDoc(doc(db, 'topics', topic.id), topic);
+          for (const topic of initialCurriculum.topics) {
+            // Reconstitute teacher object from key
+            const teacherKey = (topic as any).teacherKey;
+            const teacher = (initialCurriculum.teachers as any)[teacherKey] || Object.values(initialCurriculum.teachers)[0];
+            const finalTopic = { ...topic, teacher };
+            await setDoc(doc(db, 'topics', topic.id), finalTopic);
           }
         }
 
         const teachersSnap = await getDocs(query(collection(db, 'teachers')));
         if (teachersSnap.empty) {
           console.log("Initializing teachers in Firestore...");
-          const teachersList = Object.entries(INITIAL_TEACHERS).map(([key, t]) => ({...t, id: key}));
+          const teachersList = Object.entries(initialCurriculum.teachers).map(([key, t]) => ({...(t as any), id: key}));
           for (const teacher of teachersList) {
             await setDoc(doc(db, 'teachers', teacher.id), teacher);
           }
@@ -656,7 +663,13 @@ const App: React.FC = () => {
   };
 
   if (viewState === ViewState.LOGIN) {
-      return <Login onLogin={handleLogin} validUsers={currentUsers} />;
+      return (
+        <Login 
+            onLogin={handleLogin} 
+            validUsers={currentUsers} 
+            bootstrapAdminEmail={BOOTSTRAP_ADMIN_EMAIL}
+        />
+      );
   }
 
   if (viewState === ViewState.ADMIN_BUILDER && currentUser?.role === 'admin') {
