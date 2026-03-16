@@ -388,7 +388,7 @@ const App: React.FC = () => {
     syncProgress();
   }, [completedSubTopics, submittedExercises, currentUser, isAuthReady]);
 
-  // Derived Locked State based on User Permissions
+  // Derived Locked State based on User Permissions (Permanently Locked)
   const lockedTopicIds = useMemo(() => {
       if (!currentUser || currentUser.role === 'admin') return new Set<string>();
       
@@ -402,6 +402,33 @@ const App: React.FC = () => {
       });
       return locked;
   }, [currentUser, currentTopics]);
+
+  // Derived Locked State based on Prerequisites
+  const prerequisiteLockedIds = useMemo(() => {
+      if (!currentUser || currentUser.role === 'admin') return new Set<string>();
+      
+      const locked = new Set<string>();
+      
+      currentTopics.forEach(topic => {
+          // Skip if already permanently locked
+          if (lockedTopicIds.has(topic.id)) return;
+
+          // Check Prerequisites
+          const prerequisites = currentTopics.filter(t => 
+              t.relatedTopics.includes(topic.id) && t.level < topic.level
+          );
+          
+          // Check if all subtopics of prerequisites are completed
+          const isMissingPrereq = prerequisites.some(p => 
+              p.subTopics.some(st => !completedSubTopics.has(st.id))
+          );
+
+          if (isMissingPrereq) {
+              locked.add(topic.id);
+          }
+      });
+      return locked;
+  }, [currentUser, currentTopics, lockedTopicIds, completedSubTopics]);
 
   // Derived Teachers List (from state now)
   const uniqueTeachers = useMemo(() => {
@@ -761,9 +788,13 @@ const App: React.FC = () => {
           {/* Navigation Bar */}
           <nav className="h-20 border-b border-slate-800 bg-slate-950/90 backdrop-blur fixed w-full z-40 flex items-center justify-between px-6 lg:px-8">
             <div className="flex items-center gap-3">
-               <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-900/20">
-                  <Layers className="text-white w-6 h-6" />
-               </div>
+               {landingConfig.appLogoUrl ? (
+                   <img src={landingConfig.appLogoUrl} alt="Logo" className="h-10 w-auto object-contain" />
+               ) : (
+                   <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-900/20">
+                      <Layers className="text-white w-6 h-6" />
+                   </div>
+               )}
                <div className="hidden sm:block">
                    <span className="text-xl font-bold block leading-none text-white">{landingConfig.title}</span>
                    <span className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">{landingConfig.subtitle}</span>
@@ -799,9 +830,10 @@ const App: React.FC = () => {
                     <button 
                         onClick={() => setViewState(ViewState.ADMIN_BUILDER)}
                         className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors"
+                        title="Curriculum Builder"
                     >
                         <Edit3 className="w-4 h-4" />
-                        Curriculum Builder
+                        <span className="hidden md:inline">Curriculum Builder</span>
                     </button>
                 )}
 
@@ -830,11 +862,17 @@ const App: React.FC = () => {
                             </div>
                             
                             <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-6 leading-tight">
-                                {landingConfig.title}
+                                {landingConfig.welcomeTitle || landingConfig.title}
                             </h1>
                             
+                            {landingConfig.welcomeSubtitle && (
+                                <p className="text-blue-400 font-bold text-sm uppercase tracking-widest mb-4">
+                                    {landingConfig.welcomeSubtitle}
+                                </p>
+                            )}
+                            
                             <p className="text-slate-400 text-lg mb-8 leading-relaxed">
-                                {landingConfig.description}
+                                {landingConfig.welcomeDescription || landingConfig.description}
                             </p>
 
                             <div className="flex flex-col sm:flex-row gap-4">
@@ -842,7 +880,7 @@ const App: React.FC = () => {
                                     onClick={() => setShowWelcomeOverlay(false)}
                                     className="px-8 py-3.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-500 transition-colors flex items-center justify-center gap-2 group shadow-lg shadow-blue-900/20"
                                 >
-                                    Continue to Dashboard
+                                    {landingConfig.welcomeButtonText || 'Continue to Dashboard'}
                                     <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                                 </button>
                             </div>
@@ -859,6 +897,9 @@ const App: React.FC = () => {
                             onSelectTopic={handleTopicSelect} 
                             completedSubTopics={completedSubTopics}
                             lockedTopicIds={lockedTopicIds}
+                            prerequisiteLockedIds={prerequisiteLockedIds}
+                            graphTitle={landingConfig.graphTitle}
+                            graphSubtitle={landingConfig.graphSubtitle}
                         />
                     </div>
                 )}
@@ -868,6 +909,8 @@ const App: React.FC = () => {
                         topics={currentTopics} 
                         completedSubTopics={completedSubTopics}
                         onSelectTopic={handleTopicSelect}
+                        lockedTopicIds={lockedTopicIds}
+                        prerequisiteLockedIds={prerequisiteLockedIds}
                     />
                 )}
 
@@ -932,6 +975,8 @@ const App: React.FC = () => {
                                         topics={currentTopics.filter(t => t.teacher.email === selectedTeacherEmail)} 
                                         completedSubTopics={completedSubTopics}
                                         onSelectTopic={handleTopicSelect}
+                                        lockedTopicIds={lockedTopicIds}
+                                        prerequisiteLockedIds={prerequisiteLockedIds}
                                     />
                                 </div>
                             </div>

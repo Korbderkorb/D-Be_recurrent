@@ -427,7 +427,7 @@ interface AdminBuilderProps {
 }
 
 export default function AdminBuilder({ initialTopics, initialTeachers, initialUsers, initialLandingConfig, onApplyChanges, onExit }: AdminBuilderProps) {
-  const [activeTab, setActiveTab] = useState<'CURRICULUM' | 'TEACHERS' | 'USERS' | 'LANDING'>('CURRICULUM');
+  const [activeTab, setActiveTab] = useState<'CURRICULUM' | 'TEACHERS' | 'USERS' | 'USER_INTERFACE'>('CURRICULUM');
   
   // States
   const [topics, setTopics] = useState<Topic[]>([]);
@@ -712,10 +712,10 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
                       Users
                   </button>
                   <button 
-                    onClick={() => setActiveTab('LANDING')}
-                    className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${activeTab === 'LANDING' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
+                    onClick={() => setActiveTab('USER_INTERFACE')}
+                    className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${activeTab === 'USER_INTERFACE' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
                   >
-                      Landing Page
+                      User Interface
                   </button>
               </div>
           </div>
@@ -996,18 +996,20 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
               </div>
           )}
 
-          {/* USERS TAB */}
-          {activeTab === 'LANDING' && (
-              <div className="flex-1 overflow-y-auto p-8 bg-slate-50">
-                  <div className="max-w-3xl mx-auto">
-                      <div className="flex items-center justify-between mb-8">
-                          <div>
-                              <h2 className="text-2xl font-bold text-slate-900">Landing Page Content</h2>
-                              <p className="text-slate-500 text-sm">Manage the information showcased on the starting page.</p>
-                          </div>
+          {/* USER INTERFACE TAB */}
+          {activeTab === 'USER_INTERFACE' && (
+              <div className="h-full overflow-y-auto p-8 bg-slate-50">
+                  <div className="max-w-3xl mx-auto space-y-8">
+                      <div>
+                          <h2 className="text-2xl font-bold text-slate-900">User Interface Configuration</h2>
+                          <p className="text-slate-500 text-sm">Manage the visual identity and content of your platform.</p>
                       </div>
 
+                      {/* SECTION 1: LANDING PAGE */}
                       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                          <div className="bg-slate-50 px-6 py-3 border-b border-slate-200">
+                              <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">1. Landing Page (Login)</h3>
+                          </div>
                           <div className="p-6 space-y-6">
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                   <div className="space-y-2">
@@ -1062,22 +1064,11 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
                               </div>
 
                               <div className="space-y-2">
-                                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Description (Welcome Overlay)</label>
-                                  <textarea 
-                                      value={landingConfig.description} 
-                                      onChange={e => setLandingConfig({...landingConfig, description: e.target.value})}
-                                      rows={4}
-                                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none"
-                                      placeholder="Describe the program..."
-                                  />
-                              </div>
-
-                              <div className="space-y-2">
-                                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Inspirational Quote (Login Page)</label>
+                                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Inspirational Quote</label>
                                   <textarea 
                                       value={landingConfig.quote} 
                                       onChange={e => setLandingConfig({...landingConfig, quote: e.target.value})}
-                                      rows={3}
+                                      rows={2}
                                       className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none"
                                       placeholder="Enter a quote..."
                                   />
@@ -1085,7 +1076,111 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
                           </div>
                       </div>
 
-                      <div className="mt-8 p-6 bg-blue-50 border border-blue-100 rounded-2xl">
+                      {/* SECTION 2: WELCOME OVERLAY */}
+                      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                          <div className="bg-slate-50 px-6 py-3 border-b border-slate-200">
+                              <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">2. Welcome Overlay</h3>
+                          </div>
+                          <div className="p-6 space-y-6">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                  <div className="space-y-2">
+                                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Overlay Title</label>
+                                      <input 
+                                          type="text" 
+                                          value={landingConfig.welcomeTitle || ''} 
+                                          onChange={e => setLandingConfig({...landingConfig, welcomeTitle: e.target.value})}
+                                          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                          placeholder="e.g. Welcome to the Program"
+                                      />
+                                  </div>
+                                  <div className="space-y-2">
+                                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Overlay Subtitle</label>
+                                      <input 
+                                          type="text" 
+                                          value={landingConfig.welcomeSubtitle || ''} 
+                                          onChange={e => setLandingConfig({...landingConfig, welcomeSubtitle: e.target.value})}
+                                          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                          placeholder="e.g. Let's start your journey"
+                                      />
+                                  </div>
+                              </div>
+
+                              <div className="space-y-2">
+                                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Description</label>
+                                  <textarea 
+                                      value={landingConfig.welcomeDescription || landingConfig.description} 
+                                      onChange={e => setLandingConfig({...landingConfig, welcomeDescription: e.target.value})}
+                                      rows={4}
+                                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none"
+                                      placeholder="Describe the program..."
+                                  />
+                              </div>
+
+                              <div className="space-y-2">
+                                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Button Text</label>
+                                  <input 
+                                      type="text" 
+                                      value={landingConfig.welcomeButtonText || ''} 
+                                      onChange={e => setLandingConfig({...landingConfig, welcomeButtonText: e.target.value})}
+                                      className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                      placeholder="e.g. Enter Curriculum Map"
+                                  />
+                              </div>
+                          </div>
+                      </div>
+
+                      {/* SECTION 3: KNOWLEDGE GRAPH INTERFACE */}
+                      <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                          <div className="bg-slate-50 px-6 py-3 border-b border-slate-200">
+                              <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wider">3. Knowledge Graph Interface</h3>
+                          </div>
+                          <div className="p-6 space-y-6">
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                  <div className="space-y-2">
+                                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Graph Title</label>
+                                      <input 
+                                          type="text" 
+                                          value={landingConfig.graphTitle || ''} 
+                                          onChange={e => setLandingConfig({...landingConfig, graphTitle: e.target.value})}
+                                          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                          placeholder="e.g. CURRICULUM_MAP_V2.3"
+                                      />
+                                  </div>
+                                  <div className="space-y-2">
+                                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Graph Subtitle</label>
+                                      <input 
+                                          type="text" 
+                                          value={landingConfig.graphSubtitle || ''} 
+                                          onChange={e => setLandingConfig({...landingConfig, graphSubtitle: e.target.value})}
+                                          className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                          placeholder="e.g. INTERACTIVE_LEARNING_PATH"
+                                      />
+                                  </div>
+                              </div>
+
+                              <div className="space-y-2">
+                                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">App Logo URL (Top Left)</label>
+                                  <div className="flex gap-4">
+                                      <div className="flex-1">
+                                          <input 
+                                              type="text" 
+                                              value={landingConfig.appLogoUrl || ''} 
+                                              onChange={e => setLandingConfig({...landingConfig, appLogoUrl: e.target.value})}
+                                              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                              placeholder="https://..."
+                                          />
+                                      </div>
+                                      {landingConfig.appLogoUrl && (
+                                          <div className="w-12 h-12 rounded-lg border border-slate-200 overflow-hidden bg-slate-900 shrink-0 p-1">
+                                              <img src={landingConfig.appLogoUrl} alt="Logo Preview" className="w-full h-full object-contain" />
+                                          </div>
+                                      )}
+                                  </div>
+                              </div>
+                          </div>
+                      </div>
+
+                      <div className="p-6 bg-blue-50 border border-blue-100 rounded-2xl">
                           <div className="flex gap-4">
                               <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center shrink-0">
                                   <Sparkles className="text-blue-600 w-5 h-5" />
@@ -1093,7 +1188,7 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
                               <div>
                                   <h4 className="text-sm font-bold text-blue-900 mb-1">Live Preview</h4>
                                   <p className="text-xs text-blue-700 leading-relaxed">
-                                      Changes made here will be reflected on the login page and the welcome overlay that users see when they first log in.
+                                      Changes made here will be reflected across the entire platform's user interface.
                                   </p>
                               </div>
                           </div>

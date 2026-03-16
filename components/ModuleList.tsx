@@ -7,9 +7,17 @@ interface ModuleListProps {
   topics: Topic[];
   completedSubTopics: Set<string>;
   onSelectTopic: (topic: Topic, subTopicId?: string) => void;
+  lockedTopicIds?: Set<string>;
+  prerequisiteLockedIds?: Set<string>;
 }
 
-const ModuleList: React.FC<ModuleListProps> = ({ topics, completedSubTopics, onSelectTopic }) => {
+const ModuleList: React.FC<ModuleListProps> = ({ 
+    topics, 
+    completedSubTopics, 
+    onSelectTopic,
+    lockedTopicIds = new Set(),
+    prerequisiteLockedIds = new Set()
+}) => {
   // Sort topics by level to show hierarchy roughly
   const sortedTopics = [...topics].sort((a, b) => {
       if (a.level !== b.level) return a.level - b.level;
@@ -43,12 +51,25 @@ const ModuleList: React.FC<ModuleListProps> = ({ topics, completedSubTopics, onS
                     const progress = Math.round((completedCount / totalCount) * 100);
                     const isExpanded = expandedTopics.has(topic.id);
                     const isFullyComplete = completedCount === totalCount;
+                    const isLocked = lockedTopicIds.has(topic.id);
+                    const isPrereqLocked = prerequisiteLockedIds.has(topic.id);
 
                     return (
-                        <div key={topic.id} className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden hover:border-slate-700 transition-colors">
+                        <div 
+                            key={topic.id} 
+                            className={`bg-slate-900 border rounded-2xl overflow-hidden transition-all ${
+                                isLocked ? 'opacity-40 grayscale border-slate-800' : 
+                                isPrereqLocked ? 'opacity-[0.85] grayscale-[0.5] border-yellow-500/30' : 
+                                'border-slate-800 hover:border-slate-700'
+                            }`}
+                        >
                             {/* Topic Header */}
                             <div 
-                                className="p-6 cursor-pointer hover:bg-slate-800/50 transition-colors"
+                                className={`p-6 transition-colors ${
+                                    isLocked ? 'cursor-not-allowed' : 
+                                    isPrereqLocked ? 'cursor-not-allowed hover:bg-slate-800/30' : 
+                                    'cursor-pointer hover:bg-slate-800/50'
+                                }`}
                                 onClick={() => onSelectTopic(topic)}
                             >
                                 <div className="flex items-start md:items-center justify-between gap-4 mb-4">
@@ -63,6 +84,11 @@ const ModuleList: React.FC<ModuleListProps> = ({ topics, completedSubTopics, onS
                                         <div className="w-12 h-12 rounded-lg shrink-0 overflow-hidden relative">
                                             <img src={topic.imageUrl} alt={topic.title} className="w-full h-full object-cover" />
                                             <div className="absolute inset-0 bg-black/20"></div>
+                                            {(isLocked || isPrereqLocked) && (
+                                                <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                                                    <Clock className={`w-6 h-6 ${isPrereqLocked ? 'text-yellow-400' : 'text-slate-400'}`} />
+                                                </div>
+                                            )}
                                         </div>
 
                                         <div>
@@ -82,9 +108,15 @@ const ModuleList: React.FC<ModuleListProps> = ({ topics, completedSubTopics, onS
                                     </div>
                                     
                                     <div className="hidden md:block text-right">
-                                        <button className="text-sm font-medium text-blue-400 hover:text-white flex items-center gap-1">
-                                            Go to Module <ArrowRight className="w-4 h-4" />
-                                        </button>
+                                        {isLocked ? (
+                                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Permanently Locked</span>
+                                        ) : isPrereqLocked ? (
+                                            <span className="text-xs font-bold text-yellow-500/70 uppercase tracking-wider">Prerequisites Missing</span>
+                                        ) : (
+                                            <button className="text-sm font-medium text-blue-400 hover:text-white flex items-center gap-1">
+                                                Go to Module <ArrowRight className="w-4 h-4" />
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
 

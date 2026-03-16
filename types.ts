@@ -88,12 +88,24 @@ export interface Topic {
 }
 
 export interface LandingConfig {
+  // Landing Page (Login)
   title: string;
   subtitle: string;
   description: string;
   tag: string;
   heroImage: string;
   quote: string;
+
+  // Welcome Overlay
+  welcomeTitle?: string;
+  welcomeSubtitle?: string;
+  welcomeDescription?: string;
+  welcomeButtonText?: string;
+
+  // Knowledge Graph Interface
+  graphTitle?: string;
+  graphSubtitle?: string;
+  appLogoUrl?: string;
 }
 
 export enum ViewState {

@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { ArrowLeft, Clock, PlayCircle, MessageCircle, FileText, CheckCircle2, Circle, AlertTriangle, Upload, Check, HelpCircle, Download, User as UserIcon, Mail, Reply, Copy, Trash2, XCircle, RotateCcw, History, CheckSquare, UploadCloud } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Clock, PlayCircle, MessageCircle, FileText, CheckCircle2, Circle, AlertTriangle, Upload, Check, HelpCircle, Download, User as UserIcon, Mail, Reply, Copy, Trash2, XCircle, RotateCcw, History, CheckSquare, UploadCloud } from 'lucide-react';
 import { Topic, Comment, User, QuizAttempt } from '../types';
 import VideoPlayer from './VideoPlayer';
 
@@ -310,14 +310,53 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
           className="p-2 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors flex items-center gap-2 group"
         >
           <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-          <span className="font-medium">All Topics</span>
+          <span className="hidden sm:inline font-medium">All Topics</span>
         </button>
-        <div className="h-6 w-px bg-slate-700 mx-2" />
-        <h1 className="text-xl font-bold flex items-center gap-3 text-white">
-            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: topic.color }}></span>
-            {topic.title}
+        <div className="h-6 w-px bg-slate-700 mx-2 hidden sm:block" />
+        <h1 className="text-sm md:text-xl font-bold flex items-center gap-3 text-white truncate">
+            <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: topic.color }}></span>
+            <span className="truncate">{topic.title}</span>
         </h1>
       </header>
+
+      {/* Mobile Navigation Bar */}
+      <div className="md:hidden bg-slate-900 border-b border-slate-800 px-4 py-2 relative z-40">
+          {/* Progress Line */}
+          <div className="absolute top-0 left-0 w-full h-[1px] bg-slate-800">
+              <div 
+                  className="h-full bg-green-500 transition-all duration-500" 
+                  style={{ width: `${((topic.subTopics.findIndex(st => st.id === activeSubTopicId) + 1) / topic.subTopics.length) * 100}%` }}
+              />
+          </div>
+
+          <div className="flex items-center justify-between mt-1">
+              <button 
+                  onClick={() => {
+                      const idx = topic.subTopics.findIndex(st => st.id === activeSubTopicId);
+                      if (idx > 0) setActiveSubTopicId(topic.subTopics[idx - 1].id);
+                  }}
+                  disabled={topic.subTopics.findIndex(st => st.id === activeSubTopicId) === 0}
+                  className="p-2 text-slate-400 disabled:opacity-20"
+              >
+                  <ArrowLeft className="w-5 h-5" />
+              </button>
+
+              <div className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">
+                  Module <span className="text-green-400 font-bold">{topic.subTopics.findIndex(st => st.id === activeSubTopicId) + 1}</span> / {topic.subTopics.length}
+              </div>
+
+              <button 
+                  onClick={() => {
+                      const idx = topic.subTopics.findIndex(st => st.id === activeSubTopicId);
+                      if (idx < topic.subTopics.length - 1) setActiveSubTopicId(topic.subTopics[idx + 1].id);
+                  }}
+                  disabled={topic.subTopics.findIndex(st => st.id === activeSubTopicId) === topic.subTopics.length - 1}
+                  className="p-2 text-slate-400 disabled:opacity-20"
+              >
+                  <ChevronRight className="w-5 h-5" />
+              </button>
+          </div>
+      </div>
 
       <div className="flex flex-1 overflow-hidden">
         

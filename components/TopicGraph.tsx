@@ -9,6 +9,9 @@ interface TopicGraphProps {
   onSelectTopic: (topic: Topic) => void;
   completedSubTopics: Set<string>;
   lockedTopicIds?: Set<string>; // IDs of topics the user cannot access
+  prerequisiteLockedIds?: Set<string>; // IDs of topics with missing prerequisites
+  graphTitle?: string;
+  graphSubtitle?: string;
 }
 
 // Layout Constants
@@ -18,13 +21,23 @@ const LEVEL_SPACING = 500;
 const NODE_SPACING = 280;  
 const CONNECTOR_OFFSET = 15; 
 
-const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, completedSubTopics, lockedTopicIds = new Set() }) => {
+const TopicGraph: React.FC<TopicGraphProps> = ({ 
+  topics, 
+  onSelectTopic, 
+  completedSubTopics, 
+  lockedTopicIds = new Set(),
+  prerequisiteLockedIds = new Set(),
+  graphTitle,
+  graphSubtitle
+}) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   
   const [coords, setCoords] = useState({ x: 0, y: 0, z: 0 });
   const transformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
   const [hiddenTeacherEmails, setHiddenTeacherEmails] = useState<Set<string>>(new Set());
+  const [previewTopicId, setPreviewTopicId] = useState<string | null>(null);
+  const [isInstructorMenuOpen, setIsInstructorMenuOpen] = useState(false);
 
   // Derive unique teachers from topics
   const uniqueTeachers = useMemo(() => {
@@ -156,7 +169,8 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
             y: pos.y,
             stats,
             complete: stats.percent === 100,
-            locked: lockedTopicIds.has(t.id)
+            locked: lockedTopicIds.has(t.id),
+            prerequisiteLocked: prerequisiteLockedIds.has(t.id)
         };
     });
 
@@ -316,7 +330,11 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
             return `M ${sx} ${sy} L ${turnX} ${sy} L ${turnX} ${ty} L ${tx} ${ty}`;
         })
         .attr("fill", "none")
-        .attr("stroke", d => d.active ? "#4ade80" : "#64748b")
+        .attr("stroke", d => {
+            if (d.active) return "#4ade80";
+            if (d.target.prerequisiteLocked) return "#fbbf24"; // Yellow for links leading to prereq locked
+            return "#64748b";
+        })
         .attr("stroke-width", d => d.active ? 4 : 2)
         .attr("stroke-dasharray", d => d.active ? "0" : "6,6")
         .attr("opacity", d => {
@@ -324,9 +342,12 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
             const targetHidden = hiddenTeacherEmails.has(d.target.teacher.email);
             const sourceLocked = d.source.locked;
             const targetLocked = d.target.locked;
+            const sourcePrereqLocked = d.source.prerequisiteLocked;
+            const targetPrereqLocked = d.target.prerequisiteLocked;
 
             if (sourceHidden || targetHidden) return 0.1;
-            if (sourceLocked || targetLocked) return 0.2; // Dim links connecting locked nodes
+            if (sourceLocked || targetLocked) return 0.1; // Very dim for permanently locked
+            if (sourcePrereqLocked || targetPrereqLocked) return 0.3; // Less dim for prereq locked
             return d.active ? 1.0 : 0.5;
         });
 
@@ -344,9 +365,13 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
             return `M ${x} ${y-4} A 4 4 0 0 1 ${x} ${y+4}`; 
         })
         .attr("fill", "#0f172a")
-        .attr("stroke", d => d.active ? "#4ade80" : "#64748b")
+        .attr("stroke", d => {
+            if (d.active) return "#4ade80";
+            if (d.source.prerequisiteLocked) return "#fbbf24";
+            return "#64748b";
+        })
         .attr("stroke-width", 2)
-        .attr("opacity", d => (hiddenTeacherEmails.has(d.source.teacher.email) || d.source.locked) ? 0.2 : 1);
+        .attr("opacity", d => (hiddenTeacherEmails.has(d.source.teacher.email) || d.source.locked) ? 0.1 : (d.source.prerequisiteLocked ? 0.4 : 1));
 
     zoomGroup.selectAll(".connector-target")
         .data(allLinks)
@@ -361,9 +386,13 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
             return `M ${x} ${y-4} A 4 4 0 0 0 ${x} ${y+4}`;
         })
         .attr("fill", "#0f172a")
-        .attr("stroke", d => d.active ? "#4ade80" : "#64748b")
+        .attr("stroke", d => {
+            if (d.active) return "#4ade80";
+            if (d.target.prerequisiteLocked) return "#fbbf24";
+            return "#64748b";
+        })
         .attr("stroke-width", 2)
-        .attr("opacity", d => (hiddenTeacherEmails.has(d.target.teacher.email) || d.target.locked) ? 0.2 : 1);
+        .attr("opacity", d => (hiddenTeacherEmails.has(d.target.teacher.email) || d.target.locked) ? 0.1 : (d.target.prerequisiteLocked ? 0.4 : 1));
 
     // Nodes
     const nodeGroups = zoomGroup.selectAll(".node")
@@ -375,13 +404,34 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
         .attr("cursor", d => d.locked ? "not-allowed" : "pointer")
         .attr("opacity", d => {
             if (hiddenTeacherEmails.has(d.teacher.email)) return 0.2;
-            if (d.locked) return 0.4;
+            if (d.locked) return 0.3; // Permanently locked is more faded
+            if (d.prerequisiteLocked) return 0.85; // Prerequisite locked is less faded
             return 1;
         })
-        .style("filter", d => (hiddenTeacherEmails.has(d.teacher.email) || d.locked) ? "grayscale(100%)" : "none")
+        .style("filter", d => {
+            if (hiddenTeacherEmails.has(d.teacher.email) || d.locked) return "grayscale(100%)";
+            if (d.prerequisiteLocked) return "grayscale(80%) brightness(0.8)"; // Slightly different grayscale for prereq
+            return "none";
+        })
         .on("click", (e, d) => {
-            if (!hiddenTeacherEmails.has(d.teacher.email) && !d.locked) {
-                onSelectTopic(d);
+            if (!hiddenTeacherEmails.has(d.teacher.email)) {
+                // We allow clicking on prerequisite locked topics to show the alert
+                if (d.locked) return; 
+                
+                // Mobile double-click logic: first click shows preview, second click opens
+                const isMobile = window.innerWidth < 768;
+                if (isMobile) {
+                    if (previewTopicId === d.id) {
+                        onSelectTopic(d);
+                    } else {
+                        setPreviewTopicId(d.id);
+                        // Show hover overlay manually for mobile
+                        zoomGroup.selectAll(".hover-overlay").attr("opacity", 0);
+                        d3.select(e.currentTarget).select(".hover-overlay").attr("opacity", 1);
+                    }
+                } else {
+                    onSelectTopic(d);
+                }
             }
         });
 
@@ -419,20 +469,33 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
         .attr("height", NODE_HEIGHT - 42)
         .attr("fill", "rgba(15, 23, 42, 0.6)");
 
-    // Locked Icon
-    // Need to use foreignObject to render Lucide icon or just simple SVG path
-    const lockedNodes = nodeGroups.filter(d => d.locked);
-    lockedNodes.append("circle")
+    // Locked Icon (Permanently Locked)
+    const permanentlyLockedNodes = nodeGroups.filter(d => d.locked);
+    permanentlyLockedNodes.append("circle")
         .attr("cx", NODE_WIDTH / 2)
         .attr("cy", (NODE_HEIGHT - 42) / 2)
         .attr("r", 20)
         .attr("fill", "#0f172a")
         .attr("stroke", "#475569");
         
-    lockedNodes.append("path")
+    permanentlyLockedNodes.append("path")
         .attr("d", "M12 11V7a4 4 0 0 0-8 0v4H3v10h18V11h-1zm-4 0h-4V7a2 2 0 1 1 4 0v4z") // Simple lock path
         .attr("transform", `translate(${NODE_WIDTH/2 - 9}, ${(NODE_HEIGHT - 42)/2 - 10}) scale(0.75)`)
         .attr("fill", "#94a3b8");
+
+    // Prerequisite Locked Icon
+    const prereqLockedNodes = nodeGroups.filter(d => d.prerequisiteLocked && !d.locked);
+    prereqLockedNodes.append("circle")
+        .attr("cx", NODE_WIDTH / 2)
+        .attr("cy", (NODE_HEIGHT - 42) / 2)
+        .attr("r", 20)
+        .attr("fill", "#0f172a")
+        .attr("stroke", "#fbbf24"); // Yellow stroke for prereq
+        
+    prereqLockedNodes.append("path")
+        .attr("d", "M12 11V7a4 4 0 0 0-8 0v4H3v10h18V11h-1zm-4 0h-4V7a2 2 0 1 1 4 0v4z") // Simple lock path
+        .attr("transform", `translate(${NODE_WIDTH/2 - 9}, ${(NODE_HEIGHT - 42)/2 - 10}) scale(0.75)`)
+        .attr("fill", "#fbbf24");
 
     const hoverGroup = nodeGroups.append("g")
         .attr("class", "hover-overlay") 
@@ -455,13 +518,18 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
         .style("font-size", "10px")
         .style("color", "#cbd5e1") 
         .style("overflow", "hidden")
-        .html(d => d.locked ? "LOCKED: Access restricted by administrator." : d.shortDescription);
+        .html(d => {
+            if (d.locked) return "LOCKED: Access restricted by administrator.";
+            if (d.prerequisiteLocked) return "PREREQUISITES MISSING: Complete previous modules to unlock.";
+            return d.shortDescription;
+        });
 
     // --- Interaction Logic ---
     nodeGroups
         .on("mouseenter", function(event, d) {
             if (hiddenTeacherEmails.has(d.teacher.email) || d.locked) return;
-
+            
+            // For prerequisite locked, we show the hover overlay but don't highlight links as much
             const hoveredId = d.id;
 
             // 1. Highlight Hovered Node - Corners ONLY
@@ -469,9 +537,11 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
                 .transition().duration(200)
                 .attr("opacity", 1);
             
+            const cornerColor = d.prerequisiteLocked ? "#fbbf24" : "#fff";
             d3.select(this).selectAll(".corner-marker")
                 .transition().duration(200)
-                .attr("opacity", 1);
+                .attr("opacity", 1)
+                .attr("stroke", cornerColor);
             
             d3.select(this).select(".node-body")
                 .transition().duration(200)
@@ -511,7 +581,8 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
             
             d3.select(this).selectAll(".corner-marker")
                 .transition().duration(200)
-                .attr("opacity", 0);
+                .attr("opacity", 0)
+                .attr("stroke", "#fff");
             
             d3.select(this).select(".node-body")
                 .transition().duration(200)
@@ -617,17 +688,17 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
         onMouseMove={handleMouseMove}
         className="w-full h-full relative overflow-hidden bg-slate-950 cursor-crosshair"
     >
-      <div className="absolute top-12 left-8 z-10 pointer-events-none">
-        <h2 className="text-xl font-mono font-bold text-slate-200 tracking-tight flex items-center gap-2">
-           <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-           CURRICULUM_MAP_V2.3
+      <div className="absolute top-6 md:top-12 left-6 md:left-8 z-10 pointer-events-none">
+        <h2 className="text-sm md:text-xl font-mono font-bold text-slate-200 tracking-tight flex items-center gap-2">
+           <span className="w-1.5 h-1.5 md:w-2 md:h-2 bg-green-500 rounded-full animate-pulse"></span>
+           {graphTitle || 'CURRICULUM_MAP_V2.3'}
         </h2>
-        <p className="text-slate-500 text-xs font-mono mt-1">
-            INTERACTIVE_LEARNING_PATH
+        <p className="text-slate-500 text-[8px] md:text-xs font-mono mt-0.5 md:mt-1">
+            {graphSubtitle || 'INTERACTIVE_LEARNING_PATH'}
         </p>
         
-        {/* Added Progress Info Lines */}
-        <div className="mt-4 pt-4 border-t border-slate-800/50 space-y-3">
+        {/* Desktop Progress Info Lines */}
+        <div className="hidden md:block mt-4 pt-4 border-t border-slate-800/50 space-y-3">
              <div className="flex flex-col gap-1">
                  <span className="text-[10px] text-slate-500 font-mono uppercase">Modules Completed</span>
                  <span className="text-xl font-mono text-blue-400 font-medium">
@@ -645,8 +716,8 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
              </div>
         </div>
 
-        {/* Teacher Toggle Legend */}
-        <div className="mt-6 pt-4 border-t border-slate-800/50 pointer-events-auto">
+        {/* Desktop Teacher Toggle Legend */}
+        <div className="hidden md:block mt-6 pt-4 border-t border-slate-800/50 pointer-events-auto">
             <span className="text-[10px] text-slate-500 font-mono uppercase block mb-2">Filter by Instructor</span>
             <div className="space-y-2">
                 {uniqueTeachers.map(t => (
@@ -663,12 +734,55 @@ const TopicGraph: React.FC<TopicGraphProps> = ({ topics, onSelectTopic, complete
                 ))}
             </div>
         </div>
+      </div>
 
+      {/* Mobile Bottom Info Bar */}
+      <div className="md:hidden absolute bottom-0 left-0 w-full bg-slate-950/90 backdrop-blur border-t border-slate-800 px-4 py-3 z-30 flex items-center justify-between">
+          <div className="flex items-center gap-4 text-[10px] font-mono">
+              <div className="flex flex-col">
+                  <span className="text-slate-500 uppercase leading-none mb-1">Modules</span>
+                  <span className="text-blue-400 font-bold">{overallStats.completed}/{overallStats.total}</span>
+              </div>
+              <div className="flex flex-col">
+                  <span className="text-slate-500 uppercase leading-none mb-1">Progress</span>
+                  <span className="text-green-400 font-bold">{overallStats.percent}%</span>
+              </div>
+          </div>
+
+          <div className="relative">
+              <button 
+                  onClick={() => setIsInstructorMenuOpen(!isInstructorMenuOpen)}
+                  className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded text-[10px] text-slate-300 font-mono"
+              >
+                  Instructors
+                  <Check size={10} className={isInstructorMenuOpen ? "rotate-180 transition-transform" : "transition-transform"} />
+              </button>
+
+              {isInstructorMenuOpen && (
+                  <div className="absolute bottom-full right-0 mb-2 w-48 bg-slate-900 border border-slate-800 rounded-lg shadow-2xl p-2 space-y-1">
+                      {uniqueTeachers.map(t => (
+                          <div 
+                              key={t.email} 
+                              onClick={() => {
+                                  toggleTeacher(t.email);
+                                  // Keep menu open for multiple selections
+                              }}
+                              className={`flex items-center gap-2 p-2 hover:bg-slate-800 rounded cursor-pointer transition-opacity ${hiddenTeacherEmails.has(t.email) ? 'opacity-50' : 'opacity-100'}`}
+                          >
+                              <div className={`w-3 h-3 rounded-sm border flex items-center justify-center ${hiddenTeacherEmails.has(t.email) ? 'bg-transparent border-slate-600' : 'bg-blue-500 border-blue-500'}`}>
+                                 {!hiddenTeacherEmails.has(t.email) && <Check size={10} className="text-white" />}
+                              </div>
+                              <span className="text-[10px] text-slate-300 font-mono">{t.name}</span>
+                          </div>
+                      ))}
+                  </div>
+              )}
+          </div>
       </div>
       
       <div className="absolute top-0 left-0 w-full h-8 border-b border-slate-800 bg-slate-950/80 backdrop-blur pointer-events-none"></div>
-      <div className="absolute bottom-0 right-0 w-48 h-12 border-t border-l border-slate-800 bg-slate-950/90 backdrop-blur pointer-events-none flex items-center justify-center">
-         <div className="font-mono text-xs text-blue-400">
+      <div className="absolute bottom-12 md:bottom-0 right-0 w-32 md:w-48 h-8 md:h-12 border-t border-l border-slate-800 bg-slate-950/90 backdrop-blur pointer-events-none flex items-center justify-center">
+         <div className="font-mono text-[8px] md:text-xs text-blue-400">
             X:{coords.x.toFixed(1).padStart(7, ' ')} Y:{coords.y.toFixed(1).padStart(7, ' ')}
          </div>
       </div>
