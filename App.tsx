@@ -139,6 +139,12 @@ const App: React.FC = () => {
       } else {
         setCurrentUser(null);
         setViewState(ViewState.LOGIN);
+        // Clear progress state on logout
+        setCompletionRecords([]);
+        setExerciseRecords([]);
+        setQuizProgress({});
+        setTopicComments({});
+        setIsProgressLoaded(false);
       }
       setIsAuthReady(true);
     });
@@ -163,7 +169,16 @@ const App: React.FC = () => {
 
   // Progress Sync from Firestore
   useEffect(() => {
-    if (!currentUser || !isAuthReady) return;
+    if (!currentUser || !isAuthReady) {
+        setIsProgressLoaded(false);
+        return;
+    }
+
+    // Reset loading state when user changes
+    setIsProgressLoaded(false);
+    setCompletionRecords([]);
+    setExerciseRecords([]);
+    setQuizProgress({});
 
     const unsubscribe = onSnapshot(doc(db, 'progress', currentUser.id), (docSnap) => {
       if (docSnap.exists()) {
@@ -179,9 +194,16 @@ const App: React.FC = () => {
             grouped[a.subTopicId].push(a);
         });
         setQuizProgress(grouped);
+      } else {
+        // Clear state for new user
+        setCompletionRecords([]);
+        setExerciseRecords([]);
+        setQuizProgress({});
       }
+      setIsProgressLoaded(true);
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, `progress/${currentUser.id}`);
+      setIsProgressLoaded(true); // Still mark as loaded to allow usage
     });
 
     return () => unsubscribe();
@@ -364,6 +386,7 @@ const App: React.FC = () => {
   const [exerciseRecords, setExerciseRecords] = useState<CompletionRecord[]>([]);
   const [topicComments, setTopicComments] = useState<Record<string, Comment[]>>({});
   const [quizProgress, setQuizProgress] = useState<Record<string, QuizAttempt[]>>({});
+  const [isProgressLoaded, setIsProgressLoaded] = useState(false);
 
   const completedSubTopics = useMemo(() => new Set(completionRecords.map(r => r.id)), [completionRecords]);
   const submittedExercises = useMemo(() => new Set(exerciseRecords.map(r => r.id)), [exerciseRecords]);
@@ -375,30 +398,10 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // Load from LocalStorage on mount
-  useEffect(() => {
-    const savedProgress = localStorage.getItem('dbe_progress_records');
-    const savedExercises = localStorage.getItem('dbe_exercise_records');
-    const savedComments = localStorage.getItem('dbe_comments');
-    const savedQuizProgress = localStorage.getItem('dbe_quiz_state');
-
-    if (savedProgress) setCompletionRecords(JSON.parse(savedProgress));
-    if (savedExercises) setExerciseRecords(JSON.parse(savedExercises));
-    if (savedComments) setTopicComments(JSON.parse(savedComments));
-    if (savedQuizProgress) setQuizProgress(JSON.parse(savedQuizProgress));
-  }, []);
-
-  // Save to LocalStorage
-  useEffect(() => {
-    localStorage.setItem('dbe_progress_records', JSON.stringify(completionRecords));
-    localStorage.setItem('dbe_exercise_records', JSON.stringify(exerciseRecords));
-    localStorage.setItem('dbe_comments', JSON.stringify(topicComments));
-    localStorage.setItem('dbe_quiz_state', JSON.stringify(quizProgress));
-  }, [completionRecords, exerciseRecords, topicComments, quizProgress]);
 
   // Save Progress to Firestore
   useEffect(() => {
-    if (!currentUser || !isAuthReady) return;
+    if (!currentUser || !isAuthReady || !isProgressLoaded) return;
     
     const syncProgress = async () => {
         try {
@@ -414,7 +417,7 @@ const App: React.FC = () => {
     };
     
     syncProgress();
-  }, [completionRecords, exerciseRecords, quizProgress, currentUser, isAuthReady]);
+  }, [completionRecords, exerciseRecords, quizProgress, currentUser, isAuthReady, isProgressLoaded]);
 
   // Derived Locked State based on User Permissions (Permanently Locked)
   const lockedTopicIds = useMemo(() => {
@@ -479,6 +482,13 @@ const App: React.FC = () => {
           setCurrentUser(null);
           setSelectedTopic(null);
           setViewState(ViewState.LOGIN);
+          
+          // Clear progress state
+          setCompletionRecords([]);
+          setExerciseRecords([]);
+          setQuizProgress({});
+          setTopicComments({});
+          setIsProgressLoaded(false);
       } catch (error) {
           console.error("Logout error", error);
       }
