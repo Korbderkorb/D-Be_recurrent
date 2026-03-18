@@ -393,9 +393,7 @@ const App: React.FC = () => {
 
   // Responsive Initialization
   useEffect(() => {
-    if (window.innerWidth < 768) {
-      setDashboardMode('LIST');
-    }
+    // We now default to GRAPH even on mobile as per user request
   }, []);
 
 
@@ -831,7 +829,7 @@ const App: React.FC = () => {
                       <Layers className="text-white w-6 h-6" />
                    </div>
                )}
-               <div className="hidden sm:block">
+               <div className="hidden lg:block">
                    <span className="text-xl font-bold block leading-none text-white">{landingConfig.title}</span>
                    <span className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">{landingConfig.subtitle}</span>
                </div>
@@ -840,24 +838,24 @@ const App: React.FC = () => {
             <div className="flex bg-slate-900 p-1 rounded-lg border border-slate-800">
                 <button 
                     onClick={() => setDashboardMode('GRAPH')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${dashboardMode === 'GRAPH' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                    className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-all ${dashboardMode === 'GRAPH' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
                 >
                     <Network className="w-4 h-4" />
-                    <span className="hidden sm:inline">Knowledge Graph</span>
+                    <span className="hidden lg:inline">Knowledge Graph</span>
                 </button>
                 <button 
                     onClick={() => setDashboardMode('LIST')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${dashboardMode === 'LIST' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                    className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-all ${dashboardMode === 'LIST' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
                 >
                     <LayoutGrid className="w-4 h-4" />
-                    <span className="hidden sm:inline">View Progress</span>
+                    <span className="hidden lg:inline">View Progress</span>
                 </button>
                 <button 
                     onClick={() => setDashboardMode('TEACHERS')}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${dashboardMode === 'TEACHERS' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                    className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-all ${dashboardMode === 'TEACHERS' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
                 >
                     <GraduationCap className="w-4 h-4" />
-                    <span className="hidden sm:inline">Teachers</span>
+                    <span className="hidden lg:inline">Teachers</span>
                 </button>
             </div>
 

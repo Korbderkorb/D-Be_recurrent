@@ -25,6 +25,7 @@ const ModuleList: React.FC<ModuleListProps> = ({
   });
 
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set(topics.map(t => t.id)));
+  const [previewTopicId, setPreviewTopicId] = useState<string | null>(null);
 
   const toggleExpand = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -70,7 +71,18 @@ const ModuleList: React.FC<ModuleListProps> = ({
                                     isPrereqLocked ? 'cursor-not-allowed hover:bg-slate-800/30' : 
                                     'cursor-pointer hover:bg-slate-800/50'
                                 }`}
-                                onClick={() => onSelectTopic(topic)}
+                                onClick={() => {
+                                    const isMobile = window.innerWidth < 768;
+                                    if (isMobile) {
+                                        if (previewTopicId === topic.id) {
+                                            onSelectTopic(topic);
+                                        } else {
+                                            setPreviewTopicId(topic.id);
+                                        }
+                                    } else {
+                                        onSelectTopic(topic);
+                                    }
+                                }}
                             >
                                 <div className="flex items-start md:items-center justify-between gap-4 mb-4">
                                     <div className="flex items-center gap-4">
@@ -104,6 +116,14 @@ const ModuleList: React.FC<ModuleListProps> = ({
                                                 </span>
                                             </div>
                                             <p className="text-sm text-slate-400">{topic.shortDescription}</p>
+                                            {previewTopicId === topic.id && window.innerWidth < 768 && (
+                                                <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                                    <div className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-900/40">
+                                                        START LEARNING <ArrowRight className="w-4 h-4" />
+                                                    </div>
+                                                    <p className="text-[10px] text-slate-500 mt-1 text-center uppercase tracking-wider font-bold">Tap again to open module</p>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                     

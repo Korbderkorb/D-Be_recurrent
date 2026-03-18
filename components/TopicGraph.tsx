@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useMemo, useState } from 'react';
 import * as d3 from 'd3';
 import { Topic } from '../types';
-import { Check, Lock } from 'lucide-react';
+import { Check, Lock, Maximize } from 'lucide-react';
 
 interface TopicGraphProps {
   topics: Topic[];
@@ -32,13 +32,13 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   
   const [coords, setCoords] = useState({ x: 0, y: 0, z: 0 });
   const transformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
   const [hiddenTeacherEmails, setHiddenTeacherEmails] = useState<Set<string>>(new Set());
   const [previewTopicId, setPreviewTopicId] = useState<string | null>(null);
   const [isInstructorMenuOpen, setIsInstructorMenuOpen] = useState(false);
-  const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
 
   // Derive unique teachers from topics
   const uniqueTeachers = useMemo(() => {
@@ -197,11 +197,12 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
     const zoomGroup = svg.append("g");
     
     const zoom = d3.zoom<SVGSVGElement, unknown>()
-        .scaleExtent([0.1, 4])
+        .scaleExtent([0.05, 4])
         .on("zoom", (event) => {
             zoomGroup.attr("transform", event.transform);
             transformRef.current = event.transform; 
         });
+    
     zoomRef.current = zoom;
 
     const isZoomIdentity = transformRef.current.k === 1 && transformRef.current.x === 0 && transformRef.current.y === 0;
@@ -235,10 +236,11 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
 
     svg.call(zoom);
     
-    if (!isZoomIdentity) {
-        svg.call(zoom.transform, transformRef.current);
-    } else {
+    // Always zoom to fit on initial mount or when topics change, unless user has already panned/zoomed
+    if (isZoomIdentity) {
         svg.call(zoom.transform, initialTransform);
+    } else {
+        svg.call(zoom.transform, transformRef.current);
     }
 
     // Defs
@@ -388,7 +390,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
             if (d.prerequisiteLocked) return "grayscale(80%) brightness(0.8)"; // Slightly different grayscale for prereq
             return "none";
         })
-        .on("click", function(e, d) {
+        .on("click", (e, d) => {
             if (!hiddenTeacherEmails.has(d.teacher.email)) {
                 // We allow clicking on prerequisite locked topics to show the alert
                 if (d.locked) return; 
@@ -397,33 +399,22 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
                 const isMobile = window.innerWidth < 768;
                 if (isMobile) {
                     if (previewTopicId === d.id) {
-                        // Check if click was on the "Start Learning" button area
-                        const [clickX, clickY] = d3.pointer(e);
-                        // The button is at the bottom of the node
-                        if (clickY > NODE_HEIGHT - 40) {
-                            onSelectTopic(d);
-                        } else {
-                            // If clicking elsewhere on an already selected card, maybe they want to deselect?
-                            // Or just keep it selected.
-                        }
+                        onSelectTopic(d);
                     } else {
                         setPreviewTopicId(d.id);
                         // Show hover overlay manually for mobile
                         zoomGroup.selectAll(".hover-overlay").attr("opacity", 0);
-                        d3.select(this).select(".hover-overlay").attr("opacity", 1);
+                        d3.select(e.currentTarget).select(".hover-overlay").attr("opacity", 1);
 
-                        // Smooth zoom to node
-                        if (zoomRef.current && svgRef.current) {
-                            const width = containerRef.current!.clientWidth;
-                            const height = containerRef.current!.clientHeight;
-                            const scale = 1.2;
-                            const tx = width / 2 - (d.x + NODE_WIDTH / 2) * scale;
-                            const ty = height / 2 - (d.y + NODE_HEIGHT / 2) * scale;
-                            
-                            d3.select(svgRef.current).transition()
-                                .duration(750)
-                                .call(zoomRef.current.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
-                        }
+                        // Smooth zoom logic
+                        const targetScale = (width * 0.4) / NODE_WIDTH;
+                        const targetX = width / 2 - targetScale * (d.x + NODE_WIDTH / 2);
+                        const targetY = height / 2 - targetScale * (d.y + NODE_HEIGHT / 2);
+                        
+                        svg.transition()
+                            .duration(750)
+                            .ease(d3.easeCubicInOut)
+                            .call(zoom.transform, d3.zoomIdentity.translate(targetX, targetY).scale(targetScale));
                     }
                 } else {
                     onSelectTopic(d);
@@ -508,16 +499,35 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
         .attr("x", 10)
         .attr("y", 10)
         .attr("width", NODE_WIDTH - 20)
-        .attr("height", NODE_HEIGHT - 60)
+        .attr("height", NODE_HEIGHT - 20)
         .append("xhtml:div")
         .style("font-family", "ui-monospace, monospace")
         .style("font-size", "10px")
         .style("color", "#cbd5e1") 
-        .style("overflow", "hidden")
+        .style("height", "100%")
+        .style("display", "flex")
+        .style("flex-direction", "column")
+        .style("justify-content", "space-between")
         .html(d => {
-            if (d.locked) return "LOCKED: Access restricted by administrator.";
-            if (d.prerequisiteLocked) return "PREREQUISITES MISSING: Complete previous modules to unlock.";
-            return d.shortDescription;
+            let content = "";
+            if (d.locked) content = "LOCKED: Access restricted by administrator.";
+            else if (d.prerequisiteLocked) content = "PREREQUISITES MISSING: Complete previous modules to unlock.";
+            else content = d.shortDescription;
+
+            const isMobile = window.innerWidth < 768;
+            const buttonHtml = isMobile && !d.locked && !d.prerequisiteLocked ? `
+                <div style="margin-top: 10px; padding: 8px; background: #2563eb; color: white; text-align: center; border-radius: 4px; font-weight: bold; font-size: 12px; cursor: pointer;">
+                    START LEARNING
+                </div>
+                <div style="margin-top: 4px; text-align: center; font-size: 8px; color: #94a3b8; text-transform: uppercase;">
+                    (Tap again to open)
+                </div>
+            ` : "";
+
+            return `
+                <div style="flex: 1; overflow: hidden;">${content}</div>
+                ${buttonHtml}
+            `;
         });
 
     // --- Interaction Logic ---
@@ -614,23 +624,16 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
         .attr("y", NODE_HEIGHT - 40)
         .attr("width", NODE_WIDTH - 2)
         .attr("height", 39)
-        .attr("fill", d => previewTopicId === d.id && window.innerWidth < 768 ? "#3b82f6" : "#334155")
-        .attr("class", "bottom-bar transition-colors duration-300"); 
+        .attr("fill", "#334155"); 
 
     nodeGroups.append("text")
-        .text(d => {
-            const isMobile = window.innerWidth < 768;
-            if (isMobile && previewTopicId === d.id) return "START LEARNING →";
-            return d.title.length > 25 ? d.title.substring(0, 22) + '...' : d.title;
-        })
-        .attr("x", d => (window.innerWidth < 768 && previewTopicId === d.id) ? NODE_WIDTH / 2 : 10)
+        .text(d => d.title.length > 25 ? d.title.substring(0, 22) + '...' : d.title)
+        .attr("x", 10)
         .attr("y", NODE_HEIGHT - 24)
-        .attr("text-anchor", d => (window.innerWidth < 768 && previewTopicId === d.id) ? "middle" : "start")
         .attr("font-family", "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace")
-        .attr("font-size", d => (window.innerWidth < 768 && previewTopicId === d.id) ? "12px" : "11px")
+        .attr("font-size", "11px")
         .attr("fill", "#f8fafc")
-        .attr("font-weight", "bold")
-        .attr("class", "bottom-text");
+        .attr("font-weight", "bold");
     
     nodeGroups.append("rect")
         .attr("x", 1)
@@ -673,6 +676,74 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
     });
 
   }, [topics, onSelectTopic, completedSubTopics, getProgressStats, hiddenTeacherEmails, lockedTopicIds]);
+
+  const handleRecenter = () => {
+    if (!topics.length || !svgRef.current || !containerRef.current || !zoomRef.current) return;
+
+    const width = containerRef.current.clientWidth;
+    const height = containerRef.current.clientHeight;
+
+    // Calculate bounding box of all nodes
+    // We need to recalculate positions because they are not stored in state
+    const nodePositions: Map<string, { x: number, y: number }> = new Map();
+    const levels: Record<number, Topic[]> = {};
+    let maxLevel = 0;
+    topics.forEach(t => {
+        if (!levels[t.level]) levels[t.level] = [];
+        levels[t.level].push(t);
+        if (t.level > maxLevel) maxLevel = t.level;
+    });
+
+    const topicOrderMap = new Map(topics.map((t, i) => [t.id, i]));
+    for (let lvl = 1; lvl <= maxLevel; lvl++) {
+        const nodes = levels[lvl] || [];
+        const sortedNodes = [...nodes].sort((a, b) => (topicOrderMap.get(a.id) || 0) - (topicOrderMap.get(b.id) || 0));
+        const count = sortedNodes.length;
+        const totalHeight = count * NODE_SPACING;
+        const startY = (height / 2) - (totalHeight / 2) + (NODE_SPACING / 2);
+        
+        sortedNodes.forEach((node, i) => {
+            nodePositions.set(node.id, {
+                x: 100 + (lvl - 1) * LEVEL_SPACING,
+                y: startY + (i * NODE_SPACING)
+            });
+        });
+    }
+
+    const positions = Array.from(nodePositions.values());
+    const minX = d3.min(positions, d => d.x) || 0;
+    const maxX = d3.max(positions, d => d.x + NODE_WIDTH) || 0;
+    const minY = d3.min(positions, d => d.y) || 0;
+    const maxY = d3.max(positions, d => d.y + NODE_HEIGHT) || 0;
+
+    const graphWidth = maxX - minX;
+    const graphHeight = maxY - minY;
+    
+    const padding = 100;
+    const availableWidth = width - (padding * 2);
+    const availableHeight = height - (padding * 2);
+    
+    let scale = Math.min(
+        availableWidth / graphWidth,
+        availableHeight / graphHeight
+    );
+    if (scale > 1) scale = 1;
+    if (scale < 0.05) scale = 0.05;
+
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    
+    const tx = (width / 2) - (scale * centerX);
+    const ty = (height / 2) - (scale * centerY);
+
+    const targetTransform = d3.zoomIdentity.translate(tx, ty).scale(scale);
+
+    d3.select(svgRef.current)
+        .transition()
+        .duration(750)
+        .ease(d3.easeCubicInOut)
+        .call(zoomRef.current.transform, targetTransform);
+  };
 
   const handleMouseMove = (e: React.MouseEvent) => {
       if (!containerRef.current) return;
@@ -784,6 +855,18 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
       </div>
       
       <div className="absolute top-0 left-0 w-full h-8 border-b border-slate-800 bg-slate-950/80 backdrop-blur pointer-events-none"></div>
+      
+      {/* Zoom Controls */}
+      <div className="absolute bottom-12 md:bottom-20 right-6 md:right-8 z-30 flex flex-col gap-2">
+          <button 
+              onClick={handleRecenter}
+              className="w-10 h-10 bg-slate-900 border border-slate-800 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all shadow-xl"
+              title="Recenter Graph"
+          >
+              <Maximize size={18} />
+          </button>
+      </div>
+
       <div className="absolute bottom-12 md:bottom-0 right-0 w-32 md:w-48 h-8 md:h-12 border-t border-l border-slate-800 bg-slate-950/90 backdrop-blur pointer-events-none flex items-center justify-center">
          <div className="font-mono text-[8px] md:text-xs text-blue-400">
             X:{coords.x.toFixed(1).padStart(7, ' ')} Y:{coords.y.toFixed(1).padStart(7, ' ')}

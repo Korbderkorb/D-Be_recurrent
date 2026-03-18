@@ -673,8 +673,10 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
   // --- HANDLERS FOR USERS ---
   const handleAddUser = () => {
       const email = `student${users.length + 1}@university.edu`;
+      // Use a stable temporary ID to prevent focus loss when email changes
+      const tempId = `pending_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
       const newUser: User = {
-          id: email, // Use email as ID for pending users
+          id: tempId, 
           email: email,
           name: "New Student",
           avatar: `https://ui-avatars.com/api/?name=Student&background=random`,
@@ -695,16 +697,12 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
   const handleUpdateUser = (oldId: string, updated: User) => {
       setUsers(prev => prev.map(u => {
           if (u.id === oldId) {
-              // If pending and email changed, update ID to match email
-              if (u.status === 'pending' && u.email !== updated.email) {
-                  return { ...updated, id: updated.email };
-              }
               return updated;
           }
           return u;
       }));
       if (editingUserId === oldId) {
-          setEditingUserId(updated.status === 'pending' ? updated.email : updated.id);
+          setEditingUserId(updated.id);
       }
   };
 
@@ -767,7 +765,15 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
               return cleanObject(topicData) as Topic;
           });
 
-          await onApplyChanges(finalTopics, teachers, users, landingConfig);
+          // Ensure pending users have their email as their ID for Firestore
+          const finalUsers = users.map(u => {
+              if (u.status === 'pending') {
+                  return { ...u, id: u.email };
+              }
+              return u;
+          });
+
+          await onApplyChanges(finalTopics, teachers, finalUsers, landingConfig);
           setConfirmationOpen(false);
           alert("Changes applied successfully!");
       } catch (error) {
@@ -943,7 +949,7 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
                                             value={selectedTopic.level}
                                             onChange={e => handleUpdateTopic(selectedTopicId, {...selectedTopic, level: parseInt(e.target.value) as any})}
                                         >
-                                            {[1,2,3,4,5].map(l => <option key={l} value={l}>Level {l}</option>)}
+                                            {[1,2,3,4,5,6,7,8,9,10].map(l => <option key={l} value={l}>Level {l}</option>)}
                                         </select>
                                     </div>
                                     <div className="col-span-2">
