@@ -21,7 +21,7 @@ const ModuleList: React.FC<ModuleListProps> = ({
   // Sort topics by level to show hierarchy roughly
   const sortedTopics = [...topics].sort((a, b) => {
       if (a.level !== b.level) return a.level - b.level;
-      return a.title.localeCompare(b.title);
+      return (a.title || '').localeCompare(b.title || '');
   });
 
   const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set(topics.map(t => t.id)));

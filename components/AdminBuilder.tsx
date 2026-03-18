@@ -17,7 +17,7 @@ import {
   useSortable
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Download, Plus, Trash2, Edit2, GripVertical, ChevronRight, Video, Upload, HelpCircle, UploadCloud, RefreshCw, Copy, AlertCircle, Info, Settings, Save, CheckSquare, Square, X, Users, GraduationCap, Layers, UserPlus, Key, Eye, Shield, BarChart3, Search, Lock as LockIcon, Sparkles } from 'lucide-react';
+import { Download, Plus, Trash2, Edit2, GripVertical, ChevronRight, Video, Upload, HelpCircle, UploadCloud, RefreshCw, Copy, AlertCircle, Info, Settings, Save, CheckSquare, Square, X, Users, GraduationCap, Layers, UserPlus, Key, Eye, Shield, BarChart3, Search, Lock as LockIcon, Sparkles, CheckCircle2, Clock, History, XCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { Topic, SubTopic, Teacher, SubTopicType, QuizQuestion, User, LandingConfig } from '../types';
 import { MEDIA_ROOT, getPlaceholderPath } from '../constants';
 const MODULE_TYPES: SubTopicType[] = ['VIDEO', 'EXERCISE_UPLOAD', 'EXERCISE_QUIZ'];
@@ -1355,19 +1355,86 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
                                                   </div>
                                                   
                                                   <div className="mt-8 pt-4 border-t border-slate-100">
-                                                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">User Stats (Mock Data)</h4>
-                                                      <div className="grid grid-cols-3 gap-4 text-center">
+                                                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Learning Progress</h4>
+                                                      <div className="grid grid-cols-3 gap-4 text-center mb-6">
                                                           <div className="bg-slate-50 p-3 rounded border border-slate-100">
-                                                              <div className="text-xl font-bold text-blue-600">{user.stats?.modulesCompleted || 0}</div>
+                                                              <div className="text-xl font-bold text-blue-600">{(user.completedSubTopics || []).length}</div>
                                                               <div className="text-[10px] text-slate-500 uppercase">Completed</div>
                                                           </div>
                                                           <div className="bg-slate-50 p-3 rounded border border-slate-100">
-                                                              <div className="text-xl font-bold text-green-600">{user.stats?.quizScores?.length || 0}</div>
+                                                              <div className="text-xl font-bold text-green-600">{(user.quizAttempts || []).length}</div>
                                                               <div className="text-[10px] text-slate-500 uppercase">Quizzes Taken</div>
                                                           </div>
                                                           <div className="bg-slate-50 p-3 rounded border border-slate-100">
-                                                              <div className="text-xl font-bold text-slate-700">{Math.round(((user.stats?.modulesCompleted || 0) / (user.stats?.totalModules || 1)) * 100)}%</div>
+                                                              <div className="text-xl font-bold text-slate-700">
+                                                                  {Math.round(((user.completedSubTopics || []).length / (topics.reduce((acc, t) => acc + t.subTopics.length, 0) || 1)) * 100)}%
+                                                              </div>
                                                               <div className="text-[10px] text-slate-500 uppercase">Progress</div>
+                                                          </div>
+                                                      </div>
+
+                                                      <div className="space-y-6">
+                                                          {/* Module Completion History */}
+                                                          <div>
+                                                              <h5 className="text-[10px] font-bold text-slate-400 uppercase mb-2 flex items-center gap-1">
+                                                                  <Clock size={12} /> Module Completion History
+                                                              </h5>
+                                                              <div className="bg-slate-50 rounded-lg border border-slate-100 p-3 max-h-48 overflow-y-auto space-y-2">
+                                                                  {(user.completedSubTopics || []).length > 0 ? (
+                                                                      [...(user.completedSubTopics || [])].sort((a,b) => (b.completedAt || '').localeCompare(a.completedAt || '')).map(record => {
+                                                                          const subTopic = topics.flatMap(t => t.subTopics).find(st => st.id === record.id);
+                                                                          return (
+                                                                              <div key={record.id} className="flex justify-between items-center text-[11px] border-b border-slate-200 pb-1 last:border-0 last:pb-0">
+                                                                                  <span className="text-slate-700 font-medium truncate max-w-[150px]">{subTopic?.title || 'Unknown Module'}</span>
+                                                                                  <span className="text-slate-400">{record.completedAt ? new Date(record.completedAt).toLocaleString() : 'N/A'}</span>
+                                                                              </div>
+                                                                          );
+                                                                      })
+                                                                  ) : (
+                                                                      <div className="text-center py-4 text-slate-400 text-[10px] italic">No modules completed yet</div>
+                                                                  )}
+                                                              </div>
+                                                          </div>
+
+                                                          {/* Quiz Performance Details */}
+                                                          <div>
+                                                              <h5 className="text-[10px] font-bold text-slate-400 uppercase mb-2 flex items-center gap-1">
+                                                                  <History size={12} /> Quiz Performance Details
+                                                              </h5>
+                                                              <div className="bg-slate-50 rounded-lg border border-slate-100 p-3 max-h-64 overflow-y-auto space-y-3">
+                                                                  {(user.quizAttempts || []).length > 0 ? (
+                                                                      [...(user.quizAttempts || [])].sort((a,b) => (b.timestamp || '').localeCompare(a.timestamp || '')).map((attempt, idx) => {
+                                                                          const subTopic = topics.flatMap(t => t.subTopics).find(st => st.id === attempt.subTopicId);
+                                                                          return (
+                                                                              <div key={idx} className="bg-white p-2 rounded border border-slate-200 shadow-sm">
+                                                                                  <div className="flex justify-between items-start mb-1">
+                                                                                      <div className="text-[11px] font-bold text-slate-800 truncate max-w-[140px]">{subTopic?.title || 'Unknown Quiz'}</div>
+                                                                                      <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${attempt.passed ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                                                          {attempt.passed ? 'PASSED' : 'FAILED'}
+                                                                                      </div>
+                                                                                  </div>
+                                                                                  <div className="flex justify-between text-[10px] text-slate-500 mb-2">
+                                                                                      <span>Score: {attempt.score}/{attempt.total}</span>
+                                                                                      <span>Time: {attempt.timeTaken}s</span>
+                                                                                      <span>{attempt.timestamp}</span>
+                                                                                  </div>
+                                                                                  {attempt.wrongAnswers && attempt.wrongAnswers.length > 0 && (
+                                                                                      <div className="mt-1 pt-1 border-t border-slate-100">
+                                                                                          <div className="text-[9px] font-bold text-red-500 uppercase mb-1">Wrong Answers:</div>
+                                                                                          <ul className="list-disc list-inside text-[9px] text-slate-600 space-y-0.5">
+                                                                                              {attempt.wrongAnswers.map((q, i) => (
+                                                                                                  <li key={i} className="truncate">{q}</li>
+                                                                                              ))}
+                                                                                          </ul>
+                                                                                      </div>
+                                                                                  )}
+                                                                              </div>
+                                                                          );
+                                                                      })
+                                                                  ) : (
+                                                                      <div className="text-center py-4 text-slate-400 text-[10px] italic">No quiz attempts recorded</div>
+                                                                  )}
+                                                              </div>
                                                           </div>
                                                       </div>
                                                   </div>
@@ -1413,7 +1480,9 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
                                           <div className="flex items-center gap-6">
                                               <div className="text-right hidden sm:block">
                                                   <div className="text-xs text-slate-400 uppercase font-bold">Progress</div>
-                                                  <div className="text-sm font-bold text-slate-700">{Math.round(((user.stats?.modulesCompleted || 0) / (user.stats?.totalModules || 1)) * 100)}%</div>
+                                                  <div className="text-sm font-bold text-slate-700">
+                                                      {Math.round(((user.completedSubTopics || []).length / (topics.reduce((acc, t) => acc + t.subTopics.length, 0) || 1)) * 100)}%
+                                                  </div>
                                               </div>
                                               <div className="text-right hidden sm:block">
                                                   <div className="text-xs text-slate-400 uppercase font-bold">Access</div>

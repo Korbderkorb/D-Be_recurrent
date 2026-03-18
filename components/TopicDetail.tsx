@@ -52,6 +52,7 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
   // Quiz State
   const [selectedQuizAnswers, setSelectedQuizAnswers] = useState<Record<string, number[]>>({});
   const [showQuizResults, setShowQuizResults] = useState(false);
+  const [quizStartTime, setQuizStartTime] = useState<number | null>(null);
   
   // Upload State
   const [uploadedFiles, setUploadedFiles] = useState<Record<string, File>>({});
@@ -81,15 +82,18 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
     setSelectedQuizAnswers({});
     setShowQuizResults(false);
     
-    if (activeSubTopic?.type === 'EXERCISE_QUIZ' && hasPassed) {
-        setShowQuizResults(true);
+    if (activeSubTopic?.type === 'EXERCISE_QUIZ') {
+        setQuizStartTime(Date.now());
+        if (hasPassed) {
+            setShowQuizResults(true);
+        }
     }
   }, [activeSubTopicId]);
 
   const currentComments = useMemo(() => {
       if (!activeSubTopic) return [];
       const dynamic = userComments[activeSubTopic.id] || [];
-      return [...activeSubTopic.comments, ...dynamic].sort((a,b) => b.timestamp.localeCompare(a.timestamp));
+      return [...activeSubTopic.comments, ...dynamic].sort((a,b) => (b.timestamp || '').localeCompare(a.timestamp || ''));
   }, [activeSubTopic, userComments]);
 
   const isCompleted = activeSubTopic ? completedSubTopics.has(activeSubTopic.id) : false;
@@ -143,7 +147,10 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
   const submitQuiz = () => {
       if (!activeSubTopic || !activeSubTopic.quizQuestions) return;
 
-      let allCorrect = true;
+      let score = 0;
+      const wrongAnswers: string[] = [];
+      const total = activeSubTopic.quizQuestions.length;
+
       activeSubTopic.quizQuestions.forEach(q => {
           const userAnswers = selectedQuizAnswers[q.id] || [];
           const correctAnswers = q.correctAnswers;
@@ -152,15 +159,24 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
           const sortedUser = [...userAnswers].sort();
           const sortedCorrect = [...correctAnswers].sort();
           
-          if (JSON.stringify(sortedUser) !== JSON.stringify(sortedCorrect)) {
-              allCorrect = false;
+          if (JSON.stringify(sortedUser) === JSON.stringify(sortedCorrect)) {
+              score++;
+          } else {
+              wrongAnswers.push(q.question);
           }
       });
 
+      const timeTaken = quizStartTime ? Math.round((Date.now() - quizStartTime) / 1000) : 0;
+
       const attempt: QuizAttempt = {
+          subTopicId: activeSubTopic.id,
           timestamp: new Date().toLocaleString(),
           answers: selectedQuizAnswers,
-          passed: allCorrect
+          passed: score === total,
+          score,
+          total,
+          timeTaken,
+          wrongAnswers
       };
 
       onSubmitExercise(activeSubTopic.id, attempt);
@@ -170,6 +186,7 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
   const retakeQuiz = () => {
       setSelectedQuizAnswers({});
       setShowQuizResults(false);
+      setQuizStartTime(Date.now());
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, reqKey: string) => {

@@ -26,9 +26,19 @@ export interface QuizQuestion {
 }
 
 export interface QuizAttempt {
+  subTopicId: string;
   timestamp: string;
   answers: Record<string, number[]>; // questionId -> selected indices
   passed: boolean;
+  score: number;
+  total: number;
+  timeTaken: number; // in seconds
+  wrongAnswers: string[]; // question texts or IDs of wrong answers
+}
+
+export interface CompletionRecord {
+  id: string;
+  completedAt: string;
 }
 
 export interface SubTopic {
@@ -133,4 +143,7 @@ export interface User {
   status?: 'pending' | 'active';
   allowedTopics?: string[]; // IDs of allowed topics. If undefined/empty, allow all? Or assume strict.
   stats?: UserStats; // Mock stats for admin
+  completedSubTopics?: CompletionRecord[];
+  submittedExercises?: string[];
+  quizAttempts?: QuizAttempt[];
 }

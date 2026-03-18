@@ -29,8 +29,32 @@
       "type": "object",
       "properties": {
         "userId": { "type": "string" },
-        "completedSubTopics": { "type": "array", "items": { "type": "string" } },
-        "submittedExercises": { "type": "array", "items": { "type": "string" } }
+        "completedSubTopics": { 
+          "type": "array", 
+          "items": { 
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "completedAt": { "type": "string" }
+            }
+          } 
+        },
+        "submittedExercises": { "type": "array", "items": { "type": "string" } },
+        "quizAttempts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "subTopicId": { "type": "string" },
+              "timestamp": { "type": "string" },
+              "score": { "type": "number" },
+              "total": { "type": "number" },
+              "passed": { "type": "boolean" },
+              "timeTaken": { "type": "number" },
+              "wrongAnswers": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        }
       },
       "required": ["userId"]
     },

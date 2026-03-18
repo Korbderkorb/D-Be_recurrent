@@ -38,6 +38,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
   const [hiddenTeacherEmails, setHiddenTeacherEmails] = useState<Set<string>>(new Set());
   const [previewTopicId, setPreviewTopicId] = useState<string | null>(null);
   const [isInstructorMenuOpen, setIsInstructorMenuOpen] = useState(false);
+  const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
 
   // Derive unique teachers from topics
   const uniqueTeachers = useMemo(() => {
@@ -201,6 +202,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
             zoomGroup.attr("transform", event.transform);
             transformRef.current = event.transform; 
         });
+    zoomRef.current = zoom;
 
     const isZoomIdentity = transformRef.current.k === 1 && transformRef.current.x === 0 && transformRef.current.y === 0;
 
@@ -386,7 +388,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
             if (d.prerequisiteLocked) return "grayscale(80%) brightness(0.8)"; // Slightly different grayscale for prereq
             return "none";
         })
-        .on("click", (e, d) => {
+        .on("click", function(e, d) {
             if (!hiddenTeacherEmails.has(d.teacher.email)) {
                 // We allow clicking on prerequisite locked topics to show the alert
                 if (d.locked) return; 
@@ -395,12 +397,33 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
                 const isMobile = window.innerWidth < 768;
                 if (isMobile) {
                     if (previewTopicId === d.id) {
-                        onSelectTopic(d);
+                        // Check if click was on the "Start Learning" button area
+                        const [clickX, clickY] = d3.pointer(e);
+                        // The button is at the bottom of the node
+                        if (clickY > NODE_HEIGHT - 40) {
+                            onSelectTopic(d);
+                        } else {
+                            // If clicking elsewhere on an already selected card, maybe they want to deselect?
+                            // Or just keep it selected.
+                        }
                     } else {
                         setPreviewTopicId(d.id);
                         // Show hover overlay manually for mobile
                         zoomGroup.selectAll(".hover-overlay").attr("opacity", 0);
-                        d3.select(e.currentTarget).select(".hover-overlay").attr("opacity", 1);
+                        d3.select(this).select(".hover-overlay").attr("opacity", 1);
+
+                        // Smooth zoom to node
+                        if (zoomRef.current && svgRef.current) {
+                            const width = containerRef.current!.clientWidth;
+                            const height = containerRef.current!.clientHeight;
+                            const scale = 1.2;
+                            const tx = width / 2 - (d.x + NODE_WIDTH / 2) * scale;
+                            const ty = height / 2 - (d.y + NODE_HEIGHT / 2) * scale;
+                            
+                            d3.select(svgRef.current).transition()
+                                .duration(750)
+                                .call(zoomRef.current.transform, d3.zoomIdentity.translate(tx, ty).scale(scale));
+                        }
                     }
                 } else {
                     onSelectTopic(d);
@@ -591,16 +614,23 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
         .attr("y", NODE_HEIGHT - 40)
         .attr("width", NODE_WIDTH - 2)
         .attr("height", 39)
-        .attr("fill", "#334155"); 
+        .attr("fill", d => previewTopicId === d.id && window.innerWidth < 768 ? "#3b82f6" : "#334155")
+        .attr("class", "bottom-bar transition-colors duration-300"); 
 
     nodeGroups.append("text")
-        .text(d => d.title.length > 25 ? d.title.substring(0, 22) + '...' : d.title)
-        .attr("x", 10)
+        .text(d => {
+            const isMobile = window.innerWidth < 768;
+            if (isMobile && previewTopicId === d.id) return "START LEARNING →";
+            return d.title.length > 25 ? d.title.substring(0, 22) + '...' : d.title;
+        })
+        .attr("x", d => (window.innerWidth < 768 && previewTopicId === d.id) ? NODE_WIDTH / 2 : 10)
         .attr("y", NODE_HEIGHT - 24)
+        .attr("text-anchor", d => (window.innerWidth < 768 && previewTopicId === d.id) ? "middle" : "start")
         .attr("font-family", "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace")
-        .attr("font-size", "11px")
+        .attr("font-size", d => (window.innerWidth < 768 && previewTopicId === d.id) ? "12px" : "11px")
         .attr("fill", "#f8fafc")
-        .attr("font-weight", "bold");
+        .attr("font-weight", "bold")
+        .attr("class", "bottom-text");
     
     nodeGroups.append("rect")
         .attr("x", 1)

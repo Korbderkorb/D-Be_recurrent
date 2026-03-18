@@ -5,7 +5,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, deleteDoc, onSnapshot, getDocFromServer, collection, getDocs, query, writeBatch } from 'firebase/firestore';
 import { MEDIA_ROOT } from './constants';
 import initialCurriculum from './src/data/curriculum.json';
-import { Topic, ViewState, User, Comment, QuizAttempt, Teacher, LandingConfig } from './types';
+import { Topic, ViewState, User, Comment, QuizAttempt, Teacher, LandingConfig, CompletionRecord } from './types';
 import TopicGraph from './components/TopicGraph';
 import TopicDetail from './components/TopicDetail';
 import Login from './components/Login';
@@ -168,26 +168,20 @@ const App: React.FC = () => {
     const unsubscribe = onSnapshot(doc(db, 'progress', currentUser.id), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        setCompletedSubTopics(new Set(data.completedSubTopics || []));
-        setSubmittedExercises(new Set(data.submittedExercises || []));
+        setCompletionRecords(data.completedSubTopics || []);
+        setExerciseRecords(data.submittedExercises || []);
+        
+        // Convert flat array back to Record<string, QuizAttempt[]> for local state
+        const attempts = data.quizAttempts || [];
+        const grouped: Record<string, QuizAttempt[]> = {};
+        attempts.forEach((a: QuizAttempt) => {
+            if (!grouped[a.subTopicId]) grouped[a.subTopicId] = [];
+            grouped[a.subTopicId].push(a);
+        });
+        setQuizProgress(grouped);
       }
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, `progress/${currentUser.id}`);
-    });
-
-    return () => unsubscribe();
-  }, [currentUser, isAuthReady]);
-
-  // Quiz Progress Sync from Firestore
-  useEffect(() => {
-    if (!currentUser || !isAuthReady) return;
-
-    const unsubscribe = onSnapshot(doc(db, 'quizAttempts', currentUser.id), (docSnap) => {
-      if (docSnap.exists()) {
-        setQuizProgress(docSnap.data().attempts || {});
-      }
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, `quizAttempts/${currentUser.id}`);
     });
 
     return () => unsubscribe();
@@ -228,7 +222,7 @@ const App: React.FC = () => {
   });
   const [isUsersLoaded, setIsUsersLoaded] = useState(false);
 
-  // Sync all users if admin
+  // Sync all users and their progress if admin
   useEffect(() => {
     if (currentUser?.role !== 'admin' || !isAuthReady) {
       setCurrentUsers([]);
@@ -236,15 +230,35 @@ const App: React.FC = () => {
       return;
     }
 
-    const unsubscribe = onSnapshot(collection(db, 'users'), (snapshot) => {
-      const users: User[] = [];
-      snapshot.forEach((doc) => {
-        users.push(doc.data() as User);
+    // Listen to users
+    const unsubscribeUsers = onSnapshot(collection(db, 'users'), (userSnapshot) => {
+      const usersMap: Record<string, User> = {};
+      userSnapshot.forEach((doc) => {
+        usersMap[doc.id] = doc.data() as User;
       });
-      setCurrentUsers(users);
-      setIsUsersLoaded(true);
+
+      // Also listen to progress to merge
+      const unsubscribeProgress = onSnapshot(collection(db, 'progress'), (progressSnapshot) => {
+        const updatedUsers = { ...usersMap };
+        progressSnapshot.forEach((doc) => {
+          const progressData = doc.data();
+          if (updatedUsers[doc.id]) {
+            updatedUsers[doc.id] = {
+              ...updatedUsers[doc.id],
+              completedSubTopics: progressData.completedSubTopics || [],
+              submittedExercises: progressData.submittedExercises || [],
+              quizAttempts: progressData.quizAttempts || []
+            };
+          }
+        });
+        setCurrentUsers(Object.values(updatedUsers));
+        setIsUsersLoaded(true);
+      }, (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'progress');
+      });
+
+      return () => unsubscribeProgress();
     }, (error) => {
-      // If we lose admin access, this will trigger
       if (error.message.includes('insufficient permissions')) {
         setIsUsersLoaded(false);
       } else {
@@ -252,7 +266,7 @@ const App: React.FC = () => {
       }
     });
 
-    return () => unsubscribe();
+    return () => unsubscribeUsers();
   }, [currentUser?.role, isAuthReady]);
 
   // Topics Sync from Firestore
@@ -346,10 +360,13 @@ const App: React.FC = () => {
   const [selectedTeacherEmail, setSelectedTeacherEmail] = useState<string | null>(null);
 
   // Persistence State
-  const [completedSubTopics, setCompletedSubTopics] = useState<Set<string>>(new Set());
-  const [submittedExercises, setSubmittedExercises] = useState<Set<string>>(new Set());
+  const [completionRecords, setCompletionRecords] = useState<CompletionRecord[]>([]);
+  const [exerciseRecords, setExerciseRecords] = useState<CompletionRecord[]>([]);
   const [topicComments, setTopicComments] = useState<Record<string, Comment[]>>({});
   const [quizProgress, setQuizProgress] = useState<Record<string, QuizAttempt[]>>({});
+
+  const completedSubTopics = useMemo(() => new Set(completionRecords.map(r => r.id)), [completionRecords]);
+  const submittedExercises = useMemo(() => new Set(exerciseRecords.map(r => r.id)), [exerciseRecords]);
 
   // Responsive Initialization
   useEffect(() => {
@@ -360,16 +377,24 @@ const App: React.FC = () => {
 
   // Load from LocalStorage on mount
   useEffect(() => {
-    const savedProgress = localStorage.getItem('dbe_progress');
-    const savedExercises = localStorage.getItem('dbe_exercises');
+    const savedProgress = localStorage.getItem('dbe_progress_records');
+    const savedExercises = localStorage.getItem('dbe_exercise_records');
     const savedComments = localStorage.getItem('dbe_comments');
     const savedQuizProgress = localStorage.getItem('dbe_quiz_state');
 
-    if (savedProgress) setCompletedSubTopics(new Set(JSON.parse(savedProgress)));
-    if (savedExercises) setSubmittedExercises(new Set(JSON.parse(savedExercises)));
+    if (savedProgress) setCompletionRecords(JSON.parse(savedProgress));
+    if (savedExercises) setExerciseRecords(JSON.parse(savedExercises));
     if (savedComments) setTopicComments(JSON.parse(savedComments));
     if (savedQuizProgress) setQuizProgress(JSON.parse(savedQuizProgress));
   }, []);
+
+  // Save to LocalStorage
+  useEffect(() => {
+    localStorage.setItem('dbe_progress_records', JSON.stringify(completionRecords));
+    localStorage.setItem('dbe_exercise_records', JSON.stringify(exerciseRecords));
+    localStorage.setItem('dbe_comments', JSON.stringify(topicComments));
+    localStorage.setItem('dbe_quiz_state', JSON.stringify(quizProgress));
+  }, [completionRecords, exerciseRecords, topicComments, quizProgress]);
 
   // Save Progress to Firestore
   useEffect(() => {
@@ -379,8 +404,9 @@ const App: React.FC = () => {
         try {
             await setDoc(doc(db, 'progress', currentUser.id), {
                 userId: currentUser.id,
-                completedSubTopics: Array.from(completedSubTopics),
-                submittedExercises: Array.from(submittedExercises)
+                completedSubTopics: completionRecords,
+                submittedExercises: exerciseRecords,
+                quizAttempts: Object.values(quizProgress).flat()
             }, { merge: true });
         } catch (error) {
             handleFirestoreError(error, OperationType.WRITE, `progress/${currentUser.id}`);
@@ -388,7 +414,7 @@ const App: React.FC = () => {
     };
     
     syncProgress();
-  }, [completedSubTopics, submittedExercises, currentUser, isAuthReady]);
+  }, [completionRecords, exerciseRecords, quizProgress, currentUser, isAuthReady]);
 
   // Derived Locked State based on User Permissions (Permanently Locked)
   const lockedTopicIds = useMemo(() => {
@@ -561,14 +587,13 @@ const App: React.FC = () => {
   };
 
   const toggleSubTopicCompletion = (subTopicId: string) => {
-    setCompletedSubTopics(prev => {
-        const next = new Set(prev);
-        if (next.has(subTopicId)) {
-            next.delete(subTopicId);
+    setCompletionRecords(prev => {
+        const index = prev.findIndex(r => r.id === subTopicId);
+        if (index >= 0) {
+            return prev.filter(r => r.id !== subTopicId);
         } else {
-            next.add(subTopicId);
+            return [...prev, { id: subTopicId, completedAt: new Date().toISOString() }];
         }
-        return next;
     });
   };
 
@@ -580,26 +605,25 @@ const App: React.FC = () => {
               [subTopicId]: newAttempts
           }));
           
-          if (currentUser) {
-              try {
-                  await setDoc(doc(db, 'quizAttempts', currentUser.id), {
-                      attempts: {
-                          ...quizProgress,
-                          [subTopicId]: newAttempts
-                      }
-                  }, { merge: true });
-              } catch (error) {
-                  handleFirestoreError(error, OperationType.WRITE, `quizAttempts/${currentUser.id}`);
-              }
-          }
-          
           if (quizData.passed) {
-              setSubmittedExercises(prev => new Set(prev).add(subTopicId));
-              setCompletedSubTopics(prev => new Set(prev).add(subTopicId));
+              setExerciseRecords(prev => {
+                  if (prev.some(r => r.id === subTopicId)) return prev;
+                  return [...prev, { id: subTopicId, completedAt: new Date().toISOString() }];
+              });
+              setCompletionRecords(prev => {
+                  if (prev.some(r => r.id === subTopicId)) return prev;
+                  return [...prev, { id: subTopicId, completedAt: new Date().toISOString() }];
+              });
           }
       } else {
-          setSubmittedExercises(prev => new Set(prev).add(subTopicId));
-          setCompletedSubTopics(prev => new Set(prev).add(subTopicId));
+          setExerciseRecords(prev => {
+              if (prev.some(r => r.id === subTopicId)) return prev;
+              return [...prev, { id: subTopicId, completedAt: new Date().toISOString() }];
+          });
+          setCompletionRecords(prev => {
+              if (prev.some(r => r.id === subTopicId)) return prev;
+              return [...prev, { id: subTopicId, completedAt: new Date().toISOString() }];
+          });
       }
   };
 
