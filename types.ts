@@ -84,7 +84,7 @@ export interface Topic {
   fullDescription: string;
   imageUrl: string;
   color: string;
-  level: 1 | 2 | 3 | 4 | 5; 
+  level: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10; 
   subTopics: SubTopic[];
   relatedTopics: string[]; // IDs of related topics for the graph
   teacher: Teacher;
@@ -126,6 +126,13 @@ export enum ViewState {
   ADMIN_BUILDER = 'ADMIN_BUILDER'
 }
 
+export interface Tag {
+  id: string;
+  name: string;
+  description: string;
+  color: string;
+}
+
 export interface UserStats {
   modulesCompleted: number;
   totalModules: number;
@@ -141,9 +148,11 @@ export interface User {
   avatar: string;
   role?: 'student' | 'admin';
   status?: 'pending' | 'active';
+  tags?: string[];
   allowedTopics?: string[]; // IDs of allowed topics. If undefined/empty, allow all? Or assume strict.
   stats?: UserStats; // Mock stats for admin
   completedSubTopics?: CompletionRecord[];
   submittedExercises?: string[];
   quizAttempts?: QuizAttempt[];
+  profileColor?: string;
 }

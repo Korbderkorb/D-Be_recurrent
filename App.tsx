@@ -5,7 +5,7 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, deleteDoc, onSnapshot, getDocFromServer, collection, getDocs, query, writeBatch } from 'firebase/firestore';
 import { MEDIA_ROOT } from './constants';
 import initialCurriculum from './src/data/curriculum.json';
-import { Topic, ViewState, User, Comment, QuizAttempt, Teacher, LandingConfig, CompletionRecord } from './types';
+import { Topic, ViewState, User, Comment, QuizAttempt, Teacher, LandingConfig, CompletionRecord, Tag } from './types';
 import TopicGraph from './components/TopicGraph';
 import TopicDetail from './components/TopicDetail';
 import Login from './components/Login';
@@ -231,6 +231,7 @@ const App: React.FC = () => {
   // App Data State (synced from Firestore)
   const [currentTopics, setCurrentTopics] = useState<Topic[]>([]);
   const [currentTeachers, setCurrentTeachers] = useState<Teacher[]>([]);
+  const [currentTags, setCurrentTags] = useState<Tag[]>([]);
   const [isCurriculumLoaded, setIsCurriculumLoaded] = useState(false);
   // Users State
   const [currentUsers, setCurrentUsers] = useState<User[]>([]);
@@ -334,6 +335,23 @@ const App: React.FC = () => {
       }
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'teachers');
+    });
+
+    return () => unsubscribe();
+  }, [isAuthReady]);
+
+  // Tags Sync from Firestore
+  useEffect(() => {
+    if (!isAuthReady) return;
+
+    const unsubscribe = onSnapshot(collection(db, 'tags'), (snapshot) => {
+      const tags: Tag[] = [];
+      snapshot.forEach((doc) => {
+        tags.push(doc.data() as Tag);
+      });
+      setCurrentTags(tags);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'tags');
     });
 
     return () => unsubscribe();
@@ -525,9 +543,9 @@ const App: React.FC = () => {
     setSelectedSubTopicId(undefined);
   };
 
-  const handleApplyAdminChanges = async (newTopics: Topic[], newTeachers: Teacher[], newUsers: User[], newLandingConfig?: LandingConfig) => {
+  const handleApplyAdminChanges = async (newTopics: Topic[], newTeachers: Teacher[], newUsers: User[], newLandingConfig?: LandingConfig, newTags?: Tag[]) => {
       const batch = writeBatch(db);
-
+      
       // Helper to remove undefined values recursively
       const cleanObject = (obj: any): any => {
           if (Array.isArray(obj)) {
@@ -542,6 +560,18 @@ const App: React.FC = () => {
           }
           return obj;
       };
+      
+      // Persist tags
+      if (newTags) {
+          for (const tag of newTags) {
+              batch.set(doc(db, 'tags', tag.id), cleanObject(tag));
+          }
+          // Handle deleted tags
+          const deletedTags = currentTags.filter(oldT => !newTags.find(newT => newT.id === oldT.id));
+          for (const tag of deletedTags) {
+              batch.delete(doc(db, 'tags', tag.id));
+          }
+      }
 
       // Persist landing config
       if (newLandingConfig) {
@@ -766,6 +796,7 @@ const App: React.FC = () => {
             initialTopics={currentTopics} 
             initialTeachers={currentTeachers}
             initialUsers={currentUsers}
+            initialTags={currentTags}
             initialLandingConfig={landingConfig}
             onApplyChanges={handleApplyAdminChanges}
             onExit={() => setViewState(ViewState.HOME)}

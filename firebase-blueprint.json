@@ -11,6 +11,8 @@
         "avatar": { "type": "string" },
         "role": { "type": "string", "enum": ["admin", "student"] },
         "status": { "type": "string", "enum": ["pending", "active"] },
+        "profileColor": { "type": "string", "description": "Custom color for the user's avatar and graphs" },
+        "tags": { "type": "array", "items": { "type": "string" }, "description": "List of tag names assigned to the user" },
         "allowedTopics": { "type": "array", "items": { "type": "string" } },
         "stats": {
           "type": "object",
@@ -103,12 +105,28 @@
         "quote": { "type": "string" }
       },
       "required": ["title", "subtitle", "tag", "heroImage", "description", "quote"]
+    },
+    "Tag": {
+      "title": "Tag",
+      "description": "User group tag with color and description",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "color": { "type": "string" }
+      },
+      "required": ["id", "name", "color"]
     }
   },
   "firestore": {
     "users/{userId}": {
       "schema": "User",
       "description": "User profile documents"
+    },
+    "tags/{tagId}": {
+      "schema": "Tag",
+      "description": "User group tag documents"
     },
     "progress/{userId}": {
       "schema": "Progress",
