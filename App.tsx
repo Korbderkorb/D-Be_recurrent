@@ -869,7 +869,7 @@ const App: React.FC = () => {
             <div className="flex bg-slate-900 p-1 rounded-lg border border-slate-800">
                 <button 
                     onClick={() => setDashboardMode('GRAPH')}
-                    className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-all ${dashboardMode === 'GRAPH' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                    className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-all ${dashboardMode === 'GRAPH' ? 'bg-[#2c5ee8] text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
                 >
                     <Network className="w-4 h-4" />
                     <span className="hidden lg:inline">Knowledge Graph</span>
@@ -980,10 +980,10 @@ const App: React.FC = () => {
                 )}
 
                 {dashboardMode === 'TEACHERS' && (
-                    <div className="w-full h-full bg-slate-950 overflow-y-auto">
+                    <div className="w-full h-full bg-[#0f172a] overflow-y-auto">
                         {!selectedTeacherEmail ? (
                             <div className="p-8 max-w-7xl mx-auto">
-                                <h2 className="text-3xl font-bold text-white mb-8">Instructors</h2>
+                                <h2 className="text-3xl font-bold text-[#ffffff] mb-8">Instructors</h2>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                     {uniqueTeachers.map(t => (
                                         <div 
@@ -991,9 +991,9 @@ const App: React.FC = () => {
                                             onClick={() => setSelectedTeacherEmail(t.email)} 
                                             className="bg-slate-900 border border-slate-800 rounded-2xl p-6 hover:bg-slate-800 hover:border-slate-700 transition-all cursor-pointer group"
                                         >
-                                             <div className="flex flex-col items-center text-center">
+                                             <div className="flex flex-col items-center text-center bg-white rounded-xl p-4">
                                                 <img src={t.avatar} alt={t.name} className="w-24 h-24 rounded-full mb-4 object-cover border-4 border-slate-800 group-hover:border-blue-500/50 transition-colors" />
-                                                <h3 className="text-xl font-bold text-white mb-1 group-hover:text-blue-400 transition-colors">{t.name}</h3>
+                                                <h3 className="text-xl font-bold text-[#000000] mb-1 group-hover:text-blue-400 transition-colors">{t.name}</h3>
                                                 <p className="text-slate-400 text-sm mb-4">{t.role}</p>
                                                 
                                                 {t.bio && (
@@ -1001,8 +1001,8 @@ const App: React.FC = () => {
                                                 )}
 
                                                 <div className="w-full bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 mb-6">
-                                                    <div className="text-xs text-slate-500 font-mono mb-1 uppercase tracking-wider">Modules Taught</div>
-                                                    <div className="text-lg font-bold text-white">
+                                                    <div className="text-xs text-slate-500 font-mono mb-1 uppercase tracking-wider bg-[#0f172a] p-1 rounded">Modules Taught</div>
+                                                    <div className="text-lg font-bold text-white bg-[#0f172a] p-1 rounded">
                                                         {currentTopics.filter(top => top.teacher.email === t.email).length}
                                                     </div>
                                                 </div>
