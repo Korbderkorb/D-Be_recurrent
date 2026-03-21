@@ -199,6 +199,11 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
     
     const zoom = d3.zoom<SVGSVGElement, unknown>()
         .scaleExtent([0.05, 4])
+        .filter((event) => {
+            // Allow left button (0) and middle button (1)
+            // Default d3 filter is: (!event.ctrlKey || event.type === 'wheel') && !event.button
+            return (!event.ctrlKey || event.type === 'wheel') && (event.button === 0 || event.button === 1);
+        })
         .on("zoom", (event) => {
             zoomGroup.attr("transform", event.transform);
             transformRef.current = event.transform; 
@@ -236,6 +241,13 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
     const initialTransform = d3.zoomIdentity.translate(tx, ty).scale(scale);
 
     svg.call(zoom);
+    
+    // Prevent default middle-click behavior to avoid autoscroll interference
+    svg.on("mousedown.middle", (event) => {
+        if (event.button === 1) {
+            event.preventDefault();
+        }
+    });
     
     svg.on("click", () => {
         previewTopicIdRef.current = null;
@@ -525,11 +537,8 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
 
             const isMobile = window.innerWidth < 768;
             const buttonHtml = isMobile && !d.locked && !d.prerequisiteLocked ? `
-                <div style="margin-top: 10px; padding: 10px; background: #0f172a; color: #3b82f6; text-align: center; border: 1px solid #3b82f6; font-family: ui-monospace, monospace; font-weight: bold; font-size: 12px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.1em; box-shadow: 0 0 15px rgba(59, 130, 246, 0.15); pointer-events: all;">
-                    START LEARNING
-                </div>
-                <div style="margin-top: 6px; text-align: center; font-size: 8px; color: #64748b; font-family: ui-monospace, monospace; text-transform: uppercase; letter-spacing: 0.05em;">
-                    (Tap again to open)
+                <div style="margin-top: 12px; padding: 8px; background: rgba(59, 130, 246, 0.05); color: #3b82f6; text-align: center; border: 1px dashed rgba(59, 130, 246, 0.3); font-family: ui-monospace, monospace; font-size: 10px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.1em; pointer-events: all; border-radius: 4px;">
+                    Tap again to open module
                 </div>
             ` : "";
 
@@ -866,10 +875,10 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
       <div className="absolute top-0 left-0 w-full h-8 border-b border-slate-800 bg-slate-950/80 backdrop-blur pointer-events-none"></div>
       
       {/* Zoom Controls */}
-      <div className="absolute bottom-12 md:bottom-20 right-6 md:right-8 z-30 flex flex-col gap-2">
+      <div className="absolute bottom-12 md:bottom-20 right-6 md:right-8 z-30 flex flex-col gap-2 ml-0 pt-0 pb-0 pl-0 mb-[42px]">
           <button 
               onClick={handleRecenter}
-              className="w-10 h-10 bg-slate-900 border border-slate-800 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all shadow-xl"
+              className="w-10 h-10 bg-slate-900 border border-slate-800 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all shadow-xl ml-0 pt-0"
               title="Recenter Graph"
           >
               <Maximize size={18} />

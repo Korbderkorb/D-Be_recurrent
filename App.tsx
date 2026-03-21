@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { auth, db, storage } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, deleteDoc, onSnapshot, getDocFromServer, collection, getDocs, query, writeBatch } from 'firebase/firestore';
@@ -284,6 +284,25 @@ const App: React.FC = () => {
     checkDeadlines();
   }, [notifications, currentUser, isNotificationsLoaded]);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const userDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
+        setShowUserDropdown(false);
+      }
+    };
+
+    if (showUserDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    } else {
+      document.removeEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showUserDropdown]);
   const [landingConfig, setLandingConfig] = useState<LandingConfig>({
     title: "Digital Built Environment",
     subtitle: "Recurrent Program",
@@ -1098,7 +1117,7 @@ const App: React.FC = () => {
 
                 {currentUser && (
                     <div className="flex items-center gap-3 border-l border-slate-800 pl-4 relative">
-                        <div className="relative">
+                        <div className="relative" ref={userDropdownRef}>
                             <button 
                                 onClick={() => setShowUserDropdown(!showUserDropdown)}
                                 className="flex items-center gap-2 p-1 hover:bg-slate-800 rounded-full transition-colors relative"
@@ -1114,16 +1133,11 @@ const App: React.FC = () => {
                             </button>
 
                             {showUserDropdown && (
-                                <>
-                                    <div 
-                                        className="fixed inset-0 z-40" 
-                                        onClick={() => setShowUserDropdown(false)}
-                                    ></div>
-                                    <div className="absolute right-0 mt-2 w-56 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                                        <div className="px-4 py-2 border-b border-slate-800 mb-2">
-                                            <p className="text-sm font-bold text-white truncate">{currentUser.name}</p>
-                                            <p className="text-[10px] text-slate-500 uppercase tracking-wider">{currentUser.role}</p>
-                                        </div>
+                                <div className="absolute right-0 mt-2 w-56 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <div className="px-4 py-2 border-b border-slate-800 mb-2">
+                                        <p className="text-sm font-bold text-white truncate">{currentUser.name}</p>
+                                        <p className="text-[10px] text-slate-500 uppercase tracking-wider">{currentUser.role}</p>
+                                    </div>
                                         
                                         {currentUser.role === 'admin' && (
                                             <button 
@@ -1152,10 +1166,9 @@ const App: React.FC = () => {
                                             <span>Logout</span>
                                         </button>
                                     </div>
-                                </>
-                            )}
+                                )}
+                            </div>
                         </div>
-                    </div>
                 )}
             </div>
           </nav>
@@ -1164,8 +1177,8 @@ const App: React.FC = () => {
           <div className="flex-1 pt-20 h-full relative">
             
             {showWelcomeOverlay && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-500">
-                    <div className="bg-slate-900 border border-slate-800 p-10 rounded-3xl max-w-2xl w-full shadow-2xl relative overflow-hidden">
+                <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-500 p-4 md:p-6">
+                    <div className="bg-slate-900 border border-slate-800 p-6 md:p-10 rounded-3xl max-w-2xl w-full shadow-2xl relative overflow-hidden">
                         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
                         
                         <div className="relative z-10">

@@ -909,7 +909,14 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
       totalScore: number, 
       attempts: number, 
       timestamp: number,
-      questionStats: Record<string, { correct: number, total: number, question: string, options: string[] }>
+      questionStats: Record<string, { 
+        correct: number, 
+        total: number, 
+        question: string, 
+        options: string[],
+        optionCounts: Record<number, number>,
+        correctAnswers: number[]
+      }>
     }> = {};
 
     filteredUsers.forEach(u => {
@@ -930,7 +937,9 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
               correct: 0, 
               total: 0, 
               question: q.question,
-              options: q.options
+              options: q.options,
+              optionCounts: q.options.reduce((acc, _, idx) => ({ ...acc, [idx]: 0 }), {}),
+              correctAnswers: q.correctAnswers || []
             };
           });
         }
@@ -942,6 +951,15 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
           const stats = quizStats[a.subTopicId].questionStats[q.id];
           if (stats) {
             stats.total += 1;
+            
+            // Track specific option picks
+            const selectedIndices = a.answers?.[q.id] || [];
+            selectedIndices.forEach(idx => {
+              if (stats.optionCounts[idx] !== undefined) {
+                stats.optionCounts[idx] += 1;
+              }
+            });
+
             const isWrong = a.wrongAnswers?.some(wa => wa === q.id || wa === q.question);
             if (!isWrong) {
               stats.correct += 1;
@@ -961,7 +979,11 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
         id: qId,
         label: `Question ${index + 1}`,
         question: qStats.question,
-        options: qStats.options,
+        options: qStats.options.map((opt, optIdx) => ({
+          text: opt,
+          isCorrect: qStats.correctAnswers.includes(optIdx),
+          pickPercentage: qStats.total > 0 ? Math.round((qStats.optionCounts[optIdx] / qStats.total) * 100) : 0
+        })),
         correctPercentage: Math.round((qStats.correct / qStats.total) * 100)
       }))
     })).sort((a, b) => a.timestamp - b.timestamp);
@@ -1102,40 +1124,6 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
     return null;
   };
 
-  // Empirical Insights Logic
-  const getEmpiricalInsights = () => {
-    if (filteredUsers.length === 0) return { ease: "No data available.", difficulty: "No data available." };
-
-    const allAttempts = filteredUsers.flatMap(u => u.quizAttempts || []);
-    if (allAttempts.length === 0) return { ease: "No quiz data yet.", difficulty: "No quiz data yet." };
-
-    // Find modules with highest and lowest average scores
-    const moduleStats: Record<string, { total: number, count: number }> = {};
-    allAttempts.forEach(a => {
-      if (!moduleStats[a.subTopicId]) moduleStats[a.subTopicId] = { total: 0, count: 0 };
-      moduleStats[a.subTopicId].total += (a.score / a.total);
-      moduleStats[a.subTopicId].count += 1;
-    });
-
-    const moduleAverages = Object.entries(moduleStats).map(([id, stats]) => ({
-      id,
-      avg: (stats.total / stats.count) * 100,
-      count: stats.count
-    })).sort((a, b) => b.avg - a.avg);
-
-    const bestModule = moduleAverages[0];
-    const worstModule = moduleAverages[moduleAverages.length - 1];
-
-    const bestTitle = topics.flatMap(t => t.subTopics).find(st => st.id === bestModule.id)?.title || "Unknown Module";
-    const worstTitle = topics.flatMap(t => t.subTopics).find(st => st.id === worstModule.id)?.title || "Unknown Module";
-
-    return {
-      ease: `Students excel in "${bestTitle}" with an empirical average score of ${Math.round(bestModule.avg)}% across ${bestModule.count} attempts.`,
-      difficulty: `Students struggle with "${worstTitle}" showing a lower average score of ${Math.round(worstModule.avg)}% (${worstModule.count} attempts recorded).`
-    };
-  };
-
-  const insights = getEmpiricalInsights();
 
   const handleExport = () => {
     if (exportFormat === 'print') {
@@ -1228,6 +1216,7 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
     URL.revokeObjectURL(url);
   };
 
+  // Individual Student Export Logic
   const handleIndividualExport = (user: User, format: 'text' | 'csv' | 'print') => {
     if (format === 'print') {
       setSelectedUserForPrint(user);
@@ -1236,6 +1225,7 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
     }
     
     const data = getPerformanceData(user);
+    const userNotifications = notifications.filter(n => n.userId === user.id).sort((a, b) => b.timestamp.localeCompare(a.timestamp));
     let content = "";
     
     if (format === 'text') {
@@ -1250,7 +1240,7 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
       content += `- Engagement: ${Math.round(data.engagement)}% (Formula: Total Quiz Attempts / Total Modules)\n`;
       content += `- Speed: ${Math.round(data.speed)}% (Formula: 100 - (Avg Time per Quiz / 240s) * 100)\n\n`;
       
-      content += `ACTIVITY LOG:\n`;
+      content += `ACTIVITY LOG (QUIZZES):\n`;
       (user.quizAttempts || []).forEach(a => {
         const subTopic = topics.flatMap(t => t.subTopics).find(st => st.id === a.subTopicId);
         content += `[${a.timestamp}] ${subTopic?.title || 'Quiz'}: ${a.score}/${a.total} (${a.passed ? 'PASSED' : 'FAILED'})\n`;
@@ -1258,11 +1248,29 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
           content += `  Wrong Answers: ${a.wrongAnswers.join(', ')}\n`;
         }
       });
+
+      if (userNotifications.length > 0) {
+        content += `\nEXERCISE SUBMISSIONS:\n`;
+        userNotifications.forEach(n => {
+          content += `[${n.timestamp}] ${n.subTopicTitle} (${n.topicTitle})\n`;
+          if (n.evaluated) {
+            content += `  Grade: ${n.grade}/100\n`;
+            if (n.feedback) content += `  Feedback: "${n.feedback}"\n`;
+          } else {
+            content += `  Status: Pending Evaluation\n`;
+          }
+        });
+      }
     } else {
-      content = "Timestamp,Module,Score,Total,Passed,WrongAnswers\n";
+      content = "Type,Timestamp,Module/Exercise,Score/Grade,Total/Max,Passed/Evaluated,Details\n";
+      // Quizzes
       (user.quizAttempts || []).forEach(a => {
         const subTopic = topics.flatMap(t => t.subTopics).find(st => st.id === a.subTopicId);
-        content += `"${a.timestamp}","${subTopic?.title || 'Quiz'}",${a.score},${a.total},${a.passed},"${(a.wrongAnswers || []).join(';')}"\n`;
+        content += `"Quiz","${a.timestamp}","${subTopic?.title || 'Quiz'}",${a.score},${a.total},${a.passed},"${(a.wrongAnswers || []).join(';')}"\n`;
+      });
+      // Exercises
+      userNotifications.forEach(n => {
+        content += `"Exercise","${n.timestamp}","${n.subTopicTitle}",${n.evaluated ? n.grade : ''},100,${n.evaluated},"${n.feedback || ''}"\n`;
       });
     }
 
@@ -1302,38 +1310,38 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
         .print-only { display: none; }
       `}</style>
 
-      <div className="flex justify-between items-end no-print">
-        <div>
-          <h2 className="text-3xl font-bold text-white tracking-tight">User Performance Analytics</h2>
-          <p className="text-slate-400 mt-1">Comprehensive overview of student progress and evaluation.</p>
-          <p className="text-[10px] text-slate-500 mt-1 italic">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-6 no-print">
+        <div className="w-full sm:w-auto">
+          <h2 className="text-xl sm:text-3xl font-bold text-white tracking-tight break-words">User Performance Analytics</h2>
+          <p className="text-xs sm:text-slate-400 mt-1">Comprehensive overview of student progress and evaluation.</p>
+          <p className="text-[9px] sm:text-[10px] text-slate-500 mt-1 italic max-w-2xl">
             * Group Average is based on the currently filtered set of students. If no tags are selected, it represents all accounts.
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-2 w-full sm:w-auto overflow-x-auto no-scrollbar pb-1 sm:pb-0 shrink-0">
           <select 
-            className="bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm font-medium text-slate-300 shadow-sm outline-none focus:border-blue-500"
+            className="bg-slate-900 border border-slate-800 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-sm font-medium text-slate-300 shadow-sm outline-none focus:border-blue-500 shrink-0"
             value={exportFormat}
             onChange={(e) => setExportFormat(e.target.value as any)}
           >
-            <option value="print">Print Full Report (Optimized)</option>
-            <option value="text">Export as Text (.txt)</option>
-            <option value="csv">Export as CSV (.csv)</option>
+            <option value="print">Print Full Report</option>
+            <option value="text">Export as Text</option>
+            <option value="csv">Export as CSV</option>
           </select>
           <button 
             onClick={handleExport}
-            className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-xl shadow-blue-900/20 transition-all active:scale-95"
+            className="bg-blue-600 hover:bg-blue-500 text-white px-3 sm:px-5 py-1.5 sm:py-2 rounded-lg text-[10px] sm:text-sm font-bold flex items-center gap-2 shadow-xl shadow-blue-900/20 transition-all active:scale-95 shrink-0"
           >
-            <Download size={18} /> {exportFormat === 'print' ? 'Generate Print View' : 'Export Evaluation'}
+            <Download size={14} className="sm:w-[18px] sm:h-[18px]" /> {exportFormat === 'print' ? 'Report' : 'Export'}
           </button>
         </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-sm no-print">
+      <div className="bg-slate-900 p-4 sm:p-6 rounded-2xl border border-slate-800 shadow-sm no-print">
         <div className="flex items-center gap-3 mb-4">
-          <Search size={18} className="text-slate-500" />
-          <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Filter by Tags</h3>
+          <Search size={16} className="text-slate-500" />
+          <h3 className="text-xs sm:text-sm font-bold text-slate-400 uppercase tracking-wider">Filter by Tags</h3>
         </div>
         <div className="flex flex-wrap gap-2">
           {allTags.length > 0 ? allTags.map(tag => (
@@ -1370,47 +1378,47 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
       <div className={`grid grid-cols-1 lg:grid-cols-3 gap-8 ${isPrinting ? 'no-print' : ''}`}>
         {/* Left: Group Overview */}
         <div className="lg:col-span-2 space-y-8">
-          <div className="grid grid-cols-2 gap-6 print-break-inside-avoid">
-            <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-sm">
-              <div className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">Avg. Group Progress</div>
-              <div className="text-4xl font-bold text-white">{avgGroupProgress}%</div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 print-break-inside-avoid">
+            <div className="bg-slate-900 p-4 sm:p-6 rounded-2xl border border-slate-800 shadow-sm">
+              <div className="text-slate-500 text-[10px] sm:text-xs font-bold uppercase tracking-widest mb-1">Avg. Group Progress</div>
+              <div className="text-2xl sm:text-4xl font-bold text-white">{avgGroupProgress}%</div>
               <div className="mt-4 h-2 bg-slate-800 rounded-full overflow-hidden">
                 <div className="h-full bg-blue-500 rounded-full" style={{ width: `${avgGroupProgress}%` }}></div>
               </div>
             </div>
-            <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-sm">
-              <div className="text-slate-500 text-xs font-bold uppercase tracking-widest mb-1">Avg. Quiz Score</div>
-              <div className="text-4xl font-bold text-white">{avgGroupScore}%</div>
+            <div className="bg-slate-900 p-4 sm:p-6 rounded-2xl border border-slate-800 shadow-sm">
+              <div className="text-slate-500 text-[10px] sm:text-xs font-bold uppercase tracking-widest mb-1">Avg. Quiz Score</div>
+              <div className="text-2xl sm:text-4xl font-bold text-white">{avgGroupScore}%</div>
               <div className="mt-4 h-2 bg-slate-800 rounded-full overflow-hidden">
                 <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${avgGroupScore}%` }}></div>
               </div>
             </div>
           </div>
 
-          <div className="bg-slate-900 p-8 rounded-2xl border border-slate-800 shadow-sm print-break-inside-avoid">
-            <div className="flex justify-between items-center mb-6">
+          <div className="bg-slate-900 p-4 sm:p-8 rounded-2xl border border-slate-800 shadow-sm print-break-inside-avoid overflow-hidden">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Performance Comparison</h3>
+                <h3 className="text-xs sm:text-sm font-bold text-slate-400 uppercase tracking-wider">Performance Comparison</h3>
                   <div className="flex gap-1 no-print">
                     <button 
                       onClick={() => downloadDataAsCSV(groupPerformance, 'group_performance')}
                       className="p-1.5 text-slate-500 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition-all"
                       title="Export Graph Data as CSV"
                     >
-                      <Download size={14} />
+                      <Download size={12} className="sm:w-[14px] sm:h-[14px]" />
                     </button>
                     <button 
                       onClick={() => downloadChartAsSVG('group-performance-chart', 'group_performance')}
                       className="p-1.5 text-slate-500 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition-all"
                       title="Export Graph as SVG"
                     >
-                      <FileCode size={14} />
+                      <FileCode size={12} className="sm:w-[14px] sm:h-[14px]" />
                     </button>
                   </div>
               </div>
-              <div className="flex gap-2 no-print">
+              <div className="flex gap-2 w-full sm:w-auto overflow-x-auto no-scrollbar pb-1 sm:pb-0">
                 <select 
-                  className="text-[10px] font-bold bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-300 outline-none focus:border-blue-500"
+                  className="text-[9px] sm:text-[10px] font-bold bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-300 outline-none focus:border-blue-500 shrink-0"
                   value={graphType}
                   onChange={(e) => setGraphType(e.target.value as any)}
                 >
@@ -1419,7 +1427,7 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
                   <option value="area">Area Chart</option>
                 </select>
                 <select 
-                  className="text-[10px] font-bold bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-300 outline-none focus:border-blue-500"
+                  className="text-[9px] sm:text-[10px] font-bold bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-300 outline-none focus:border-blue-500 shrink-0"
                   value={graphMetric}
                   onChange={(e) => setGraphMetric(e.target.value as any)}
                 >
@@ -1431,21 +1439,29 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
             </div>
             
             {groupPerformance.length > 0 ? (
-              <div className="h-[350px]" id="group-performance-chart">
+              <div className="h-[250px] sm:h-[350px]" id="group-performance-chart">
                 <ResponsiveContainer width="100%" height="100%">
                   {graphType === 'bar' ? (
-                    <BarChart data={groupPerformance}>
+                    <BarChart data={groupPerformance} margin={{ top: 10, right: 10, left: 0, bottom: 40 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
+                      <XAxis 
+                        dataKey="name" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fontSize: 8, fill: '#64748b' }} 
+                        angle={-45}
+                        textAnchor="end"
+                        interval="preserveStartEnd"
+                      />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: '#64748b' }} />
                       <Tooltip 
                         contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', color: '#fff', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }}
-                        itemStyle={{ fontSize: '12px', color: '#fff', padding: '2px 0' }}
-                        labelStyle={{ color: '#94a3b8', fontWeight: 'bold', marginBottom: '4px' }}
+                        itemStyle={{ fontSize: '10px', color: '#fff', padding: '2px 0' }}
+                        labelStyle={{ color: '#94a3b8', fontWeight: 'bold', marginBottom: '4px', fontSize: '11px' }}
                         cursor={{ fill: 'rgba(255, 255, 255, 0.03)', radius: 8 }}
                         wrapperStyle={{ outline: 'none' }}
                       />
-                      {graphMetric !== 'both' && <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '12px' }} />}
+                      {graphMetric !== 'both' && <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '10px' }} />}
                       {(graphMetric === 'progress' || graphMetric === 'both') && (
                         <Bar dataKey="progress" name="Progress %" radius={[4, 4, 0, 0]}>
                           {groupPerformance.map((entry, index) => (
@@ -1553,10 +1569,18 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
                       )}
                     </LineChart>
                   ) : (
-                    <AreaChart data={groupPerformance}>
+                    <AreaChart data={groupPerformance} margin={{ top: 10, right: 10, left: 0, bottom: 40 }}>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
+                      <XAxis 
+                        dataKey="name" 
+                        axisLine={false} 
+                        tickLine={false} 
+                        tick={{ fontSize: 8, fill: '#64748b' }} 
+                        angle={-45}
+                        textAnchor="end"
+                        interval="preserveStartEnd"
+                      />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: '#64748b' }} />
                       <Tooltip 
                         contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', color: '#fff', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }}
                         itemStyle={{ fontSize: '12px', color: '#fff', padding: '2px 0' }}
@@ -1597,30 +1621,30 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
             )}
           </div>
 
-          <div className="bg-slate-900 p-8 rounded-2xl border border-slate-800 shadow-sm print-break-inside-avoid">
-            <div className="flex justify-between items-center mb-6">
+          <div className="bg-slate-900 p-4 sm:p-8 rounded-2xl border border-slate-800 shadow-sm print-break-inside-avoid overflow-hidden">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Learning Timeline</h3>
+                <h3 className="text-xs sm:text-sm font-bold text-slate-400 uppercase tracking-wider">Learning Timeline</h3>
                 <div className="flex gap-1 no-print">
                   <button 
                     onClick={() => downloadDataAsCSV(timelineData[0]?.dataPoints || [], 'group_timeline')}
                     className="p-1.5 text-slate-500 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition-all no-print"
                     title="Export Graph Data as CSV"
                   >
-                    <Download size={14} />
+                    <Download size={12} className="sm:w-[14px] sm:h-[14px]" />
                   </button>
                     <button 
                       onClick={() => downloadChartAsSVG('group-timeline-chart', 'group_timeline')}
                       className="p-1.5 text-slate-500 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition-all no-print"
                       title="Export Graph as SVG"
                     >
-                      <FileCode size={14} />
+                      <FileCode size={12} className="sm:w-[14px] sm:h-[14px]" />
                     </button>
                   </div>
               </div>
-              <div className="flex gap-2 no-print">
+              <div className="flex gap-2 w-full sm:w-auto overflow-x-auto no-scrollbar pb-1 sm:pb-0">
                 <select 
-                  className="text-[10px] font-bold bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-300 outline-none focus:border-blue-500"
+                  className="text-[9px] sm:text-[10px] font-bold bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-300 outline-none focus:border-blue-500 shrink-0"
                   value={timelineMetric}
                   onChange={(e) => setTimelineMetric(e.target.value as any)}
                 >
@@ -1631,20 +1655,23 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
             </div>
             
             {timelineData.length > 0 ? (
-              <div className="h-[350px]" id="group-timeline-chart">
+              <div className="h-[250px] sm:h-[350px]" id="group-timeline-chart">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                  <LineChart margin={{ top: 20, right: 10, left: -20, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
                     <XAxis 
                       type="number" 
                       dataKey="timestamp" 
                       domain={['auto', 'auto']} 
-                      tickFormatter={(t) => new Date(t).toLocaleDateString()}
+                      tickFormatter={(t) => new Date(t).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}
                       axisLine={false} 
                       tickLine={false} 
-                      tick={{ fontSize: 10, fill: '#64748b' }}
+                      tick={{ fontSize: 8, fill: '#64748b' }}
+                      angle={-45}
+                      textAnchor="end"
+                      height={50}
                     />
-                    <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
+                    <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: '#64748b' }} />
                     <Tooltip 
                       content={<CustomTimelineTooltip />} 
                       shared={false}
@@ -1652,7 +1679,13 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
                       wrapperStyle={{ outline: 'none' }}
                       cursor={{ stroke: '#3b82f6', strokeWidth: 1, strokeDasharray: '4 4' }}
                     />
-                    <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '12px' }} />
+                    <Legend 
+                      iconType="circle" 
+                      wrapperStyle={{ paddingTop: '30px', fontSize: '10px', width: '100%' }} 
+                      layout="horizontal" 
+                      align="center" 
+                      verticalAlign="bottom"
+                    />
                     {timelineData.map(userTimeline => (
                       <Line 
                         key={userTimeline.userId}
@@ -1688,10 +1721,10 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
           </div>
 
           {/* Quiz Performance Overview Graph */}
-          <div className="bg-slate-900 p-8 rounded-2xl border border-slate-800 shadow-sm print-break-inside-avoid">
-            <div className="flex justify-between items-center mb-6">
+          <div className="bg-slate-900 p-4 sm:p-8 rounded-2xl border border-slate-800 shadow-sm print-break-inside-avoid overflow-hidden">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Quiz Performance Overview</h3>
+                <h3 className="text-xs sm:text-sm font-bold text-slate-400 uppercase tracking-wider">Quiz Performance Overview</h3>
                 <div className="flex gap-1 no-print">
                   <button 
                     onClick={() => {
@@ -1706,45 +1739,47 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
                     className="p-1.5 text-slate-500 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition-all no-print"
                     title="Export Graph Data as CSV"
                   >
-                    <Download size={14} />
+                    <Download size={12} className="sm:w-[14px] sm:h-[14px]" />
                   </button>
                     <button 
                       onClick={() => downloadChartAsSVG('quiz-performance-chart', 'quiz_performance')}
                       className="p-1.5 text-slate-500 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition-all no-print"
                       title="Export Graph as SVG"
                     >
-                      <FileCode size={14} />
+                      <FileCode size={12} className="sm:w-[14px] sm:h-[14px]" />
                     </button>
                   </div>
               </div>
-              <div className="text-[10px] text-slate-500 font-bold uppercase tracking-widest italic">
+              <div className="text-[9px] sm:text-[10px] text-slate-500 font-bold uppercase tracking-widest italic">
                 Click columns for question-level breakdown
               </div>
             </div>
             
             {quizPerformanceOverview.length > 0 ? (
-              <div className="h-[350px]" id="quiz-performance-chart">
+              <div className="h-[250px] sm:h-[350px]" id="quiz-performance-chart">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={quizPerformanceOverview}>
+                  <BarChart data={quizPerformanceOverview} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
                     <XAxis 
                       dataKey="name" 
                       axisLine={false} 
                       tickLine={false} 
-                      tick={{ fontSize: 10, fill: '#64748b' }} 
-                      label={{ value: 'Quizzes (Chronological)', position: 'insideBottom', offset: -5, fontSize: 10, fill: '#475569', fontWeight: 'bold' }}
+                      tick={{ fontSize: 8, fill: '#64748b' }} 
+                      angle={-45}
+                      textAnchor="end"
+                      height={60}
+                      interval={0}
                     />
                     <YAxis 
                       axisLine={false} 
                       tickLine={false} 
-                      tick={{ fontSize: 10, fill: '#64748b' }}
-                      label={{ value: 'Average Score %', angle: -90, position: 'insideLeft', fontSize: 10, fill: '#475569', fontWeight: 'bold' }}
+                      tick={{ fontSize: 8, fill: '#64748b' }}
                     />
                     <Tooltip 
                       cursor={{ fill: 'rgba(255, 255, 255, 0.03)', radius: 8 }}
                       contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', color: '#fff', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }}
-                      itemStyle={{ fontSize: '12px', color: '#fff', padding: '2px 0' }}
-                      labelStyle={{ color: '#94a3b8', fontWeight: 'bold', marginBottom: '4px' }}
+                      itemStyle={{ fontSize: '10px', color: '#fff', padding: '2px 0' }}
+                      labelStyle={{ color: '#94a3b8', fontWeight: 'bold', marginBottom: '4px', fontSize: '11px' }}
                       formatter={(value: any) => [`${value}%`, 'Avg Score']}
                       wrapperStyle={{ outline: 'none' }}
                     />
@@ -1778,6 +1813,10 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
             )}
           </div>
 
+        </div>
+
+        {/* Right: Individual Evaluation */}
+        <div className={`space-y-8 ${isPrinting ? 'no-print' : ''}`}>
           <div className="bg-slate-900 rounded-2xl border border-slate-800 shadow-sm overflow-hidden print-break-inside-avoid">
             <div className="p-6 border-b border-slate-800 flex justify-between items-center">
               <div className="flex items-center gap-2">
@@ -1823,10 +1862,8 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
                 <thead>
                   <tr className="bg-slate-950 text-[10px] uppercase font-bold text-slate-500 tracking-widest">
                     <th className="px-6 py-4">Student</th>
-                    <th className="px-6 py-4">Tags</th>
                     <th className="px-6 py-4">Progress</th>
                     <th className="px-6 py-4">Avg Score</th>
-                    <th className="px-6 py-4 no-print">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800">
@@ -1837,39 +1874,24 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
                             <div 
-                              className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-sm"
+                              className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-sm shrink-0"
                               style={{ backgroundColor: u.profileColor || getTagColor(u.tags || []) }}
                             >
                               {u.name[0]}
                             </div>
-                            <div>
-                              <div className="text-sm font-bold text-white">{u.name}</div>
-                              <div className="text-[10px] text-slate-500">{u.email}</div>
+                            <div className="min-w-0">
+                              <div className="text-sm font-bold text-white truncate">{u.name}</div>
+                              <div className="text-[10px] text-slate-500 truncate">{u.email}</div>
                             </div>
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <div className="flex flex-wrap gap-1">
-                            {(u.tags || []).map(t => (
-                              <span key={t} className="px-1.5 py-0.5 text-white rounded text-[9px] font-bold" style={{ backgroundColor: tagColors[t] || '#94a3b8' }}>{t}</span>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-2">
-                            <div className="w-16 h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                              <div className="h-full bg-blue-500" style={{ width: `${data.progress}%` }}></div>
-                            </div>
-                            <span className="text-xs font-bold text-slate-300">{data.progress}%</span>
-                          </div>
+                          <span className="text-xs font-bold text-slate-300">{data.progress}%</span>
                         </td>
                         <td className="px-6 py-4">
                           <span className={`text-xs font-bold ${data.avgScore >= 80 ? 'text-emerald-400' : data.avgScore >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
                             {data.avgScore}%
                           </span>
-                        </td>
-                        <td className="px-6 py-4 no-print">
-                          <button className="text-blue-400 hover:text-blue-300 text-xs font-bold">Details</button>
                         </td>
                       </tr>
                     );
@@ -1878,32 +1900,7 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
               </table>
             </div>
           </div>
-        </div>
 
-        {/* Right: Individual/Group Evaluation */}
-        <div className={`space-y-8 ${isPrinting ? 'no-print' : ''}`}>
-          <div className="bg-slate-900 text-white p-8 rounded-3xl shadow-2xl shadow-slate-950/50 relative overflow-hidden print-break-inside-avoid border border-slate-800">
-            <div className="absolute top-0 right-0 p-4 opacity-10">
-              <Sparkles size={120} />
-            </div>
-            <h3 className="text-xl font-bold mb-2 relative z-10">Empirical Insights</h3>
-            <p className="text-slate-500 text-sm mb-6 relative z-10">Based on real-time performance data.</p>
-            
-            <div className="space-y-4 relative z-10">
-              <div className="bg-white/5 border border-white/10 p-4 rounded-xl">
-                <div className="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-1">Areas of Ease</div>
-                <div className="text-sm font-medium leading-relaxed text-slate-200">
-                  {insights.ease}
-                </div>
-              </div>
-              <div className="bg-white/5 border border-white/10 p-4 rounded-xl">
-                <div className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mb-1">Areas of Difficulty</div>
-                <div className="text-sm font-medium leading-relaxed text-slate-200">
-                  {insights.difficulty}
-                </div>
-              </div>
-            </div>
-          </div>
 
           {selectedUser ? (
             <div className="bg-slate-900 rounded-2xl border border-slate-800 shadow-sm overflow-hidden sticky top-8 print-break-inside-avoid">
@@ -2043,7 +2040,7 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
                     </div>
                     <div className="h-[200px] w-full" id="individual-radar-chart">
                       <ResponsiveContainer width="100%" height="100%">
-                        <RadarChart cx="50%" cy="50%" outerRadius="80%" data={[
+                        <RadarChart cx="50%" cy="50%" outerRadius="65%" data={[
                           { subject: 'Progress', A: getPerformanceData(selectedUser).progress, B: avgGroupProgress, fullMark: 100 },
                           { subject: 'Accuracy', A: getPerformanceData(selectedUser).avgScore, B: avgGroupScore, fullMark: 100 },
                           { subject: 'Engagement', A: Math.round(getPerformanceData(selectedUser).engagement), B: Math.min(100, (groupPerformance.reduce((acc, p) => acc + p.quizzes, 0) / (groupPerformance.length || 1)) * 10), fullMark: 100 },
@@ -2051,16 +2048,16 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
                           { subject: 'Speed', A: Math.round(getPerformanceData(selectedUser).speed), B: 75, fullMark: 100 },
                         ]}>
                           <PolarGrid stroke="#1e293b" />
-                          <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: '#64748b' }} />
+                          <PolarAngleAxis dataKey="subject" tick={{ fontSize: 8, fill: '#64748b' }} />
                           <Tooltip 
                             contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', color: '#fff', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }}
-                            itemStyle={{ fontSize: '12px', color: '#fff', padding: '2px 0' }}
-                            labelStyle={{ color: '#94a3b8', fontWeight: 'bold', marginBottom: '4px' }}
+                            itemStyle={{ fontSize: '10px', color: '#fff', padding: '2px 0' }}
+                            labelStyle={{ color: '#94a3b8', fontWeight: 'bold', marginBottom: '4px', fontSize: '11px' }}
                             wrapperStyle={{ outline: 'none' }}
                           />
                           <Radar name={selectedUser.name} dataKey="A" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} />
                           <Radar name="Group Avg" dataKey="B" stroke="#64748b" fill="#64748b" fillOpacity={0.3} />
-                          <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', color: '#64748b' }} />
+                          <Legend iconType="circle" wrapperStyle={{ fontSize: '9px', color: '#64748b', paddingTop: '10px' }} />
                         </RadarChart>
                       </ResponsiveContainer>
                     </div>
@@ -2771,6 +2768,50 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
                     </table>
                   </div>
 
+                  {notifications.filter(n => n.userId === selectedUserForPrint.id).length > 0 && (
+                    <div className="print-card print-break-inside-avoid">
+                      <div className="flex justify-between items-center mb-6">
+                        <h3 className="text-lg font-bold mb-0 flex items-center gap-2 text-blue-600">
+                          Exercise Submissions
+                        </h3>
+                      </div>
+                      <table className="print-table">
+                        <thead>
+                          <tr>
+                            <th>Module / Exercise</th>
+                            <th>Date</th>
+                            <th>Evaluation</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {notifications
+                            .filter(n => n.userId === selectedUserForPrint.id)
+                            .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+                            .map(notif => (
+                              <tr key={notif.id}>
+                                <td>
+                                  <div className="font-medium">{notif.subTopicTitle}</div>
+                                  <div className="text-[9px] text-slate-400">{notif.topicTitle}</div>
+                                </td>
+                                <td>{new Date(notif.timestamp).toLocaleString()}</td>
+                                <td>
+                                  {notif.evaluated ? (
+                                    <div>
+                                      <div className="font-bold text-emerald-600">{notif.grade}/100</div>
+                                      {notif.feedback && <div className="text-[10px] text-slate-500 italic mt-1">"{notif.feedback}"</div>}
+                                    </div>
+                                  ) : (
+                                    <span className="text-slate-400 italic">Pending Evaluation</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+
                   <div className="print-card print-break-inside-avoid">
                     <div className="flex justify-between items-center mb-6">
                       <h3 className="text-lg font-bold mb-0">Quiz Activity Log</h3>
@@ -2858,11 +2899,11 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
 
       {/* Quiz Details Modal */}
       {selectedQuizForDetails && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4 no-print">
+        <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[9999] flex items-center justify-center p-4 no-print overflow-y-auto">
           <motion.div 
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-slate-900 rounded-3xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden flex flex-col border border-slate-800"
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="bg-slate-900 rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col border border-slate-800 my-auto"
           >
             <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
               <div>
@@ -2879,32 +2920,47 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
               </button>
             </div>
             
-            <div className="p-6 overflow-y-auto space-y-6 bg-slate-900">
+            <div className="p-6 overflow-y-auto space-y-4 bg-slate-900 custom-scrollbar">
               {quizPerformanceOverview.find(q => q.id === selectedQuizForDetails)?.questions.map((q, idx) => (
-                <div key={q.id} className="group relative">
-                  <div className="flex justify-between items-end mb-2">
-                    <div className="text-sm font-bold text-slate-300">{q.label}</div>
-                    <div className="text-xs font-black text-slate-500">{q.correctPercentage}% Correct</div>
+                <div key={q.id} className="bg-slate-950/50 p-5 rounded-2xl border border-slate-800 space-y-4 hover:border-slate-700 transition-colors">
+                  <div className="flex justify-between items-start gap-4">
+                    <div className="flex-1">
+                      <div className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">{q.label}</div>
+                      <h4 className="text-sm font-bold text-white leading-relaxed">{q.question}</h4>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className={`text-xl font-black ${q.correctPercentage >= 80 ? 'text-emerald-400' : q.correctPercentage >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
+                        {q.correctPercentage}%
+                      </div>
+                      <div className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Correct</div>
+                    </div>
                   </div>
-                  <div className="h-3 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+                  
+                  <div className="h-2 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
                     <motion.div 
                       initial={{ width: 0 }}
                       animate={{ width: `${q.correctPercentage}%` }}
                       className={`h-full rounded-full ${q.correctPercentage >= 80 ? 'bg-emerald-500' : q.correctPercentage >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}
                     />
                   </div>
-                  
-                  {/* Tooltip on hover */}
-                  <div className="absolute bottom-full left-0 mb-2 w-full p-3 bg-slate-950 text-white text-xs rounded-xl shadow-2xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 border border-slate-800">
-                    <div className="font-bold mb-2 text-blue-400">{q.question}</div>
-                    <div className="space-y-1">
-                      {q.options.map((opt, i) => (
-                        <div key={i} className="flex gap-2">
-                          <span className="text-slate-600">{i + 1}.</span>
-                          <span>{opt}</span>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
+                    {q.options.map((opt, i) => (
+                      <div key={i} className={`flex justify-between items-center gap-2 text-[11px] p-2.5 rounded-xl border transition-all ${opt.isCorrect ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-100' : 'bg-slate-900/50 border-slate-800/50 text-slate-400'}`}>
+                        <div className="flex gap-2">
+                          <span className={`font-bold shrink-0 ${opt.isCorrect ? 'text-emerald-500' : 'text-slate-600'}`}>{i + 1}.</span>
+                          <span className="leading-tight">{opt.text}</span>
                         </div>
-                      ))}
-                    </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {opt.isCorrect && (
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                          )}
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${opt.isCorrect ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-500'}`}>
+                            {opt.pickPercentage}%
+                          </span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               ))}
@@ -3150,13 +3206,13 @@ function NotificationsView({ notifications, onMarkRead, onEvaluate, onToggleComp
   };
 
   return (
-    <div className="h-full bg-slate-950 p-8 overflow-y-auto">
+    <div className="h-full bg-slate-950 p-4 sm:p-8 overflow-y-auto">
       <div className="max-w-4xl mx-auto">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
-          <div className="flex items-center gap-4">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-8 bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
+          <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto">
             <div className="flex flex-col">
               <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 ml-1">Sort By</label>
-              <div className="flex gap-1">
+              <div className="flex gap-1 overflow-x-auto no-scrollbar">
                 <button 
                   onClick={() => setSortBy('time')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${sortBy === 'time' ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20' : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'}`}
@@ -3731,18 +3787,33 @@ export default function AdminBuilder({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-slate-950 text-slate-200 flex flex-col font-sans">
-      <header className="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-6 shrink-0">
-          <div className="flex items-center gap-4">
-              <h1 className="text-white font-bold text-lg flex items-center gap-2">
-                  <Edit2 size={20} className="text-blue-500" />
-                  Curriculum Builder <span className="text-xs bg-blue-600 px-2 py-0.5 rounded text-white ml-2">ADMIN</span>
+    <div className="fixed inset-0 z-[100] bg-slate-950 text-slate-200 flex flex-col font-sans overflow-hidden">
+      <header className="min-h-[4rem] bg-slate-900 border-b border-slate-800 flex flex-col lg:flex-row items-center justify-between px-4 lg:px-6 py-3 lg:py-0 shrink-0 gap-4">
+          <div className="flex items-center justify-between w-full lg:w-auto gap-4">
+              <h1 className="text-white font-bold text-base sm:text-lg flex items-center gap-2 truncate">
+                  <Edit2 size={18} className="text-blue-500 shrink-0" />
+                  <span className="truncate">Curriculum Builder</span>
+                  <span className="text-[10px] bg-blue-600 px-1.5 py-0.5 rounded text-white shrink-0">ADMIN</span>
               </h1>
-              <div className="h-6 w-px bg-slate-700 mx-2" />
-              <div className="flex bg-slate-800 p-1 rounded-lg">
+              <div className="flex lg:hidden items-center gap-2">
+                  <button 
+                    onClick={() => setConfirmationOpen(true)} 
+                    disabled={isSaving}
+                    className="bg-green-600 hover:bg-green-500 disabled:bg-slate-700 text-white p-2 rounded-lg transition-all shadow-lg shadow-green-900/20"
+                  >
+                      {isSaving ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
+                  </button>
+                  <button onClick={onExit} className="bg-slate-800 hover:bg-slate-700 text-slate-300 p-2 rounded-lg transition-all">
+                      <X size={16} />
+                  </button>
+              </div>
+          </div>
+
+          <div className="flex items-center gap-2 w-full lg:w-auto overflow-x-auto no-scrollbar pb-1 lg:pb-0">
+              <div className="flex bg-slate-800 p-1 rounded-lg shrink-0">
                   <button 
                     onClick={() => setActiveTab('NOTIFICATIONS')}
-                    className={`px-3 py-1.5 rounded text-xs font-bold transition-colors relative ${activeTab === 'NOTIFICATIONS' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
+                    className={`px-3 py-1.5 rounded text-[10px] sm:text-xs font-bold transition-colors relative whitespace-nowrap ${activeTab === 'NOTIFICATIONS' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
                   >
                       Notifications
                       {notifications.filter(n => !n.read).length > 0 && (
@@ -3753,40 +3824,40 @@ export default function AdminBuilder({
                   </button>
                   <button 
                     onClick={() => setActiveTab('ANALYTICS')}
-                    className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${activeTab === 'ANALYTICS' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
+                    className={`px-3 py-1.5 rounded text-[10px] sm:text-xs font-bold transition-colors whitespace-nowrap ${activeTab === 'ANALYTICS' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
                   >
                       Analytics
                   </button>
                   <button 
                     onClick={() => setActiveTab('CURRICULUM')}
-                    className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${activeTab === 'CURRICULUM' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
+                    className={`px-3 py-1.5 rounded text-[10px] sm:text-xs font-bold transition-colors whitespace-nowrap ${activeTab === 'CURRICULUM' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
                   >
                       Curriculum
                   </button>
                   <button 
                     onClick={() => setActiveTab('TEACHERS')}
-                    className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${activeTab === 'TEACHERS' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
+                    className={`px-3 py-1.5 rounded text-[10px] sm:text-xs font-bold transition-colors whitespace-nowrap ${activeTab === 'TEACHERS' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
                   >
                       Teachers
                   </button>
                   <div className="relative">
                       <button 
                         onClick={() => setShowUsersDropdown(!showUsersDropdown)}
-                        className={`px-3 py-1.5 rounded text-xs font-bold transition-colors flex items-center gap-1 ${activeTab === 'USERS_LIST' || activeTab === 'TAGS' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
+                        className={`px-3 py-1.5 rounded text-[10px] sm:text-xs font-bold transition-colors flex items-center gap-1 whitespace-nowrap ${activeTab === 'USERS_LIST' || activeTab === 'TAGS' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
                       >
                           Users <ChevronDown size={14} className={`transition-transform ${showUsersDropdown ? 'rotate-180' : ''}`} />
                       </button>
                       {showUsersDropdown && (
-                          <div className="absolute top-full left-0 mt-1 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-[110] overflow-hidden">
+                          <div className="absolute top-full left-0 mt-1 w-40 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-[110] overflow-hidden">
                               <button 
                                 onClick={() => { setActiveTab('USERS_LIST'); setShowUsersDropdown(false); }}
-                                className={`w-full text-left px-4 py-2.5 text-xs font-bold transition-colors hover:bg-slate-700 ${activeTab === 'USERS_LIST' ? 'text-blue-400' : 'text-slate-300'}`}
+                                className={`w-full text-left px-3 py-2 text-[10px] sm:text-xs font-bold transition-colors hover:bg-slate-700 ${activeTab === 'USERS_LIST' ? 'text-blue-400' : 'text-slate-300'}`}
                               >
                                   Add/Edit Users
                               </button>
                               <button 
                                 onClick={() => { setActiveTab('TAGS'); setShowUsersDropdown(false); }}
-                                className={`w-full text-left px-4 py-2.5 text-xs font-bold transition-colors hover:bg-slate-700 ${activeTab === 'TAGS' ? 'text-blue-400' : 'text-slate-300'}`}
+                                className={`w-full text-left px-3 py-2 text-[10px] sm:text-xs font-bold transition-colors hover:bg-slate-700 ${activeTab === 'TAGS' ? 'text-blue-400' : 'text-slate-300'}`}
                               >
                                   Add/Edit Tags
                               </button>
@@ -3795,13 +3866,14 @@ export default function AdminBuilder({
                   </div>
                   <button 
                     onClick={() => setActiveTab('USER_INTERFACE')}
-                    className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${activeTab === 'USER_INTERFACE' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
+                    className={`px-3 py-1.5 rounded text-[10px] sm:text-xs font-bold transition-colors whitespace-nowrap ${activeTab === 'USER_INTERFACE' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
                   >
-                      User Interface
+                      UI
                   </button>
               </div>
           </div>
-          <div className="flex items-center gap-3">
+
+          <div className="hidden lg:flex items-center gap-3">
               <button 
                 onClick={() => setConfirmationOpen(true)} 
                 disabled={isSaving}
@@ -4646,7 +4718,7 @@ export default function AdminBuilder({
 
           {activeTab === 'ANALYTICS' && (
               <div className="h-full bg-slate-950 overflow-y-auto">
-                  <div className="p-8">
+                  <div className="p-4 sm:p-8">
                       <AnalyticsView 
                           users={users} 
                           topics={topics} 
