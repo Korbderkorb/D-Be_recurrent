@@ -13,6 +13,8 @@ service cloud.firestore {
     //   - role: string (required, 'admin' or 'student')
     //   - avatar: string (optional)
     //   - allowedTopics: list (optional)
+    //   - hasCompletedTour: boolean (optional)
+    //   - hasCompletedTopicTour: boolean (optional)
     //   - stats: map (optional)
     //
     // Collection: progress
@@ -78,7 +80,9 @@ service cloud.firestore {
              data.email is string && data.email.size() < 200 &&
              data.name is string && data.name.size() < 100 &&
              data.role in ['admin', 'student'] &&
-             (!('status' in data) || data.status in ['pending', 'active']);
+             (!('status' in data) || data.status in ['pending', 'active']) &&
+             (!('hasCompletedTour' in data) || data.hasCompletedTour is bool) &&
+             (!('hasCompletedTopicTour' in data) || data.hasCompletedTopicTour is bool);
     }
 
     function isValidProgress(data) {

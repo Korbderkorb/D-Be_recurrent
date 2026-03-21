@@ -191,6 +191,8 @@ export interface User {
   submittedExercises?: string[];
   quizAttempts?: QuizAttempt[];
   profileColor?: string;
+  hasCompletedTour?: boolean;
+  hasCompletedTopicTour?: boolean;
 }
 
 export interface Notification {

@@ -14,6 +14,8 @@
         "profileColor": { "type": "string", "description": "Custom color for the user's avatar and graphs" },
         "tags": { "type": "array", "items": { "type": "string" }, "description": "List of tag names assigned to the user" },
         "allowedTopics": { "type": "array", "items": { "type": "string" } },
+        "hasCompletedTour": { "type": "boolean", "description": "Whether the user has finished the onboarding tutorial" },
+        "hasCompletedTopicTour": { "type": "boolean", "description": "Whether the user has finished the topic detail tutorial" },
         "stats": {
           "type": "object",
           "properties": {

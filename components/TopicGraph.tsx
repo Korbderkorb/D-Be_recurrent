@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useMemo, useState } from 'react';
 import * as d3 from 'd3';
 import { Topic } from '../types';
-import { Check, Lock, Maximize } from 'lucide-react';
+import { Check, Lock, Maximize, HelpCircle } from 'lucide-react';
 
 interface TopicGraphProps {
   topics: Topic[];
@@ -12,6 +12,7 @@ interface TopicGraphProps {
   prerequisiteLockedIds?: Set<string>; // IDs of topics with missing prerequisites
   graphTitle?: string;
   graphSubtitle?: string;
+  onStartTour?: () => void;
 }
 
 // Layout Constants
@@ -28,7 +29,8 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
   lockedTopicIds = new Set(),
   prerequisiteLockedIds = new Set(),
   graphTitle,
-  graphSubtitle
+  graphSubtitle,
+  onStartTour
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -778,6 +780,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
     <div 
         ref={containerRef} 
         onMouseMove={handleMouseMove}
+        id="knowledge-graph"
         className="w-full h-full relative overflow-hidden bg-slate-950 cursor-crosshair"
     >
       <div className="absolute top-6 md:top-12 left-6 md:left-8 z-10 pointer-events-none">
@@ -790,7 +793,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
         </p>
         
         {/* Desktop Progress Info Lines */}
-        <div className="hidden md:block mt-4 pt-4 border-t border-slate-800/50 space-y-3">
+        <div id="progress-info" className="hidden md:block mt-4 pt-4 border-t border-slate-800/50 space-y-3">
              <div className="flex flex-col gap-1">
                  <span className="text-[10px] text-slate-500 font-mono uppercase">Modules Completed</span>
                  <span className="text-xl font-mono text-blue-400 font-medium">
@@ -876,8 +879,19 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
       
       {/* Zoom Controls */}
       <div className="absolute bottom-12 md:bottom-20 right-6 md:right-8 z-30 flex flex-col gap-2 ml-0 pt-0 pb-0 pl-0 mb-[42px]">
+          {onStartTour && (
+            <button 
+                onClick={onStartTour}
+                id="restart-tour-button"
+                className="w-10 h-10 bg-slate-900 border border-slate-800 rounded-lg flex items-center justify-center text-slate-400 hover:text-blue-400 hover:bg-slate-800 transition-all shadow-xl"
+                title="Re-watch Tutorial"
+            >
+                <HelpCircle size={18} />
+            </button>
+          )}
           <button 
               onClick={handleRecenter}
+              id="recenter-button"
               className="w-10 h-10 bg-slate-900 border border-slate-800 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all shadow-xl ml-0 pt-0"
               title="Recenter Graph"
           >

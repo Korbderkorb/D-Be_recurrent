@@ -1,11 +1,13 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { motion } from 'motion/react';
-import { ArrowLeft, ChevronRight, Clock, PlayCircle, MessageCircle, FileText, CheckCircle2, Circle, AlertTriangle, Upload, Check, HelpCircle, Download, User as UserIcon, Mail, Reply, Copy, Trash2, XCircle, RotateCcw, History, CheckSquare, UploadCloud, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { ArrowLeft, ArrowRight, ChevronRight, Clock, PlayCircle, MessageCircle, FileText, CheckCircle2, Circle, AlertTriangle, Upload, Check, HelpCircle, Download, User as UserIcon, Mail, Reply, Copy, Trash2, XCircle, RotateCcw, History, CheckSquare, UploadCloud, Loader2, Info } from 'lucide-react';
 import { Topic, Comment, User, QuizAttempt, ExerciseSubmission } from '../types';
 import VideoPlayer from './VideoPlayer';
 import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
-import { storage } from '../firebase';
+import { storage, db } from '../firebase';
+import Joyride, { Step, CallBackProps, STATUS } from 'react-joyride';
+import { doc, setDoc } from 'firebase/firestore';
 
 interface TopicDetailProps {
   topic: Topic;
@@ -23,7 +25,130 @@ interface TopicDetailProps {
   onReply: (subTopicId: string, parentCommentId: string, text: string) => void;
   onReaction: (subTopicId: string, commentId: string, emoji: string) => void;
   onDeleteComment: (subTopicId: string, commentId: string) => void;
+  onUpdateUser?: (user: User) => void;
 }
+
+const topicTourSteps: Step[] = [
+  {
+    target: '#video-player',
+    content: 'You can watch the video and choose subtitles in your language.',
+    placement: 'bottom',
+    disableBeacon: true,
+  },
+  {
+    target: '#module-resources',
+    content: 'Some modules will use external files, download the resource file here.',
+    placement: 'left',
+  },
+  {
+    target: '#module-description',
+    content: 'Read the module description to understand the context.',
+    placement: 'top',
+  },
+  {
+    target: '#comments-section',
+    content: 'Participate in the discussion, ask a question to the community or just share your opinion on the Module.',
+    placement: 'top',
+  },
+  {
+    target: '#complete-button',
+    content: 'Mark the module as completed once you\'re done.',
+    placement: 'left',
+  },
+  {
+    target: '#progress-bar',
+    content: 'Track your progress within this topic.',
+    placement: 'top',
+  },
+  {
+    target: '#sidebar-nav',
+    content: 'After finishing the first Module you can continue selecting the next module.',
+    placement: 'right',
+  },
+  {
+    target: '#restart-topic-tour-button',
+    content: 'You can re-watch this tutorial at any moment by clicking this button.',
+    placement: 'bottom',
+  },
+];
+
+const TourTooltip = ({
+  continuous,
+  index,
+  step,
+  backProps,
+  closeProps,
+  primaryProps,
+  skipProps,
+  isLastStep,
+}: any) => {
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+      className="bg-slate-900 border border-slate-700 rounded-none p-5 shadow-2xl max-w-[320px] font-mono text-xs relative overflow-hidden group"
+    >
+      {/* Technical background pattern */}
+      <div className="absolute inset-0 opacity-[0.03] pointer-events-none" 
+           style={{ backgroundImage: 'radial-gradient(#3b82f6 1px, transparent 1px)', backgroundSize: '12px 12px' }} />
+      
+      {/* Scanning line animation */}
+      <div className="absolute top-0 left-0 w-full h-[1px] bg-blue-500/30 animate-[scan_3s_linear_infinite] pointer-events-none" />
+
+      {/* Decorative corner lines */}
+      <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-blue-500/40 rounded-tl-sm" />
+      <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-blue-500/40 rounded-tr-sm" />
+      <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-blue-500/40 rounded-bl-sm" />
+      <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-blue-500/40 rounded-br-sm" />
+
+      <div className="absolute top-0 left-0 w-full h-1 bg-blue-600/10">
+        <motion.div 
+          className="h-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" 
+          initial={{ width: 0 }}
+          animate={{ width: `${((index + 1) / topicTourSteps.length) * 100}%` }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+        />
+      </div>
+      
+      <div className="flex justify-between items-center mb-4 border-b border-slate-800 pb-2 mt-2 relative">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.8)]" />
+          <span className="text-blue-400 font-bold uppercase tracking-widest text-[10px]">GUIDE_SYS // STEP_{index + 1}</span>
+        </div>
+        <button {...skipProps} className="text-slate-500 hover:text-red-400 transition-colors uppercase text-[10px] font-bold tracking-tighter">
+          [ Terminate ]
+        </button>
+      </div>
+      
+      <AnimatePresence mode="wait">
+        <motion.div 
+          key={index}
+          initial={{ opacity: 0, x: 10 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -10 }}
+          transition={{ duration: 0.2 }}
+          className="text-slate-300 mb-6 leading-relaxed text-sm relative min-h-[3em]"
+        >
+          <span className="text-blue-500/50 mr-1 font-bold">{'>'}</span>
+          {step.content}
+        </motion.div>
+      </AnimatePresence>
+      
+      <div className="flex justify-between items-center gap-3 relative">
+        {index > 0 && (
+          <button {...backProps} className="px-4 py-2 border border-slate-800 rounded-lg text-slate-500 hover:text-white hover:bg-slate-800 transition-all uppercase font-bold tracking-tighter flex items-center gap-2">
+            <ArrowLeft className="w-3 h-3" /> Prev
+          </button>
+        )}
+        <button {...primaryProps} className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-all shadow-lg shadow-blue-900/20 uppercase tracking-tighter flex items-center justify-center gap-2 group/btn">
+          {isLastStep ? 'Finalize_Sequence' : 'Proceed_Next'}
+          <ArrowRight className="w-3 h-3 group-hover/btn:translate-x-1 transition-transform" />
+        </button>
+      </div>
+    </motion.div>
+  );
+};
 
 const EMOJIS = ['❤️', '👍', '👎', '⭐'];
 
@@ -42,7 +167,8 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
     onAddComment,
     onReply,
     onReaction,
-    onDeleteComment
+    onDeleteComment,
+    onUpdateUser
 }) => {
   const [activeSubTopicId, setActiveSubTopicId] = useState<string>(initialSubTopicId || topic.subTopics[0]?.id);
   const [commentInput, setCommentInput] = useState('');
@@ -51,6 +177,49 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
   const [replyText, setReplyText] = useState('');
   const [emailCopied, setEmailCopied] = useState(false);
   const [fileToast, setFileToast] = useState<{show: boolean, message: string}>({ show: false, message: '' });
+
+  // Tour State
+  const [runTour, setRunTour] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
+
+  useEffect(() => {
+    if (currentUser && !currentUser.hasCompletedTopicTour) {
+      setRunTour(true);
+    }
+  }, [currentUser]);
+
+  const handleTourCallback = async (data: CallBackProps) => {
+    const { status, type } = data;
+    if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
+      setRunTour(false);
+      document.body.classList.remove('tour-transitioning');
+      
+      if (status === STATUS.FINISHED) {
+        setShowCelebration(true);
+        if (currentUser && !currentUser.hasCompletedTopicTour) {
+          try {
+            await setDoc(doc(db, 'users', currentUser.id), {
+              hasCompletedTopicTour: true
+            }, { merge: true });
+            if (onUpdateUser) {
+              onUpdateUser({ ...currentUser, hasCompletedTopicTour: true });
+            }
+          } catch (error) {
+            console.error("Error updating topic tour status:", error);
+          }
+        }
+      }
+    }
+
+    if (type === 'step:after') {
+      document.body.classList.add('tour-transitioning');
+    } else if (type === 'step:before') {
+      // Allow a moment for the spotlight to reposition while fully faded out
+      setTimeout(() => {
+        document.body.classList.remove('tour-transitioning');
+      }, 300);
+    }
+  };
 
   // Quiz State
   const [selectedQuizAnswers, setSelectedQuizAnswers] = useState<Record<string, number[]>>({});
@@ -447,10 +616,20 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
           <span className="hidden sm:inline font-medium">All Topics</span>
         </button>
         <div className="h-6 w-px bg-slate-700 mx-2 hidden sm:block" />
-        <h1 className="text-sm md:text-xl font-bold flex items-center gap-3 text-white truncate">
+        <h1 className="text-sm md:text-xl font-bold flex items-center gap-3 text-white truncate flex-1">
             <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: topic.color }}></span>
             <span className="truncate">{topic.title}</span>
         </h1>
+
+        <button 
+          id="restart-topic-tour-button"
+          onClick={() => setRunTour(true)}
+          className="p-2 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white transition-colors flex items-center gap-2 group"
+          title="Watch Tutorial"
+        >
+          <Info className="w-5 h-5" />
+          <span className="hidden sm:inline text-xs font-bold uppercase tracking-widest">Tutorial</span>
+        </button>
       </header>
 
       {/* Mobile Navigation Bar */}
@@ -495,7 +674,7 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
       <div className="flex flex-1 overflow-hidden">
         
         {/* Sidebar Navigation */}
-        <aside className="w-80 bg-slate-900 border-r border-slate-800 flex flex-col overflow-y-auto hidden md:flex shrink-0">
+        <aside id="sidebar-nav" className="w-80 bg-slate-900 border-r border-slate-800 flex flex-col overflow-y-auto hidden md:flex shrink-0">
             <div className="p-6">
                 <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Course Content</h2>
                 <div className="space-y-2">
@@ -538,7 +717,7 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
             </div>
             
             <div className="mt-auto p-6 border-t border-slate-800">
-                <div className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50">
+                <div id="progress-bar" className="bg-slate-800/50 p-4 rounded-xl border border-slate-700/50">
                     <div className="flex justify-between items-end mb-2">
                          <h3 className="text-sm font-semibold text-white">Your Progress</h3>
                          <span className="text-xs font-mono text-green-400">{progressPercent}%</span>
@@ -592,6 +771,7 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
                          ) : (
                              (activeSubTopic.type === 'VIDEO' || !activeSubTopic.type) && (
                                 <button 
+                                    id="complete-button"
                                     onClick={() => onToggleComplete(activeSubTopic.id)}
                                     className={`flex items-center gap-2 text-sm px-4 py-2 rounded-full border transition-all ${
                                         isCompleted 
@@ -608,12 +788,14 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
                   </div>
                   
                   {(!activeSubTopic.type || activeSubTopic.type === 'VIDEO') && (
-                      <VideoPlayer 
-                          key={activeSubTopic.id}
-                          title={activeSubTopic.title} 
-                          videoUrl={activeSubTopic.videoUrl} 
-                          poster={activeSubTopic.posterUrl}
-                      />
+                      <div id="video-player">
+                        <VideoPlayer 
+                            key={activeSubTopic.id}
+                            title={activeSubTopic.title} 
+                            videoUrl={activeSubTopic.videoUrl} 
+                            poster={activeSubTopic.posterUrl}
+                        />
+                      </div>
                   )}
 
                   {activeSubTopic.type === 'EXERCISE_UPLOAD' && (
@@ -869,7 +1051,7 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                       {/* Left Column (Description + Discussions) */}
                       <div className="lg:col-span-2 space-y-6 order-1">
-                        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+                        <div id="module-description" className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
                             <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
                                 <FileText className="w-5 h-5 text-slate-400" />
                                 Description
@@ -880,7 +1062,7 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
                         </div>
                         
                         {/* Discussion Section */}
-                        <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+                        <div id="comments-section" className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
                             <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
                                 <MessageCircle className="w-5 h-5 text-slate-400" />
                                 Discussion ({currentComments.length})
@@ -919,7 +1101,7 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
 
                       {/* Right Column (Resources + Teacher) - Moves to bottom on mobile order-2 */}
                       <div className="space-y-6 order-2 lg:order-none">
-                        <div className="bg-slate-800/30 border border-slate-800 rounded-xl p-6">
+                        <div id="module-resources" className="bg-slate-800/30 border border-slate-800 rounded-xl p-6">
                             <h4 className="font-medium text-white mb-4">Module Resources</h4>
                             <ul className="space-y-3">
                                 {(activeSubTopic.resources?.notesUrl || activeSubTopic.resources?.sourceUrl) ? (
@@ -984,6 +1166,69 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
           )}
         </main>
       </div>
+
+      <Joyride
+        steps={topicTourSteps}
+        run={runTour}
+        continuous={true}
+        showProgress={false}
+        showSkipButton={true}
+        callback={handleTourCallback}
+        tooltipComponent={TourTooltip}
+        scrollDuration={400}
+        scrollOffset={150}
+        disableScrolling={false}
+        disableScrollParentFix={false}
+        spotlightPadding={10}
+        disableOverlayClose={true}
+        spotlightClicks={false}
+        styles={{
+          options: {
+            primaryColor: '#3b82f6',
+            zIndex: 10000,
+            overlayColor: 'rgba(2, 6, 23, 0.85)',
+          },
+          spotlight: {
+            borderRadius: 0,
+            border: 'none',
+            boxShadow: '0 0 20px rgba(59, 130, 246, 0.4)',
+          },
+        }}
+        floaterProps={{
+          disableAnimation: true,
+        }}
+      />
+
+      <AnimatePresence>
+        {showCelebration && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-4">
+            <motion.div 
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              className="bg-slate-900 border border-slate-800 p-8 md:p-12 rounded-3xl max-w-lg w-full shadow-2xl relative overflow-hidden text-center"
+            >
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-green-500 to-blue-500"></div>
+              
+              <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6 border border-green-500/30">
+                <CheckCircle2 className="w-10 h-10 text-green-400" />
+              </div>
+              
+              <h2 className="text-3xl font-bold text-white mb-4">Congratulations!</h2>
+              <p className="text-slate-400 text-lg mb-8">
+                You now master the module interface. You're ready to start learning!
+              </p>
+              
+              <button 
+                onClick={() => setShowCelebration(false)}
+                className="w-full py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-500 transition-all shadow-lg shadow-blue-900/20 active:scale-[0.98]"
+              >
+                Let's Get Started
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

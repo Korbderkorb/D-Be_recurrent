@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { auth, db, storage } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, deleteDoc, onSnapshot, getDocFromServer, collection, getDocs, query, writeBatch } from 'firebase/firestore';
@@ -12,7 +13,162 @@ import TopicDetail from './components/TopicDetail';
 import Login from './components/Login';
 import ModuleList from './components/ModuleList';
 import AdminBuilder from './components/AdminBuilder';
-import { BookOpen, Layers, Search, LogOut, LayoutGrid, Network, ArrowRight, ArrowLeft, Edit3, Lock, AlertTriangle, GraduationCap, Bell, ChevronDown, User as UserIcon } from 'lucide-react';
+import Joyride, { Step, CallBackProps, STATUS } from 'react-joyride';
+import { BookOpen, Layers, Search, LogOut, LayoutGrid, Network, ArrowRight, ArrowLeft, Edit3, Lock, AlertTriangle, GraduationCap, Bell, ChevronDown, User as UserIcon, X, CheckCircle2, History, RotateCcw, FileText, MessageCircle, Download, PlayCircle, Mail, Copy, Check } from 'lucide-react';
+
+const tourSteps: Step[] = [
+  {
+    target: '#knowledge-graph',
+    content: 'This is the knowledge graph. Finishing modules will unlock new modules in the path.',
+    disableBeacon: true,
+    placement: 'center',
+    disableScrolling: true,
+  },
+  {
+    target: '#recenter-button',
+    content: 'Click here to recenter the graph if you get lost.',
+    placement: 'auto',
+    disableScrolling: true,
+  },
+  {
+    target: '#tab-list',
+    content: 'Switch to the progress view to see all modules in a list format.',
+    placement: 'auto',
+    disableScrolling: true,
+  },
+  {
+    target: '#tab-teachers',
+    content: 'View the instructors who created the content.',
+    placement: 'auto',
+    disableScrolling: true,
+  },
+  {
+    target: '#tab-graph',
+    content: 'Go back to the knowledge graph anytime.',
+    placement: 'auto',
+    disableScrolling: true,
+  },
+  {
+    target: '#knowledge-graph',
+    content: 'Click on any module node to enter and start learning.',
+    placement: 'auto',
+    disableScrolling: true,
+  },
+  {
+    target: '#sidebar-nav',
+    content: 'Select different tutorials within the module from this sidebar.',
+    placement: 'right',
+  },
+  {
+    target: '#video-player',
+    content: 'Watch the tutorial video here.',
+    placement: 'bottom',
+  },
+  {
+    target: '#comments-section',
+    content: 'Participate in the discussion or give feedback in the comments.',
+    placement: 'top',
+  },
+  {
+    target: '#complete-button',
+    content: 'After finishing the module, mark it as complete here.',
+    placement: 'left',
+  },
+  {
+    target: '#progress-bar',
+    content: 'Observe your progress updates here in the module view.',
+    placement: 'bottom',
+  },
+  {
+    target: '#progress-info',
+    content: 'You can also see your global progress on the main dashboard.',
+    placement: 'auto',
+  },
+  {
+    target: '#restart-tour-button',
+    content: 'You can re-watch this tutorial at any moment by clicking this button.',
+    placement: 'auto',
+    disableScrolling: true,
+  },
+];
+
+const TourTooltip = ({
+  continuous,
+  index,
+  step,
+  backProps,
+  closeProps,
+  primaryProps,
+  skipProps,
+  isLastStep,
+}: any) => {
+  return (
+    <motion.div 
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
+      className="bg-slate-900 border border-slate-700 rounded-none p-5 shadow-2xl max-w-[320px] font-mono text-xs relative overflow-hidden group"
+    >
+      {/* Technical background pattern */}
+      <div className="absolute inset-0 opacity-[0.03] pointer-events-none" 
+           style={{ backgroundImage: 'radial-gradient(#3b82f6 1px, transparent 1px)', backgroundSize: '12px 12px' }} />
+      
+      {/* Scanning line animation */}
+      <div className="absolute top-0 left-0 w-full h-[1px] bg-blue-500/30 animate-[scan_3s_linear_infinite] pointer-events-none" />
+
+      {/* Decorative corner lines */}
+      <div className="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-blue-500/40 rounded-tl-sm" />
+      <div className="absolute top-0 right-0 w-3 h-3 border-t-2 border-r-2 border-blue-500/40 rounded-tr-sm" />
+      <div className="absolute bottom-0 left-0 w-3 h-3 border-b-2 border-l-2 border-blue-500/40 rounded-bl-sm" />
+      <div className="absolute bottom-0 right-0 w-3 h-3 border-b-2 border-r-2 border-blue-500/40 rounded-br-sm" />
+
+      <div className="absolute top-0 left-0 w-full h-1 bg-blue-600/10">
+        <motion.div 
+          className="h-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]" 
+          initial={{ width: 0 }}
+          animate={{ width: `${((index + 1) / tourSteps.length) * 100}%` }}
+          transition={{ duration: 0.5, ease: "easeOut" }}
+        />
+      </div>
+      
+      <div className="flex justify-between items-center mb-4 border-b border-slate-800 pb-2 mt-2 relative">
+        <div className="flex items-center gap-2">
+          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.8)]" />
+          <span className="text-blue-400 font-bold uppercase tracking-widest text-[10px]">GUIDE_SYS // STEP_{index + 1}</span>
+        </div>
+        <button {...skipProps} className="text-slate-500 hover:text-red-400 transition-colors uppercase text-[10px] font-bold tracking-tighter">
+          [ Terminate ]
+        </button>
+      </div>
+      
+      <AnimatePresence mode="wait">
+        <motion.div 
+          key={index}
+          initial={{ opacity: 0, x: 10 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -10 }}
+          transition={{ duration: 0.2 }}
+          className="text-slate-300 mb-6 leading-relaxed text-sm relative min-h-[3em]"
+        >
+          <span className="text-blue-500/50 mr-1 font-bold">{'>'}</span>
+          {step.content}
+        </motion.div>
+      </AnimatePresence>
+      
+      <div className="flex justify-between items-center gap-3 relative">
+        {index > 0 && (
+          <button {...backProps} className="px-4 py-2 border border-slate-800 rounded-lg text-slate-500 hover:text-white hover:bg-slate-800 transition-all uppercase font-bold tracking-tighter flex items-center gap-2">
+            <ArrowLeft className="w-3 h-3" /> Prev
+          </button>
+        )}
+        <button {...primaryProps} className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-all shadow-lg shadow-blue-900/20 uppercase tracking-tighter flex items-center justify-center gap-2 group/btn">
+          {isLastStep ? 'Finalize_Sequence' : 'Proceed_Next'}
+          <ArrowRight className="w-3 h-3 group-hover/btn:translate-x-1 transition-transform" />
+        </button>
+      </div>
+    </motion.div>
+  );
+};
 
 const App: React.FC = () => {
   const [viewState, setViewState] = useState<ViewState>(ViewState.LOGIN);
@@ -21,6 +177,73 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [lockedTopicAlert, setLockedTopicAlert] = useState<{show: boolean, topic: Topic | null, missing: Topic[]} | null>(null);
+  const [showWelcomeOverlay, setShowWelcomeOverlay] = useState(true);
+
+  // Tour State
+  const [runTour, setRunTour] = useState(false);
+  const [showTourPrompt, setShowTourPrompt] = useState(false);
+  const [dontAskTourAgain, setDontAskTourAgain] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
+
+  const handleTourCallback = React.useCallback(async (data: CallBackProps) => {
+    const { status, type } = data;
+    if (status === STATUS.FINISHED || status === STATUS.SKIPPED) {
+      setRunTour(false);
+      document.body.classList.remove('tour-transitioning');
+      
+      if (status === STATUS.FINISHED) {
+        setShowCelebration(true);
+        if (currentUser && !currentUser.hasCompletedTour) {
+          try {
+            await setDoc(doc(db, 'users', currentUser.id), {
+              hasCompletedTour: true
+            }, { merge: true });
+            // Update local state immediately for better UX
+            setCurrentUser(prev => prev ? { ...prev, hasCompletedTour: true } : null);
+          } catch (error) {
+            console.error("Error updating tour status:", error);
+          }
+        }
+      }
+    }
+
+    if (type === 'step:after') {
+      document.body.classList.add('tour-transitioning');
+    } else if (type === 'step:before') {
+      // Allow a moment for the spotlight to reposition while fully faded out
+      setTimeout(() => {
+        document.body.classList.remove('tour-transitioning');
+      }, 300);
+    }
+  }, [currentUser]);
+
+  const startTour = () => {
+    setShowTourPrompt(false);
+    setRunTour(true);
+    if (dontAskTourAgain) {
+      localStorage.setItem('skipTourPrompt', 'true');
+    }
+  };
+
+  const skipTour = () => {
+    setShowTourPrompt(false);
+    if (dontAskTourAgain) {
+      localStorage.setItem('skipTourPrompt', 'true');
+    }
+  };
+
+  useEffect(() => {
+    const shouldSkip = localStorage.getItem('skipTourPrompt');
+    if (!shouldSkip && viewState === ViewState.HOME && !showWelcomeOverlay && !currentUser?.hasCompletedTour) {
+      setShowTourPrompt(true);
+    }
+  }, [viewState, showWelcomeOverlay, currentUser]);
+
+  useEffect(() => {
+    if (currentUser && currentUser.hasCompletedTour && showWelcomeOverlay) {
+      setShowWelcomeOverlay(false);
+    }
+  }, [currentUser, showWelcomeOverlay]);
 
   const BOOTSTRAP_ADMIN_EMAIL = import.meta.env.VITE_BOOTSTRAP_ADMIN_EMAIL || "korbinian.enzinger@gmail.com";
 
@@ -508,7 +731,6 @@ const App: React.FC = () => {
   }, [currentUser, isAuthReady, isCurriculumLoaded]);
 
   // Dashboard State
-  const [showWelcomeOverlay, setShowWelcomeOverlay] = useState(true);
   const [dashboardMode, setDashboardMode] = useState<'GRAPH' | 'LIST' | 'TEACHERS'>('GRAPH');
   const [selectedTeacherEmail, setSelectedTeacherEmail] = useState<string | null>(null);
 
@@ -1019,6 +1241,112 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 selection:bg-blue-500/30 font-sans">
+      <Joyride
+        steps={tourSteps}
+        run={runTour}
+        continuous={true}
+        showProgress={false}
+        showSkipButton={true}
+        callback={handleTourCallback}
+        tooltipComponent={TourTooltip}
+        scrollDuration={400}
+        scrollOffset={150}
+        disableScrolling={false}
+        disableScrollParentFix={false}
+        spotlightPadding={10}
+        disableOverlayClose={true}
+        spotlightClicks={false}
+        styles={{
+          options: {
+            primaryColor: '#3b82f6',
+            zIndex: 10000,
+            overlayColor: 'rgba(2, 6, 23, 0.85)',
+          },
+          spotlight: {
+            borderRadius: 0,
+            border: 'none',
+            boxShadow: '0 0 20px rgba(59, 130, 246, 0.4)',
+          },
+          overlay: {
+            // Transitions handled via body class in index.html
+          }
+        }}
+        floaterProps={{
+          disableAnimation: true,
+        }}
+      />
+
+      {showTourPrompt && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-4">
+          <div className="bg-slate-900 border border-slate-800 p-8 rounded-3xl max-w-md w-full shadow-2xl text-center animate-in zoom-in duration-300">
+            <div className="w-16 h-16 bg-blue-600/20 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Network className="w-8 h-8 text-blue-500" />
+            </div>
+            <h2 className="text-2xl font-bold text-white mb-2">Welcome to the Platform!</h2>
+            <p className="text-slate-400 mb-8">Would you like a quick tour of the interface to help you get started?</p>
+            
+            <div className="space-y-3">
+              <button 
+                onClick={startTour}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-all shadow-lg shadow-blue-900/20"
+              >
+                Take the Tour
+              </button>
+              <button 
+                onClick={skipTour}
+                className="w-full py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition-all"
+              >
+                Skip for Now
+              </button>
+            </div>
+
+            <div className="mt-6 flex items-center justify-center gap-2">
+              <input 
+                type="checkbox" 
+                id="dontAskAgain" 
+                checked={dontAskTourAgain}
+                onChange={(e) => setDontAskTourAgain(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-blue-500"
+              />
+              <label htmlFor="dontAskAgain" className="text-sm text-slate-500 cursor-pointer select-none">
+                Don't ask me again
+              </label>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Celebration Modal */}
+      <AnimatePresence>
+        {showCelebration && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-4">
+            <motion.div 
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.8, opacity: 0 }}
+              className="bg-slate-900 border border-slate-800 p-8 md:p-12 rounded-3xl max-w-lg w-full shadow-2xl relative overflow-hidden text-center"
+            >
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-green-500 to-blue-500"></div>
+              
+              <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6 border border-green-500/30">
+                <CheckCircle2 className="w-10 h-10 text-green-400" />
+              </div>
+              
+              <h2 className="text-3xl font-bold text-white mb-4">Congratulations!</h2>
+              <p className="text-slate-400 text-lg mb-8">
+                You now master the main interface. You're ready to start your learning journey!
+              </p>
+              
+              <button 
+                onClick={() => setShowCelebration(false)}
+                className="w-full py-4 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-500 transition-all shadow-lg shadow-blue-900/20 active:scale-[0.98]"
+              >
+                Let's Get Started
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
       
       {/* Prerequisite Alert Modal */}
       {lockedTopicAlert && lockedTopicAlert.show && (
@@ -1082,6 +1410,7 @@ const App: React.FC = () => {
             <div className="flex bg-slate-900 p-1 rounded-lg border border-slate-800">
                 <button 
                     onClick={() => setDashboardMode('GRAPH')}
+                    id="tab-graph"
                     className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-all ${dashboardMode === 'GRAPH' ? 'bg-[#2c5ee8] text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
                 >
                     <Network className="w-4 h-4" />
@@ -1089,6 +1418,7 @@ const App: React.FC = () => {
                 </button>
                 <button 
                     onClick={() => setDashboardMode('LIST')}
+                    id="tab-list"
                     className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-all ${dashboardMode === 'LIST' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
                 >
                     <LayoutGrid className="w-4 h-4" />
@@ -1096,6 +1426,7 @@ const App: React.FC = () => {
                 </button>
                 <button 
                     onClick={() => setDashboardMode('TEACHERS')}
+                    id="tab-teachers"
                     className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-all ${dashboardMode === 'TEACHERS' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
                 >
                     <GraduationCap className="w-4 h-4" />
@@ -1225,6 +1556,7 @@ const App: React.FC = () => {
                             prerequisiteLockedIds={prerequisiteLockedIds}
                             graphTitle={landingConfig.graphTitle}
                             graphSubtitle={landingConfig.graphSubtitle}
+                            onStartTour={() => setRunTour(true)}
                         />
                     </div>
                 )}
@@ -1331,6 +1663,7 @@ const App: React.FC = () => {
             onReply={handleReply}
             onReaction={handleReaction}
             onDeleteComment={handleDeleteComment}
+            onUpdateUser={(user) => setCurrentUser(user)}
         />
       )}
     </div>
