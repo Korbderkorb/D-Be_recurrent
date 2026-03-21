@@ -492,7 +492,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
         .attr("x", 1)
         .attr("y", 1)
         .attr("width", NODE_WIDTH - 2)
-        .attr("height", NODE_HEIGHT - 42)
+        .attr("height", NODE_HEIGHT - 2)
         .attr("fill", "rgba(15, 23, 42, 0.95)");
 
     hoverGroup.append("foreignObject")
@@ -516,16 +516,16 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
 
             const isMobile = window.innerWidth < 768;
             const buttonHtml = isMobile && !d.locked && !d.prerequisiteLocked ? `
-                <div style="margin-top: 10px; padding: 8px; background: #2563eb; color: white; text-align: center; border-radius: 4px; font-weight: bold; font-size: 12px; cursor: pointer;">
+                <div style="margin-top: 10px; padding: 10px; background: #0f172a; color: #3b82f6; text-align: center; border: 1px solid #3b82f6; font-family: ui-monospace, monospace; font-weight: bold; font-size: 12px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.1em; box-shadow: 0 0 15px rgba(59, 130, 246, 0.15);">
                     START LEARNING
                 </div>
-                <div style="margin-top: 4px; text-align: center; font-size: 8px; color: #94a3b8; text-transform: uppercase;">
+                <div style="margin-top: 6px; text-align: center; font-size: 8px; color: #64748b; font-family: ui-monospace, monospace; text-transform: uppercase; letter-spacing: 0.05em;">
                     (Tap again to open)
                 </div>
             ` : "";
 
             return `
-                <div style="flex: 1; overflow: hidden;">${content}</div>
+                <div style="flex: 1; overflow: hidden; line-height: 1.4;">${content}</div>
                 ${buttonHtml}
             `;
         });

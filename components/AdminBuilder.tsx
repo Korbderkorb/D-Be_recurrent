@@ -1794,29 +1794,6 @@ function AnalyticsView({ users, topics, tags, landingConfig }: { users: User[], 
 
         {/* Right: Individual/Group Evaluation */}
         <div className={`space-y-8 ${isPrinting ? 'no-print' : ''}`}>
-          <div className="bg-slate-900 text-white p-8 rounded-3xl shadow-2xl shadow-slate-950/50 relative overflow-hidden print-break-inside-avoid border border-slate-800">
-            <div className="absolute top-0 right-0 p-4 opacity-10">
-              <Sparkles size={120} />
-            </div>
-            <h3 className="text-xl font-bold mb-2 relative z-10">Empirical Insights</h3>
-            <p className="text-slate-500 text-sm mb-6 relative z-10">Based on real-time performance data.</p>
-            
-            <div className="space-y-4 relative z-10">
-              <div className="bg-white/5 border border-white/10 p-4 rounded-xl">
-                <div className="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-1">Areas of Ease</div>
-                <div className="text-sm font-medium leading-relaxed text-slate-200">
-                  {insights.ease}
-                </div>
-              </div>
-              <div className="bg-white/5 border border-white/10 p-4 rounded-xl">
-                <div className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mb-1">Areas of Difficulty</div>
-                <div className="text-sm font-medium leading-relaxed text-slate-200">
-                  {insights.difficulty}
-                </div>
-              </div>
-            </div>
-          </div>
-
           {selectedUser ? (
             <div className="bg-slate-900 rounded-2xl border border-slate-800 shadow-sm overflow-hidden sticky top-8 print-break-inside-avoid">
               <div className="p-6 border-b border-slate-800 bg-slate-950/50 flex justify-between items-center">
