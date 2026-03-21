@@ -21,6 +21,8 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Download, Plus, Trash2, Edit2, GripVertical, ChevronRight, Video, Upload, HelpCircle, UploadCloud, RefreshCw, Copy, AlertCircle, Info, Settings, Save, CheckSquare, Square, X, Users, GraduationCap, Layers, UserPlus, Key, Eye, Shield, BarChart3, Search, Lock as LockIcon, Sparkles, CheckCircle2, Clock, History, XCircle, ChevronDown, ChevronUp, FileText, Printer, FileCode, FileUp, ExternalLink, Award, BellOff, AlertTriangle } from 'lucide-react';
+import { ref, getBlob } from 'firebase/storage';
+import { storage } from '../firebase';
 import { 
   BarChart, 
   Bar, 
@@ -3017,17 +3019,18 @@ function NotificationsView({ notifications, onMarkRead, onEvaluate, onDeleteFile
 
   const handleDownload = async (fileUrl: string, originalName: string, studentName: string, date: string, moduleName: string) => {
     try {
-      const response = await fetch(fileUrl);
-      const blob = await response.blob();
+      // Use getBlob from Firebase Storage to handle CORS better
+      const fileRef = ref(storage, fileUrl);
+      const blob = await getBlob(fileRef);
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
       
       // Format date for filename
       const formattedDate = new Date(date).toISOString().split('T')[0];
-      const cleanModuleName = moduleName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      const cleanStudentName = studentName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      const extension = originalName.split('.').pop();
+      const cleanModuleName = (moduleName || 'module').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      const cleanStudentName = (studentName || 'student').replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      const extension = originalName.split('.').pop() || 'file';
       
       link.download = `${cleanStudentName}_${formattedDate}_${cleanModuleName}.${extension}`;
       document.body.appendChild(link);
@@ -3036,7 +3039,7 @@ function NotificationsView({ notifications, onMarkRead, onEvaluate, onDeleteFile
       window.URL.revokeObjectURL(url);
     } catch (error) {
       console.error("Download failed:", error);
-      // Fallback to direct link if fetch fails
+      // Fallback to direct link if getBlob fails
       window.open(fileUrl, '_blank');
     }
   };
@@ -4456,6 +4459,7 @@ export default function AdminBuilder({
               notifications={notifications}
               onMarkRead={onMarkNotificationRead}
               onEvaluate={onEvaluateSubmission}
+              onDeleteFile={onDeleteFile}
             />
           )}
 
