@@ -1,9 +1,10 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { motion } from 'motion/react';
 import { ArrowLeft, ChevronRight, Clock, PlayCircle, MessageCircle, FileText, CheckCircle2, Circle, AlertTriangle, Upload, Check, HelpCircle, Download, User as UserIcon, Mail, Reply, Copy, Trash2, XCircle, RotateCcw, History, CheckSquare, UploadCloud, Loader2 } from 'lucide-react';
 import { Topic, Comment, User, QuizAttempt, ExerciseSubmission } from '../types';
 import VideoPlayer from './VideoPlayer';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { storage } from '../firebase';
 
 interface TopicDetailProps {
@@ -16,7 +17,7 @@ interface TopicDetailProps {
   submittedExercises: Set<string>;
   quizProgress: Record<string, QuizAttempt[]>;
   onToggleComplete: (id: string) => void;
-  onSubmitExercise: (id: string, quizData?: QuizAttempt, submissionData?: ExerciseSubmission) => void;
+  onSubmitExercise: (id: string, quizData?: QuizAttempt, submissionData?: ExerciseSubmission) => Promise<void>;
   userComments: Record<string, Comment[]>;
   onAddComment: (subTopicId: string, text: string) => void;
   onReply: (subTopicId: string, parentCommentId: string, text: string) => void;
@@ -59,6 +60,7 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
   // Upload State
   const [uploadedFiles, setUploadedFiles] = useState<Record<string, File>>({});
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({});
 
   const activeSubTopic = useMemo(() => 
@@ -148,7 +150,7 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
       });
   };
 
-  const submitQuiz = () => {
+  const submitQuiz = async () => {
       if (!activeSubTopic || !activeSubTopic.quizQuestions) return;
 
       let score = 0;
@@ -183,7 +185,7 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
           wrongAnswers
       };
 
-      onSubmitExercise(activeSubTopic.id, attempt);
+      await onSubmitExercise(activeSubTopic.id, attempt);
       setShowQuizResults(true);
   };
 
@@ -230,17 +232,48 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
   };
 
   const submitUpload = async () => {
-      if (!activeSubTopic || !currentUser) return;
+      if (!activeSubTopic || !currentUser) {
+          console.error("Cannot submit: missing subtopic or user", { activeSubTopic, currentUser });
+          return;
+      }
       
+      console.log("Starting upload for files:", Object.keys(uploadedFiles));
       setIsUploading(true);
+      setUploadProgress(0);
       try {
           const submissionFiles: ExerciseSubmission['files'] = [];
+          const totalFiles = Object.keys(uploadedFiles).length;
+          let filesCompleted = 0;
           
-          // Upload each file to Firebase Storage
           for (const [reqKey, file] of Object.entries(uploadedFiles)) {
+              console.log(`Uploading file: ${file.name} for requirement: ${reqKey}`);
               const storageRef = ref(storage, `submissions/${currentUser.id}/${activeSubTopic.id}/${Date.now()}_${file.name}`);
-              const snapshot = await uploadBytes(storageRef, file);
-              const downloadUrl = await getDownloadURL(snapshot.ref);
+              
+              const uploadTask = uploadBytesResumable(storageRef, file);
+              
+              await new Promise<void>((resolve, reject) => {
+                  uploadTask.on('state_changed', 
+                      (snapshot) => {
+                          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+                          console.log(`File ${file.name} progress: ${Math.round(progress)}%`);
+                          // Calculate overall progress across all files
+                          const overallProgress = ((filesCompleted * 100) + progress) / totalFiles;
+                          setUploadProgress(overallProgress);
+                      }, 
+                      (error) => {
+                          console.error(`Upload error for file ${file.name}:`, error);
+                          reject(error);
+                      }, 
+                      () => {
+                          console.log(`File ${file.name} upload complete`);
+                          resolve();
+                      }
+                  );
+              });
+
+              const downloadUrl = await getDownloadURL(uploadTask.snapshot.ref);
+              console.log(`File ${file.name} download URL:`, downloadUrl);
+              filesCompleted++;
               
               submissionFiles.push({
                   name: file.name,
@@ -251,6 +284,7 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
               });
           }
 
+          console.log("All files uploaded, creating submission document...");
           const submissionData: ExerciseSubmission = {
               id: Date.now().toString(),
               subTopicId: activeSubTopic.id,
@@ -262,14 +296,24 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
               status: 'pending'
           };
 
-          onSubmitExercise(activeSubTopic.id, undefined, submissionData);
+          await onSubmitExercise(activeSubTopic.id, undefined, submissionData);
           setUploadedFiles({});
+          setUploadProgress(100);
           setFileToast({ show: true, message: 'Submission successful!' });
-          setTimeout(() => setFileToast({ show: false, message: '' }), 3000);
-      } catch (error) {
-          console.error("Upload error:", error);
-          setFileToast({ show: true, message: 'Upload failed. Please try again.' });
-          setTimeout(() => setFileToast({ show: false, message: '' }), 3000);
+          setTimeout(() => {
+              setFileToast({ show: false, message: '' });
+              setUploadProgress(0);
+          }, 3000);
+      } catch (error: any) {
+          console.error("Full upload error object:", error);
+          let errorMsg = 'Upload failed. Please try again.';
+          if (error.code === 'storage/unauthorized') {
+              errorMsg = 'Upload failed: Unauthorized. Please check storage rules.';
+          } else if (error.code === 'storage/canceled') {
+              errorMsg = 'Upload canceled.';
+          }
+          setFileToast({ show: true, message: errorMsg });
+          setTimeout(() => setFileToast({ show: false, message: '' }), 5000);
       } finally {
           setIsUploading(false);
       }
@@ -639,6 +683,23 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
                                               {(!activeSubTopic.uploadRequirements || activeSubTopic.uploadRequirements.length === 0) && uploadedFiles['default'] && (
                                                   <div className="mt-4 flex items-center justify-center gap-2 text-green-400 text-sm bg-green-500/10 px-3 py-1.5 rounded-full border border-green-500/20 mx-auto w-fit">
                                                       <Check className="w-4 h-4" /> {uploadedFiles['default'].name}
+                                                  </div>
+                                              )}
+
+                                              {/* Progress Bar */}
+                                              {isUploading && (
+                                                  <div className="mt-6 w-full space-y-2">
+                                                      <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                                          <span>Uploading...</span>
+                                                          <span>{Math.round(uploadProgress)}%</span>
+                                                      </div>
+                                                      <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                                                          <motion.div 
+                                                              initial={{ width: 0 }}
+                                                              animate={{ width: `${uploadProgress}%` }}
+                                                              className="h-full bg-blue-500 rounded-full"
+                                                          />
+                                                      </div>
                                                   </div>
                                               )}
                                           </div>
