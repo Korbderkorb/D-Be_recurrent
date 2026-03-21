@@ -241,9 +241,31 @@ const App: React.FC = () => {
     description: "You are currently logged into the Recurrent Program. Navigate the knowledge graph to access your assigned video tutorials, spanning from fundamental modeling to advanced robotic fabrication.",
     tag: "Semester 2025",
     heroImage: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=2670&auto=format&fit=crop",
-    quote: "The Digital Built Environment is not just about tools, but the synthesis of information, geometry, and material performance."
+    quote: "The Digital Built Environment is not just about tools, but the synthesis of information, geometry, and material performance.",
+    browserTitle: "Digital Built Environment",
+    faviconUrl: "https://picsum.photos/seed/favicon/32/32",
+    loginTitle: 'Welcome back',
+    loginSubtitle: 'Sign in to access your module tutorials.',
+    firstTimeLoginTitle: 'First Time Login',
+    firstTimeLoginSubtitle: 'Enter your invited email to set up your password.'
   });
   const [isUsersLoaded, setIsUsersLoaded] = useState(false);
+
+  // Browser Metadata Sync
+  useEffect(() => {
+    if (landingConfig.browserTitle) {
+      document.title = landingConfig.browserTitle;
+    }
+    if (landingConfig.faviconUrl) {
+      let link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.getElementsByTagName('head')[0].appendChild(link);
+      }
+      link.href = landingConfig.faviconUrl;
+    }
+  }, [landingConfig.browserTitle, landingConfig.faviconUrl]);
 
   // Sync all users and their progress if admin
   useEffect(() => {

@@ -1794,6 +1794,29 @@ function AnalyticsView({ users, topics, tags, landingConfig }: { users: User[], 
 
         {/* Right: Individual/Group Evaluation */}
         <div className={`space-y-8 ${isPrinting ? 'no-print' : ''}`}>
+          <div className="bg-slate-900 text-white p-8 rounded-3xl shadow-2xl shadow-slate-950/50 relative overflow-hidden print-break-inside-avoid border border-slate-800">
+            <div className="absolute top-0 right-0 p-4 opacity-10">
+              <Sparkles size={120} />
+            </div>
+            <h3 className="text-xl font-bold mb-2 relative z-10">Empirical Insights</h3>
+            <p className="text-slate-500 text-sm mb-6 relative z-10">Based on real-time performance data.</p>
+            
+            <div className="space-y-4 relative z-10">
+              <div className="bg-white/5 border border-white/10 p-4 rounded-xl">
+                <div className="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-1">Areas of Ease</div>
+                <div className="text-sm font-medium leading-relaxed text-slate-200">
+                  {insights.ease}
+                </div>
+              </div>
+              <div className="bg-white/5 border border-white/10 p-4 rounded-xl">
+                <div className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mb-1">Areas of Difficulty</div>
+                <div className="text-sm font-medium leading-relaxed text-slate-200">
+                  {insights.difficulty}
+                </div>
+              </div>
+            </div>
+          </div>
+
           {selectedUser ? (
             <div className="bg-slate-900 rounded-2xl border border-slate-800 shadow-sm overflow-hidden sticky top-8 print-break-inside-avoid">
               <div className="p-6 border-b border-slate-800 bg-slate-950/50 flex justify-between items-center">
@@ -3557,6 +3580,55 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
                                       placeholder="Enter a quote..."
                                   />
                               </div>
+
+                              <div className="border-t border-slate-800 pt-6 space-y-6">
+                                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Login Page Customization</h4>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                      <div className="space-y-2">
+                                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Login Title</label>
+                                          <input 
+                                              type="text" 
+                                              value={landingConfig.loginTitle || ''} 
+                                              onChange={e => setLandingConfig({...landingConfig, loginTitle: e.target.value})}
+                                              className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-white"
+                                              placeholder="e.g. Welcome back"
+                                          />
+                                      </div>
+                                      <div className="space-y-2">
+                                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Login Subtitle</label>
+                                          <input 
+                                              type="text" 
+                                              value={landingConfig.loginSubtitle || ''} 
+                                              onChange={e => setLandingConfig({...landingConfig, loginSubtitle: e.target.value})}
+                                              className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-white"
+                                              placeholder="e.g. Sign in to access your module tutorials."
+                                          />
+                                      </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                      <div className="space-y-2">
+                                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">First Time Login Title</label>
+                                          <input 
+                                              type="text" 
+                                              value={landingConfig.firstTimeLoginTitle || ''} 
+                                              onChange={e => setLandingConfig({...landingConfig, firstTimeLoginTitle: e.target.value})}
+                                              className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-white"
+                                              placeholder="e.g. First Time Login"
+                                          />
+                                      </div>
+                                      <div className="space-y-2">
+                                          <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">First Time Login Subtitle</label>
+                                          <input 
+                                              type="text" 
+                                              value={landingConfig.firstTimeLoginSubtitle || ''} 
+                                              onChange={e => setLandingConfig({...landingConfig, firstTimeLoginSubtitle: e.target.value})}
+                                              className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-white"
+                                              placeholder="e.g. Enter your invited email to set up your password."
+                                          />
+                                      </div>
+                                  </div>
+                              </div>
                           </div>
                       </div>
 
@@ -3660,6 +3732,47 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
                                           </div>
                                       )}
                                   </div>
+                              </div>
+                          </div>
+                      </div>
+
+                      {/* SECTION 4: BROWSER METADATA */}
+                      <div className="bg-slate-900 rounded-2xl border border-slate-800 shadow-sm overflow-hidden">
+                          <div className="bg-slate-800/50 px-6 py-3 border-b border-slate-800">
+                              <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">4. Browser Metadata</h3>
+                          </div>
+                          <div className="p-6 space-y-6">
+                              <div className="space-y-2">
+                                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Browser Tab Title</label>
+                                  <input 
+                                      type="text" 
+                                      value={landingConfig.browserTitle || ''} 
+                                      onChange={e => setLandingConfig({...landingConfig, browserTitle: e.target.value})}
+                                      className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-white"
+                                      placeholder="e.g. Digital Built Environment | Learning Platform"
+                                  />
+                                  <p className="text-[10px] text-slate-500 font-mono">This text appears in the browser tab.</p>
+                              </div>
+
+                              <div className="space-y-2">
+                                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Favicon URL (.ico, .png, .svg)</label>
+                                  <div className="flex gap-4">
+                                      <div className="flex-1">
+                                          <input 
+                                              type="text" 
+                                              value={landingConfig.faviconUrl || ''} 
+                                              onChange={e => setLandingConfig({...landingConfig, faviconUrl: e.target.value})}
+                                              className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-white"
+                                              placeholder="https://..."
+                                          />
+                                      </div>
+                                      {landingConfig.faviconUrl && (
+                                          <div className="w-12 h-12 rounded-lg border border-slate-800 overflow-hidden bg-white shrink-0 p-2 flex items-center justify-center">
+                                              <img src={landingConfig.faviconUrl} alt="Favicon Preview" className="w-full h-full object-contain" />
+                                          </div>
+                                      )}
+                                  </div>
+                                  <p className="text-[10px] text-slate-500 font-mono">The small icon displayed next to the title in the browser tab.</p>
                               </div>
                           </div>
                       </div>

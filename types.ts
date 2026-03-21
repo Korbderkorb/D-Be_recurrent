@@ -117,6 +117,16 @@ export interface LandingConfig {
   graphTitle?: string;
   graphSubtitle?: string;
   appLogoUrl?: string;
+
+  // Browser Browser Metadata
+  browserTitle?: string;
+  faviconUrl?: string;
+
+  // Login Page
+  loginTitle?: string;
+  loginSubtitle?: string;
+  firstTimeLoginTitle?: string;
+  firstTimeLoginSubtitle?: string;
 }
 
 export enum ViewState {

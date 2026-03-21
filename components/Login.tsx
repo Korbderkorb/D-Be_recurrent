@@ -159,12 +159,12 @@ const Login: React.FC<LoginProps> = ({ onLogin, validUsers, bootstrapAdminEmail,
         <div className="w-full max-w-md space-y-8">
             <div className="text-center lg:text-left">
                 <h3 className="text-2xl font-bold text-white">
-                    {authMode === 'LOGIN' ? 'Welcome back' : 
-                     authMode === 'FIRST_TIME' ? 'First Time Login' : 'Create an account'}
+                    {authMode === 'LOGIN' ? (landingConfig.loginTitle || 'Welcome back') : 
+                     authMode === 'FIRST_TIME' ? (landingConfig.firstTimeLoginTitle || 'First Time Login') : 'Create an account'}
                 </h3>
                 <p className="text-slate-500 mt-2">
-                    {authMode === 'LOGIN' ? 'Sign in to access your module tutorials.' : 
-                     authMode === 'FIRST_TIME' ? 'Enter your invited email to set up your password.' : 
+                    {authMode === 'LOGIN' ? (landingConfig.loginSubtitle || 'Sign in to access your module tutorials.') : 
+                     authMode === 'FIRST_TIME' ? (landingConfig.firstTimeLoginSubtitle || 'Enter your invited email to set up your password.') : 
                      'Sign up to start your learning journey.'}
                 </p>
             </div>
