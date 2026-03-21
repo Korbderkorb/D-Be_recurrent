@@ -178,6 +178,21 @@
         }
       },
       "required": ["id", "userId", "userName", "topicId", "subTopicId", "topicTitle", "subTopicTitle", "submissionId", "timestamp", "read", "type", "files"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "User comment or reply",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "user": { "type": "string" },
+        "avatar": { "type": "string" },
+        "text": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "reactions": { "type": "object", "description": "Map of emoji to count" },
+        "replies": { "type": "array", "items": { "$ref": "Comment" } }
+      },
+      "required": ["id", "user", "avatar", "text", "timestamp", "reactions", "replies"]
     }
   },
   "firestore": {
@@ -202,7 +217,12 @@
       "description": "Teacher profile documents"
     },
     "comments/{subTopicId}": {
-      "schema": "object",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "comments": { "type": "array", "items": { "$ref": "Comment" } }
+        }
+      },
       "description": "Comments for a specific subtopic"
     },
     "quizAttempts/{userId}": {

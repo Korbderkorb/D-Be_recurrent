@@ -92,11 +92,14 @@ service cloud.firestore {
     }
 
     function isValidComment(comment) {
-      return comment.keys().hasAll(['id', 'user', 'text', 'timestamp']) &&
+      return comment.keys().hasAll(['id', 'user', 'avatar', 'text', 'timestamp', 'reactions', 'replies']) &&
              comment.id is string &&
              comment.user is string && comment.user.size() < 100 &&
+             comment.avatar is string &&
              comment.text is string && comment.text.size() < 2000 &&
-             comment.timestamp is string;
+             comment.timestamp is string &&
+             comment.reactions is map &&
+             comment.replies is list;
     }
 
     function isValidSubmission(data) {
@@ -174,7 +177,8 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       allow write: if isAuthenticated() && 
                     request.resource.data.comments is list && 
-                    request.resource.data.comments.size() < 500;
+                    request.resource.data.comments.size() < 500 &&
+                    (request.resource.data.comments.size() == 0 || isValidComment(request.resource.data.comments[0]));
     }
 
     match /topics/{topicId} {
