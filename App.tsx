@@ -5,13 +5,13 @@ import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, deleteDoc, onSnapshot, getDocFromServer, collection, getDocs, query, writeBatch } from 'firebase/firestore';
 import { MEDIA_ROOT } from './constants';
 import initialCurriculum from './src/data/curriculum.json';
-import { Topic, ViewState, User, Comment, QuizAttempt, Teacher, LandingConfig, CompletionRecord, Tag } from './types';
+import { Topic, ViewState, User, Comment, QuizAttempt, Teacher, LandingConfig, CompletionRecord, Tag, ExerciseSubmission, Notification as AppNotification } from './types';
 import TopicGraph from './components/TopicGraph';
 import TopicDetail from './components/TopicDetail';
 import Login from './components/Login';
 import ModuleList from './components/ModuleList';
 import AdminBuilder from './components/AdminBuilder';
-import { BookOpen, Layers, Search, LogOut, LayoutGrid, Network, ArrowRight, ArrowLeft, Edit3, Lock, AlertTriangle, GraduationCap } from 'lucide-react';
+import { BookOpen, Layers, Search, LogOut, LayoutGrid, Network, ArrowRight, ArrowLeft, Edit3, Lock, AlertTriangle, GraduationCap, Bell, ChevronDown, User as UserIcon } from 'lucide-react';
 
 const App: React.FC = () => {
   const [viewState, setViewState] = useState<ViewState>(ViewState.LOGIN);
@@ -235,6 +235,9 @@ const App: React.FC = () => {
   const [isCurriculumLoaded, setIsCurriculumLoaded] = useState(false);
   // Users State
   const [currentUsers, setCurrentUsers] = useState<User[]>([]);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [isNotificationsLoaded, setIsNotificationsLoaded] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [landingConfig, setLandingConfig] = useState<LandingConfig>({
     title: "Digital Built Environment",
     subtitle: "Recurrent Program",
@@ -312,6 +315,29 @@ const App: React.FC = () => {
     });
 
     return () => unsubscribeUsers();
+  }, [currentUser?.role, isAuthReady]);
+
+  // Notifications Sync for Admin
+  useEffect(() => {
+    if (currentUser?.role !== 'admin' || !isAuthReady) {
+      setNotifications([]);
+      setIsNotificationsLoaded(false);
+      return;
+    }
+
+    const unsubscribe = onSnapshot(collection(db, 'notifications'), (snapshot) => {
+      const notifs: AppNotification[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        notifs.push({ id: doc.id, ...data } as AppNotification);
+      });
+      setNotifications(notifs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+      setIsNotificationsLoaded(true);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'notifications');
+    });
+
+    return () => unsubscribe();
   }, [currentUser?.role, isAuthReady]);
 
   // Topics Sync from Firestore
@@ -657,7 +683,7 @@ const App: React.FC = () => {
     });
   };
 
-  const handleExerciseSubmission = async (subTopicId: string, quizData?: QuizAttempt) => {
+  const handleExerciseSubmission = async (subTopicId: string, quizData?: QuizAttempt, submissionData?: ExerciseSubmission) => {
       if (quizData) {
           const newAttempts = [...(quizProgress[subTopicId] || []), quizData];
           setQuizProgress(prev => ({
@@ -674,6 +700,41 @@ const App: React.FC = () => {
                   if (prev.some(r => r.id === subTopicId)) return prev;
                   return [...prev, { id: subTopicId, completedAt: new Date().toISOString() }];
               });
+          }
+      } else if (submissionData) {
+          try {
+              await setDoc(doc(db, 'submissions', submissionData.id), submissionData);
+              
+              // Create Notification for Admin
+              const topic = currentTopics.find(t => t.id === submissionData.topicId);
+              const subTopic = topic?.subTopics.find(st => st.id === submissionData.subTopicId);
+              
+              const notification: AppNotification = {
+                  id: Date.now().toString(),
+                  userId: submissionData.userId,
+                  userName: submissionData.userName,
+                  topicId: submissionData.topicId,
+                  subTopicId: submissionData.subTopicId,
+                  topicTitle: topic?.title || 'Unknown Topic',
+                  subTopicTitle: subTopic?.title || 'Unknown SubTopic',
+                  submissionId: submissionData.id,
+                  timestamp: new Date().toISOString(),
+                  read: false,
+                  type: 'EXERCISE_SUBMISSION',
+                  files: submissionData.files.map(f => ({ name: f.name, url: f.url }))
+              };
+              await setDoc(doc(db, 'notifications', notification.id), notification);
+
+              setExerciseRecords(prev => {
+                  if (prev.some(r => r.id === subTopicId)) return prev;
+                  return [...prev, { id: subTopicId, completedAt: new Date().toISOString() }];
+              });
+              setCompletionRecords(prev => {
+                  if (prev.some(r => r.id === subTopicId)) return prev;
+                  return [...prev, { id: subTopicId, completedAt: new Date().toISOString() }];
+              });
+          } catch (error) {
+              handleFirestoreError(error, OperationType.WRITE, `submissions/${submissionData.id}`);
           }
       } else {
           setExerciseRecords(prev => {
@@ -820,8 +881,27 @@ const App: React.FC = () => {
             initialUsers={currentUsers}
             initialTags={currentTags}
             initialLandingConfig={landingConfig}
+            notifications={notifications}
             onApplyChanges={handleApplyAdminChanges}
             onExit={() => setViewState(ViewState.HOME)}
+            onMarkNotificationRead={async (id) => {
+                try {
+                    await setDoc(doc(db, 'notifications', id), { read: true }, { merge: true });
+                } catch (error) {
+                    handleFirestoreError(error, OperationType.WRITE, `notifications/${id}`);
+                }
+            }}
+            onEvaluateSubmission={async (submissionId, grade, feedback) => {
+                try {
+                    await setDoc(doc(db, 'submissions', submissionId), { 
+                        grade, 
+                        feedback, 
+                        status: 'reviewed' 
+                    }, { merge: true });
+                } catch (error) {
+                    handleFirestoreError(error, OperationType.WRITE, `submissions/${submissionId}`);
+                }
+            }}
         />
       );
   }
@@ -925,11 +1005,64 @@ const App: React.FC = () => {
                 )}
 
                 {currentUser && (
-                    <div className="flex items-center gap-3 border-l border-slate-800 pl-4">
-                        <img src={currentUser.avatar} alt="User" className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700" />
-                        <button onClick={handleLogout} className="text-slate-400 hover:text-red-400 transition-colors p-2" title="Logout">
-                            <LogOut className="w-5 h-5" />
-                        </button>
+                    <div className="flex items-center gap-3 border-l border-slate-800 pl-4 relative">
+                        <div className="relative">
+                            <button 
+                                onClick={() => setShowUserDropdown(!showUserDropdown)}
+                                className="flex items-center gap-2 p-1 hover:bg-slate-800 rounded-full transition-colors relative"
+                            >
+                                <img src={currentUser.avatar} alt="User" className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700" />
+                                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${showUserDropdown ? 'rotate-180' : ''}`} />
+                                
+                                {currentUser.role === 'admin' && notifications.filter(n => !n.read).length > 0 && (
+                                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-slate-950 animate-pulse">
+                                        {notifications.filter(n => !n.read).length}
+                                    </div>
+                                )}
+                            </button>
+
+                            {showUserDropdown && (
+                                <>
+                                    <div 
+                                        className="fixed inset-0 z-40" 
+                                        onClick={() => setShowUserDropdown(false)}
+                                    ></div>
+                                    <div className="absolute right-0 mt-2 w-56 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                                        <div className="px-4 py-2 border-b border-slate-800 mb-2">
+                                            <p className="text-sm font-bold text-white truncate">{currentUser.name}</p>
+                                            <p className="text-[10px] text-slate-500 uppercase tracking-wider">{currentUser.role}</p>
+                                        </div>
+                                        
+                                        {currentUser.role === 'admin' && (
+                                            <button 
+                                                onClick={() => {
+                                                    setViewState(ViewState.ADMIN_BUILDER);
+                                                    // We'll need to pass a tab state to AdminBuilder to open Notifications tab
+                                                    setShowUserDropdown(false);
+                                                }}
+                                                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+                                            >
+                                                <Bell className="w-4 h-4 text-blue-400" />
+                                                <span>Notifications</span>
+                                                {notifications.filter(n => !n.read).length > 0 && (
+                                                    <span className="ml-auto bg-blue-500/20 text-blue-400 text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                                                        {notifications.filter(n => !n.read).length}
+                                                    </span>
+                                                )}
+                                            </button>
+                                        )}
+
+                                        <button 
+                                            onClick={handleLogout}
+                                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-400 hover:bg-red-400/10 transition-colors"
+                                        >
+                                            <LogOut className="w-4 h-4" />
+                                            <span>Logout</span>
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>

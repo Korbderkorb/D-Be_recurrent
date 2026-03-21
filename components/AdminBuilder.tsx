@@ -20,7 +20,7 @@ import {
   useSortable
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Download, Plus, Trash2, Edit2, GripVertical, ChevronRight, Video, Upload, HelpCircle, UploadCloud, RefreshCw, Copy, AlertCircle, Info, Settings, Save, CheckSquare, Square, X, Users, GraduationCap, Layers, UserPlus, Key, Eye, Shield, BarChart3, Search, Lock as LockIcon, Sparkles, CheckCircle2, Clock, History, XCircle, ChevronDown, ChevronUp, FileText, Printer, FileCode } from 'lucide-react';
+import { Download, Plus, Trash2, Edit2, GripVertical, ChevronRight, Video, Upload, HelpCircle, UploadCloud, RefreshCw, Copy, AlertCircle, Info, Settings, Save, CheckSquare, Square, X, Users, GraduationCap, Layers, UserPlus, Key, Eye, Shield, BarChart3, Search, Lock as LockIcon, Sparkles, CheckCircle2, Clock, History, XCircle, ChevronDown, ChevronUp, FileText, Printer, FileCode, FileUp, ExternalLink, Award, BellOff } from 'lucide-react';
 import { 
   BarChart, 
   Bar, 
@@ -46,7 +46,7 @@ import {
   Label,
   LabelList
 } from 'recharts';
-import { Topic, SubTopic, Teacher, SubTopicType, QuizQuestion, User, LandingConfig, QuizAttempt, Tag } from '../types';
+import { Topic, SubTopic, Teacher, SubTopicType, QuizQuestion, User, LandingConfig, QuizAttempt, Tag, Notification as AppNotification } from '../types';
 import { MEDIA_ROOT, getPlaceholderPath } from '../constants';
 const MODULE_TYPES: SubTopicType[] = ['VIDEO', 'EXERCISE_UPLOAD', 'EXERCISE_QUIZ'];
 
@@ -294,49 +294,121 @@ const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSu
 
                     {/* UPLOAD EXERCISE SPECIFIC */}
                     {module.type === 'EXERCISE_UPLOAD' && (
-                        <div className="col-span-12 bg-slate-800 p-3 rounded border border-slate-700">
-                             <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Upload Requirements</label>
-                             <div className="space-y-2 mb-3">
-                                 {(module.uploadRequirements || []).map((req, idx) => (
-                                     <div key={idx} className="flex items-center gap-2">
-                                         <span className="text-sm font-medium text-slate-300 bg-slate-800 border border-slate-700 px-2 py-1 rounded flex-1">{req}</span>
-                                         <button 
-                                            onClick={() => onUpdate({ ...module, uploadRequirements: (module.uploadRequirements || []).filter((_, i) => i !== idx) })}
-                                            className="text-slate-400 hover:text-red-500"
-                                         >
-                                             <X size={14} />
-                                         </button>
-                                     </div>
-                                 ))}
-                                 {(module.uploadRequirements || []).length === 0 && (
-                                     <div className="text-xs text-slate-400 italic">No specific requirements (Single file upload default).</div>
-                                 )}
+                        <div className="col-span-12 bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-4">
+                             <div>
+                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Upload Requirements</label>
+                                 <div className="space-y-2 mb-3">
+                                     {(module.uploadRequirements || []).map((req, idx) => (
+                                         <div key={idx} className="flex items-center gap-2">
+                                             <span className="text-sm font-medium text-slate-300 bg-slate-900 border border-slate-700 px-3 py-1.5 rounded-lg flex-1">{req}</span>
+                                             <button 
+                                                onClick={() => onUpdate({ ...module, uploadRequirements: (module.uploadRequirements || []).filter((_, i) => i !== idx) })}
+                                                className="text-slate-500 hover:text-red-500 transition-colors"
+                                             >
+                                                 <X size={16} />
+                                             </button>
+                                         </div>
+                                     ))}
+                                     {(module.uploadRequirements || []).length === 0 && (
+                                         <div className="text-xs text-slate-500 italic">No specific requirements (Single file upload default).</div>
+                                     )}
+                                 </div>
+                                 <div className="flex gap-2">
+                                     <input 
+                                        type="text" 
+                                        value={newUploadReq}
+                                        onChange={(e) => setNewUploadReq(e.target.value)}
+                                        placeholder="E.g. Rhino Model, Render Image..."
+                                        className="flex-1 p-2 text-sm border border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-900 text-white transition-all"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && newUploadReq.trim()) {
+                                                const current = module.uploadRequirements || [];
+                                                if (module.exerciseConfig?.maxFiles && current.length >= module.exerciseConfig.maxFiles) {
+                                                    alert(`Maximum of ${module.exerciseConfig.maxFiles} files allowed.`);
+                                                    return;
+                                                }
+                                                onUpdate({ ...module, uploadRequirements: [...current, newUploadReq.trim()] });
+                                                setNewUploadReq('');
+                                            }
+                                        }}
+                                     />
+                                     <button 
+                                        onClick={() => {
+                                            if (newUploadReq.trim()) {
+                                                const current = module.uploadRequirements || [];
+                                                if (module.exerciseConfig?.maxFiles && current.length >= module.exerciseConfig.maxFiles) {
+                                                    alert(`Maximum of ${module.exerciseConfig.maxFiles} files allowed.`);
+                                                    return;
+                                                }
+                                                onUpdate({ ...module, uploadRequirements: [...current, newUploadReq.trim()] });
+                                                setNewUploadReq('');
+                                            }
+                                        }}
+                                        className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-500 transition-colors shadow-lg shadow-blue-900/20"
+                                     >
+                                         Add
+                                     </button>
+                                 </div>
                              </div>
-                             <div className="flex gap-2">
-                                 <input 
-                                    type="text" 
-                                    value={newUploadReq}
-                                    onChange={(e) => setNewUploadReq(e.target.value)}
-                                    placeholder="E.g. Rhino Model, Render Image..."
-                                    className="flex-1 p-1.5 text-sm border border-slate-700 rounded focus:ring-1 focus:ring-blue-400 outline-none bg-slate-800 text-white"
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter' && newUploadReq.trim()) {
-                                            onUpdate({ ...module, uploadRequirements: [...(module.uploadRequirements || []), newUploadReq.trim()] });
-                                            setNewUploadReq('');
-                                        }
-                                    }}
-                                 />
-                                 <button 
-                                    onClick={() => {
-                                        if (newUploadReq.trim()) {
-                                            onUpdate({ ...module, uploadRequirements: [...(module.uploadRequirements || []), newUploadReq.trim()] });
-                                            setNewUploadReq('');
-                                        }
-                                    }}
-                                    className="px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-500"
-                                 >
-                                     Add
-                                 </button>
+
+                             <div className="pt-4 border-t border-slate-700">
+                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-3">Upload Constraints</label>
+                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                     <div className="space-y-1.5">
+                                         <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Allowed Extensions</label>
+                                         <input 
+                                            type="text" 
+                                            value={module.exerciseConfig?.allowedFileTypes?.join(', ') || ''}
+                                            onChange={(e) => {
+                                                const types = e.target.value.split(',').map(t => t.trim()).filter(t => t.startsWith('.'));
+                                                onUpdate({ 
+                                                    ...module, 
+                                                    exerciseConfig: { 
+                                                        ...(module.exerciseConfig || { maxFiles: 1, maxFileSizeMB: 10 }), 
+                                                        allowedFileTypes: types 
+                                                    } 
+                                                });
+                                            }}
+                                            placeholder=".pdf, .zip, .jpg"
+                                            className="w-full p-2 text-xs border border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-900 text-white font-mono"
+                                         />
+                                         <p className="text-[9px] text-slate-500">Comma separated, include dot (e.g. .pdf, .zip)</p>
+                                     </div>
+                                     <div className="space-y-1.5">
+                                         <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Max Files</label>
+                                         <input 
+                                            type="number" 
+                                            min={1}
+                                            max={10}
+                                            value={module.exerciseConfig?.maxFiles || 1}
+                                            onChange={(e) => onUpdate({ 
+                                                ...module, 
+                                                exerciseConfig: { 
+                                                    ...(module.exerciseConfig || { allowedFileTypes: ['.pdf'], maxFileSizeMB: 10 }), 
+                                                    maxFiles: parseInt(e.target.value) || 1 
+                                                } 
+                                            })}
+                                            className="w-full p-2 text-xs border border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-900 text-white"
+                                         />
+                                     </div>
+                                     <div className="space-y-1.5">
+                                         <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Max Size (MB) / File</label>
+                                         <input 
+                                            type="number" 
+                                            min={1}
+                                            max={100}
+                                            value={module.exerciseConfig?.maxFileSizeMB || 10}
+                                            onChange={(e) => onUpdate({ 
+                                                ...module, 
+                                                exerciseConfig: { 
+                                                    ...(module.exerciseConfig || { allowedFileTypes: ['.pdf'], maxFiles: 1 }), 
+                                                    maxFileSizeMB: parseInt(e.target.value) || 10 
+                                                } 
+                                            })}
+                                            className="w-full p-2 text-xs border border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-900 text-white"
+                                         />
+                                     </div>
+                                 </div>
                              </div>
                         </div>
                     )}
@@ -526,12 +598,15 @@ interface AdminBuilderProps {
   initialUsers: User[];
   initialTags: Tag[];
   initialLandingConfig: LandingConfig;
+  notifications: AppNotification[];
+  onMarkNotificationRead: (notificationId: string) => Promise<void>;
+  onEvaluateSubmission: (submissionId: string, score: number, feedback: string) => Promise<void>;
   onApplyChanges: (newTopics: Topic[], newTeachers: Teacher[], newUsers: User[], newLandingConfig: LandingConfig, newTags: Tag[]) => Promise<void>;
   onExit: () => void;
 }
 
 // --- User Performance View Component ---
-function AnalyticsView({ users, topics, tags, landingConfig }: { users: User[], topics: Topic[], tags: Tag[], landingConfig: LandingConfig }) {
+function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEvaluateSubmission }: { users: User[], topics: Topic[], tags: Tag[], landingConfig: LandingConfig, notifications: AppNotification[], onEvaluateSubmission: (submissionId: string, score: number, feedback: string) => Promise<void> }) {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [exportFormat, setExportFormat] = useState<'text' | 'csv' | 'print'>('print');
@@ -2067,36 +2142,74 @@ function AnalyticsView({ users, topics, tags, landingConfig }: { users: User[], 
                       <Download size={12} />
                     </button>
                   </div>
-                  <div className="space-y-3">
-                    {(selectedUser.quizAttempts || []).map((a, i) => {
-                      const subTopic = topics.flatMap(t => t.subTopics).find(st => st.id === a.subTopicId);
-                      return (
-                        <div key={i} className="p-3 bg-slate-950/50 rounded-lg border border-slate-800">
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="text-xs font-bold text-slate-300 truncate">{subTopic?.title || 'Quiz'}</div>
-                            <div className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${a.passed ? 'bg-emerald-900/30 text-emerald-400' : 'bg-red-900/30 text-red-400'}`}>
-                              {a.passed ? 'PASSED' : 'FAILED'}
-                            </div>
-                          </div>
-                          <div className="flex justify-between text-[10px] text-slate-500 mb-2">
-                            <span>Score: {a.score}/{a.total}</span>
-                            <span>Time: {a.timeTaken}s</span>
-                            <span>{a.timestamp}</span>
-                          </div>
-                          {a.wrongAnswers && a.wrongAnswers.length > 0 && (
-                            <div className="mt-2 pt-2 border-t border-slate-800">
-                              <div className="text-[9px] font-bold text-red-400 uppercase mb-1">Wrong Answers:</div>
-                              <ul className="list-disc list-inside text-[9px] text-slate-400 space-y-1">
-                                {a.wrongAnswers.map((q, idx) => (
-                                  <li key={idx} className="leading-tight">{q}</li>
+                  
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
+                    {/* Submissions Section */}
+                    {notifications.filter(n => n.userId === selectedUser.id).length > 0 && (
+                      <div className="space-y-2">
+                        <div className="text-[10px] font-bold text-blue-400 uppercase tracking-widest mb-2">Exercise Submissions</div>
+                        {notifications
+                          .filter(n => n.userId === selectedUser.id)
+                          .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+                          .map(notif => (
+                            <div key={notif.id} className="bg-slate-950/50 border border-slate-800 rounded-lg p-3 hover:border-blue-500/50 transition-colors">
+                              <div className="flex justify-between items-start mb-2">
+                                <div>
+                                  <div className="text-xs font-bold text-white">{notif.subTopicTitle}</div>
+                                  <div className="text-[10px] text-slate-500">{notif.topicTitle}</div>
+                                </div>
+                                <div className="text-[10px] text-slate-500 font-mono">
+                                  {new Date(notif.timestamp).toLocaleString()}
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                {notif.files.map((file, fIdx) => (
+                                  <a 
+                                    key={fIdx}
+                                    href={file.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-1.5 px-2 py-1 bg-slate-900 hover:bg-slate-800 rounded text-[10px] text-blue-300 transition-colors border border-slate-800"
+                                  >
+                                    <Download size={10} /> {file.name}
+                                  </a>
                                 ))}
-                              </ul>
+                              </div>
                             </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                    {(selectedUser.quizAttempts || []).length === 0 && (
+                          ))
+                        }
+                      </div>
+                    )}
+
+                    {/* Quiz Attempts Section */}
+                    {(selectedUser.quizAttempts || []).length > 0 && (
+                      <div className="space-y-2 mt-4">
+                        <div className="text-[10px] font-bold text-purple-400 uppercase tracking-widest mb-2">Quiz History</div>
+                        {[...(selectedUser.quizAttempts || [])]
+                          .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
+                          .map((a, i) => {
+                            const subTopic = topics.flatMap(t => t.subTopics).find(st => st.id === a.subTopicId);
+                            return (
+                              <div key={i} className="p-3 bg-slate-950/50 rounded-lg border border-slate-800">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="text-xs font-bold text-slate-300 truncate">{subTopic?.title || 'Quiz'}</div>
+                                  <div className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${a.passed ? 'bg-emerald-900/30 text-emerald-400' : 'bg-red-900/30 text-red-400'}`}>
+                                    {a.passed ? 'PASSED' : 'FAILED'}
+                                  </div>
+                                </div>
+                                <div className="flex justify-between text-[10px] text-slate-500">
+                                  <span>Score: {a.score}/{a.total}</span>
+                                  <span>{new Date(a.timestamp).toLocaleString()}</span>
+                                </div>
+                              </div>
+                            );
+                          })
+                        }
+                      </div>
+                    )}
+
+                    {!(selectedUser.quizAttempts || []).length && 
+                     !notifications.filter(n => n.userId === selectedUser.id).length && (
                       <p className="text-xs text-slate-500 italic text-center py-4">No activity recorded for this student.</p>
                     )}
                   </div>
@@ -2864,8 +2977,194 @@ function TagManagementView({ tags, setTags }: { tags: Tag[], setTags: React.Disp
   );
 }
 
-export default function AdminBuilder({ initialTopics, initialTeachers, initialUsers, initialTags, initialLandingConfig, onApplyChanges, onExit }: AdminBuilderProps) {
-  const [activeTab, setActiveTab] = useState<'ANALYTICS' | 'CURRICULUM' | 'TEACHERS' | 'USERS_LIST' | 'TAGS' | 'USER_INTERFACE'>('ANALYTICS');
+// --- NOTIFICATIONS VIEW ---
+interface NotificationsViewProps {
+  notifications: AppNotification[];
+  onMarkRead: (id: string) => void;
+  onEvaluate: (submissionId: string, score: number, feedback: string) => Promise<void>;
+}
+
+function NotificationsView({ notifications, onMarkRead, onEvaluate }: NotificationsViewProps) {
+  const [evaluatingId, setEvaluatingId] = useState<string | null>(null);
+  const [score, setScore] = useState<number>(0);
+  const [feedback, setFeedback] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const sortedNotifications = [...notifications].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+
+  const handleStartEvaluate = (notif: AppNotification) => {
+    setEvaluatingId(notif.id);
+    setScore(0);
+    setFeedback('');
+  };
+
+  const handleSubmitEvaluation = async (submissionId: string) => {
+    if (score < 0 || score > 100) return;
+    setIsSubmitting(true);
+    try {
+      await onEvaluate(submissionId, score, feedback);
+      setEvaluatingId(null);
+    } catch (error) {
+      console.error("Evaluation failed:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="h-full bg-slate-950 p-8 overflow-y-auto">
+      <div className="max-w-4xl mx-auto">
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h2 className="text-2xl font-bold text-white">Notifications & Submissions</h2>
+            <p className="text-slate-400">Review student uploads and provide evaluations.</p>
+          </div>
+          <div className="bg-slate-900 px-4 py-2 rounded-lg border border-slate-800">
+            <span className="text-xs text-slate-500 uppercase font-bold mr-2">Unread:</span>
+            <span className="text-blue-400 font-bold">{notifications.filter(n => !n.read).length}</span>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {sortedNotifications.length > 0 ? (
+            sortedNotifications.map(notif => (
+              <div 
+                key={notif.id} 
+                className={`bg-slate-900 rounded-xl border transition-all ${notif.read ? 'border-slate-800 opacity-80' : 'border-blue-500/30 shadow-lg shadow-blue-500/5'}`}
+                onClick={() => !notif.read && onMarkRead(notif.id)}
+              >
+                <div className="p-6">
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${notif.read ? 'bg-slate-800 text-slate-500' : 'bg-blue-500/20 text-blue-400'}`}>
+                        <FileUp size={20} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="font-bold text-white">{notif.userName}</h3>
+                          {!notif.read && <span className="w-2 h-2 bg-blue-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.5)]"></span>}
+                        </div>
+                        <p className="text-xs text-slate-500">
+                          Uploaded to <span className="text-slate-300 font-medium">{notif.subTopicTitle}</span> in <span className="text-slate-300 font-medium">{notif.topicTitle}</span>
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-[10px] text-slate-500 font-mono mb-1">{new Date(notif.timestamp).toLocaleString()}</div>
+                      <div className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Exercise Submission</div>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-950/50 rounded-lg p-4 border border-slate-800/50 mb-4">
+                    <h4 className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Attached Files</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {notif.files.map((file, idx) => (
+                        <a 
+                          key={idx} 
+                          href={file.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-between p-3 bg-slate-900 border border-slate-800 rounded-lg hover:border-blue-500/50 hover:bg-slate-800 transition-all group"
+                        >
+                          <div className="flex items-center gap-3 truncate">
+                            <div className="p-2 bg-blue-500/10 rounded text-blue-400 group-hover:bg-blue-500/20 transition-colors">
+                              <Download size={16} />
+                            </div>
+                            <span className="text-sm text-slate-300 truncate">{file.name}</span>
+                          </div>
+                          <ExternalLink size={14} className="text-slate-600 group-hover:text-blue-400" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-3">
+                    {evaluatingId === notif.id ? (
+                      <div className="w-full bg-slate-800/50 p-4 rounded-lg border border-blue-500/20 animate-in fade-in slide-in-from-top-2">
+                        <div className="flex justify-between items-center mb-4">
+                          <h4 className="text-sm font-bold text-white">Evaluate Submission</h4>
+                          <button onClick={() => setEvaluatingId(null)} className="text-slate-500 hover:text-white"><X size={16}/></button>
+                        </div>
+                        <div className="space-y-4">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Score (0-100)</label>
+                            <input 
+                              type="number" 
+                              min="0" 
+                              max="100" 
+                              value={score}
+                              onChange={e => setScore(parseInt(e.target.value) || 0)}
+                              className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-blue-500"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Feedback (Optional)</label>
+                            <textarea 
+                              value={feedback}
+                              onChange={e => setFeedback(e.target.value)}
+                              rows={3}
+                              className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-blue-500 resize-none"
+                              placeholder="Great work! The implementation is clean..."
+                            />
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <button 
+                              onClick={() => setEvaluatingId(null)}
+                              className="px-4 py-2 text-xs font-bold text-slate-400 hover:text-white transition-colors"
+                            >
+                              Cancel
+                            </button>
+                            <button 
+                              onClick={() => handleSubmitEvaluation(notif.submissionId)}
+                              disabled={isSubmitting}
+                              className="px-6 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-2"
+                            >
+                              {isSubmitting ? 'Saving...' : 'Submit Evaluation'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleStartEvaluate(notif);
+                        }}
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 rounded-lg text-xs font-bold border border-blue-500/20 transition-all"
+                      >
+                        <Award size={14} /> Evaluate Submission
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="flex flex-col items-center justify-center py-20 bg-slate-900/50 rounded-2xl border border-dashed border-slate-800">
+              <BellOff size={48} className="text-slate-700 mb-4" />
+              <p className="text-slate-500 font-medium">No notifications yet.</p>
+              <p className="text-slate-600 text-sm">When students upload files, they will appear here.</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function AdminBuilder({ 
+  initialTopics, 
+  initialTeachers, 
+  initialUsers, 
+  initialTags, 
+  initialLandingConfig, 
+  notifications,
+  onMarkNotificationRead,
+  onEvaluateSubmission,
+  onApplyChanges, 
+  onExit 
+}: AdminBuilderProps) {
+  const [activeTab, setActiveTab] = useState<'ANALYTICS' | 'CURRICULUM' | 'TEACHERS' | 'USERS_LIST' | 'TAGS' | 'USER_INTERFACE' | 'NOTIFICATIONS'>('ANALYTICS');
   const [showUsersDropdown, setShowUsersDropdown] = useState(false);
   
   // States
@@ -3166,6 +3465,17 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
               </h1>
               <div className="h-6 w-px bg-slate-700 mx-2" />
               <div className="flex bg-slate-800 p-1 rounded-lg">
+                  <button 
+                    onClick={() => setActiveTab('NOTIFICATIONS')}
+                    className={`px-3 py-1.5 rounded text-xs font-bold transition-colors relative ${activeTab === 'NOTIFICATIONS' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
+                  >
+                      Notifications
+                      {notifications.filter(n => !n.read).length > 0 && (
+                        <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] flex items-center justify-center rounded-full border border-slate-900">
+                          {notifications.filter(n => !n.read).length}
+                        </span>
+                      )}
+                  </button>
                   <button 
                     onClick={() => setActiveTab('ANALYTICS')}
                     className={`px-3 py-1.5 rounded text-xs font-bold transition-colors ${activeTab === 'ANALYTICS' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
@@ -4049,6 +4359,14 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
               </div>
           )}
 
+          {activeTab === 'NOTIFICATIONS' && (
+            <NotificationsView 
+              notifications={notifications}
+              onMarkRead={onMarkNotificationRead}
+              onEvaluate={onEvaluateSubmission}
+            />
+          )}
+
           {activeTab === 'ANALYTICS' && (
               <div className="h-full bg-slate-950 overflow-y-auto">
                   <div className="p-8">
@@ -4057,6 +4375,8 @@ export default function AdminBuilder({ initialTopics, initialTeachers, initialUs
                           topics={topics} 
                           tags={tags}
                           landingConfig={landingConfig}
+                          notifications={notifications}
+                          onEvaluateSubmission={onEvaluateSubmission}
                       />
                   </div>
               </div>

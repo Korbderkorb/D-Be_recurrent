@@ -41,6 +41,31 @@ export interface CompletionRecord {
   completedAt: string;
 }
 
+export interface ExerciseConfig {
+  allowedFileTypes: string[]; // e.g. ['.pdf', '.zip', '.jpg']
+  maxFiles: number;
+  maxFileSizeMB: number;
+}
+
+export interface ExerciseSubmission {
+  id: string;
+  userId: string;
+  userName: string;
+  subTopicId: string;
+  topicId: string;
+  files: {
+    name: string;
+    url: string;
+    size: number;
+    type: string;
+    requirementLabel?: string;
+  }[];
+  timestamp: string;
+  status: 'pending' | 'reviewed' | 'rejected';
+  feedback?: string;
+  grade?: string | number;
+}
+
 export interface SubTopic {
   id: string;
   type: SubTopicType;
@@ -58,6 +83,7 @@ export interface SubTopic {
   // Exercise Specifics
   exerciseImage?: string; 
   uploadRequirements?: string[]; // Labels for required upload fields
+  exerciseConfig?: ExerciseConfig;
   // Quiz Specifics
   quizQuestions?: QuizQuestion[];
   
@@ -165,4 +191,22 @@ export interface User {
   submittedExercises?: string[];
   quizAttempts?: QuizAttempt[];
   profileColor?: string;
+}
+
+export interface Notification {
+  id: string;
+  userId: string;
+  userName: string;
+  topicId: string;
+  subTopicId: string;
+  topicTitle: string;
+  subTopicTitle: string;
+  submissionId: string;
+  timestamp: string;
+  read: boolean;
+  type: 'EXERCISE_SUBMISSION';
+  files: {
+    name: string;
+    url: string;
+  }[];
 }

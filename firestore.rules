@@ -21,6 +21,34 @@ service cloud.firestore {
     //   - completedSubTopics: list (required)
     //   - submittedExercises: list (required)
     //
+    // Collection: submissions
+    // Document ID: {submissionId}
+    // Fields:
+    //   - id: string (required)
+    //   - userId: string (required)
+    //   - userName: string (required)
+    //   - subTopicId: string (required)
+    //   - topicId: string (required)
+    //   - timestamp: string (required)
+    //   - files: list (required)
+    //   - status: string (required, 'pending', 'reviewed', 'rejected')
+    //
+    // Collection: notifications
+    // Document ID: {notificationId}
+    // Fields:
+    //   - id: string (required)
+    //   - userId: string (required)
+    //   - userName: string (required)
+    //   - topicId: string (required)
+    //   - subTopicId: string (required)
+    //   - topicTitle: string (required)
+    //   - subTopicTitle: string (required)
+    //   - submissionId: string (required)
+    //   - timestamp: string (required)
+    //   - read: boolean (required)
+    //   - type: string (required, 'EXERCISE_SUBMISSION')
+    //   - files: list (required)
+    //
     // ===============================================================
 
     // ===============================================================
@@ -65,6 +93,25 @@ service cloud.firestore {
              comment.user is string && comment.user.size() < 100 &&
              comment.text is string && comment.text.size() < 2000 &&
              comment.timestamp is string;
+    }
+
+    function isValidSubmission(data) {
+      return data.keys().hasAll(['id', 'userId', 'userName', 'subTopicId', 'topicId', 'files', 'timestamp', 'status']) &&
+             data.id is string &&
+             data.userId == request.auth.uid &&
+             data.userName is string &&
+             data.subTopicId is string &&
+             data.topicId is string &&
+             data.timestamp is string &&
+             data.files is list && data.files.size() <= 10 &&
+             data.status in ['pending', 'reviewed', 'rejected'];
+    }
+
+    function isValidNotification(data) {
+      return data.keys().hasAll(['id', 'userId', 'userName', 'topicId', 'subTopicId', 'topicTitle', 'subTopicTitle', 'submissionId', 'timestamp', 'read', 'type', 'files']) &&
+             data.userId == request.auth.uid &&
+             data.read == false &&
+             data.type == 'EXERCISE_SUBMISSION';
     }
 
     // ===============================================================
@@ -139,6 +186,20 @@ service cloud.firestore {
     match /config/landing {
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    match /submissions/{submissionId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidSubmission(request.resource.data);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated() && isValidNotification(request.resource.data);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
   }
 }

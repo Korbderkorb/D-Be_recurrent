@@ -117,6 +117,65 @@
         "color": { "type": "string" }
       },
       "required": ["id", "name", "color"]
+    },
+    "ExerciseSubmission": {
+      "title": "ExerciseSubmission",
+      "description": "Metadata for a student's exercise submission",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "subTopicId": { "type": "string" },
+        "topicId": { "type": "string" },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "url": { "type": "string" },
+              "size": { "type": "number" },
+              "type": { "type": "string" },
+              "requirementLabel": { "type": "string" }
+            }
+          }
+        },
+        "timestamp": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "reviewed", "rejected"] },
+        "feedback": { "type": "string" },
+        "grade": { "type": "number" }
+      },
+      "required": ["id", "userId", "userName", "subTopicId", "topicId", "files", "timestamp", "status"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "System notification for admins",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "topicId": { "type": "string" },
+        "subTopicId": { "type": "string" },
+        "topicTitle": { "type": "string" },
+        "subTopicTitle": { "type": "string" },
+        "submissionId": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "read": { "type": "boolean" },
+        "type": { "type": "string", "enum": ["EXERCISE_SUBMISSION"] },
+        "files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "url": { "type": "string" }
+            }
+          }
+        }
+      },
+      "required": ["id", "userId", "userName", "topicId", "subTopicId", "topicTitle", "subTopicTitle", "submissionId", "timestamp", "read", "type", "files"]
     }
   },
   "firestore": {
@@ -155,6 +214,14 @@
     "config/landing": {
       "schema": "LandingConfig",
       "description": "Global landing page configuration"
+    },
+    "submissions/{submissionId}": {
+      "schema": "ExerciseSubmission",
+      "description": "Student exercise submission documents"
+    },
+    "notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "Admin notifications"
     }
   }
 }

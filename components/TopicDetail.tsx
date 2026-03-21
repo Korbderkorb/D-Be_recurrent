@@ -1,8 +1,10 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { ArrowLeft, ChevronRight, Clock, PlayCircle, MessageCircle, FileText, CheckCircle2, Circle, AlertTriangle, Upload, Check, HelpCircle, Download, User as UserIcon, Mail, Reply, Copy, Trash2, XCircle, RotateCcw, History, CheckSquare, UploadCloud } from 'lucide-react';
-import { Topic, Comment, User, QuizAttempt } from '../types';
+import { ArrowLeft, ChevronRight, Clock, PlayCircle, MessageCircle, FileText, CheckCircle2, Circle, AlertTriangle, Upload, Check, HelpCircle, Download, User as UserIcon, Mail, Reply, Copy, Trash2, XCircle, RotateCcw, History, CheckSquare, UploadCloud, Loader2 } from 'lucide-react';
+import { Topic, Comment, User, QuizAttempt, ExerciseSubmission } from '../types';
 import VideoPlayer from './VideoPlayer';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { storage } from '../firebase';
 
 interface TopicDetailProps {
   topic: Topic;
@@ -14,7 +16,7 @@ interface TopicDetailProps {
   submittedExercises: Set<string>;
   quizProgress: Record<string, QuizAttempt[]>;
   onToggleComplete: (id: string) => void;
-  onSubmitExercise: (id: string, quizData?: QuizAttempt) => void;
+  onSubmitExercise: (id: string, quizData?: QuizAttempt, submissionData?: ExerciseSubmission) => void;
   userComments: Record<string, Comment[]>;
   onAddComment: (subTopicId: string, text: string) => void;
   onReply: (subTopicId: string, parentCommentId: string, text: string) => void;
@@ -56,6 +58,8 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
   
   // Upload State
   const [uploadedFiles, setUploadedFiles] = useState<Record<string, File>>({});
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadErrors, setUploadErrors] = useState<Record<string, string>>({});
 
   const activeSubTopic = useMemo(() => 
     topic.subTopics.find(st => st.id === activeSubTopicId), 
@@ -192,13 +196,82 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, reqKey: string) => {
       if (e.target.files && e.target.files[0]) {
           const file = e.target.files[0];
+          const config = activeSubTopic?.exerciseConfig;
+          
+          // Reset error for this field
+          setUploadErrors(prev => {
+              const next = { ...prev };
+              delete next[reqKey];
+              return next;
+          });
+
+          if (config) {
+              // Validate File Type
+              if (config.allowedFileTypes && config.allowedFileTypes.length > 0) {
+                  const extension = '.' + file.name.split('.').pop()?.toLowerCase();
+                  if (!config.allowedFileTypes.includes(extension)) {
+                      setUploadErrors(prev => ({ ...prev, [reqKey]: `Invalid file type. Allowed: ${config.allowedFileTypes?.join(', ')}` }));
+                      return;
+                  }
+              }
+
+              // Validate File Size
+              if (config.maxFileSizeMB) {
+                  const sizeInMB = file.size / (1024 * 1024);
+                  if (sizeInMB > config.maxFileSizeMB) {
+                      setUploadErrors(prev => ({ ...prev, [reqKey]: `File too large. Max size: ${config.maxFileSizeMB}MB` }));
+                      return;
+                  }
+              }
+          }
+
           setUploadedFiles(prev => ({ ...prev, [reqKey]: file }));
       }
   };
 
-  const submitUpload = () => {
-      if (activeSubTopic) {
-          onSubmitExercise(activeSubTopic.id);
+  const submitUpload = async () => {
+      if (!activeSubTopic || !currentUser) return;
+      
+      setIsUploading(true);
+      try {
+          const submissionFiles: ExerciseSubmission['files'] = [];
+          
+          // Upload each file to Firebase Storage
+          for (const [reqKey, file] of Object.entries(uploadedFiles)) {
+              const storageRef = ref(storage, `submissions/${currentUser.id}/${activeSubTopic.id}/${Date.now()}_${file.name}`);
+              const snapshot = await uploadBytes(storageRef, file);
+              const downloadUrl = await getDownloadURL(snapshot.ref);
+              
+              submissionFiles.push({
+                  name: file.name,
+                  url: downloadUrl,
+                  size: file.size,
+                  type: file.type,
+                  requirementLabel: reqKey !== 'default' ? reqKey : undefined
+              });
+          }
+
+          const submissionData: ExerciseSubmission = {
+              id: Date.now().toString(),
+              subTopicId: activeSubTopic.id,
+              topicId: topic.id,
+              userId: currentUser.id,
+              userName: currentUser.name,
+              timestamp: new Date().toISOString(),
+              files: submissionFiles,
+              status: 'pending'
+          };
+
+          onSubmitExercise(activeSubTopic.id, undefined, submissionData);
+          setUploadedFiles({});
+          setFileToast({ show: true, message: 'Submission successful!' });
+          setTimeout(() => setFileToast({ show: false, message: '' }), 3000);
+      } catch (error) {
+          console.error("Upload error:", error);
+          setFileToast({ show: true, message: 'Upload failed. Please try again.' });
+          setTimeout(() => setFileToast({ show: false, message: '' }), 3000);
+      } finally {
+          setIsUploading(false);
       }
   }
 
@@ -536,7 +609,7 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
                                                       <div key={i} className="flex flex-col gap-1 text-left">
                                                           <label className="text-xs font-bold text-slate-400 uppercase ml-1">{req}</label>
                                                           <div className="flex items-center gap-2">
-                                                              <label className="flex-1 flex items-center gap-2 px-4 py-2 bg-slate-800 rounded-lg cursor-pointer hover:bg-slate-700 border border-slate-700 hover:border-slate-600 transition-all group">
+                                                              <label className={`flex-1 flex items-center gap-2 px-4 py-2 bg-slate-800 rounded-lg cursor-pointer hover:bg-slate-700 border transition-all group ${uploadErrors[req] ? 'border-red-500/50' : 'border-slate-700 hover:border-slate-600'}`}>
                                                                   <input type="file" onChange={(e) => handleFileUpload(e, req)} className="hidden" />
                                                                   {uploadedFiles[req] ? <Check className="w-4 h-4 text-green-500" /> : <UploadCloud className="w-4 h-4 text-slate-500 group-hover:text-white" />}
                                                                   <span className={`text-sm ${uploadedFiles[req] ? 'text-green-400' : 'text-slate-300'}`}>
@@ -544,15 +617,21 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
                                                                   </span>
                                                               </label>
                                                           </div>
+                                                          {uploadErrors[req] && (
+                                                              <span className="text-[10px] text-red-400 ml-1">{uploadErrors[req]}</span>
+                                                          )}
                                                       </div>
                                                   ))
                                               ) : (
                                                   /* Default Single Upload */
-                                                  <div className="flex justify-center">
-                                                      <label className="px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg cursor-pointer font-medium transition-colors flex items-center gap-2">
+                                                  <div className="flex flex-col items-center gap-2">
+                                                      <label className={`px-6 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg cursor-pointer font-medium transition-colors flex items-center gap-2 ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
                                                           <input type="file" onChange={(e) => handleFileUpload(e, 'default')} className="hidden" />
                                                           Browse Files
                                                       </label>
+                                                      {uploadErrors['default'] && (
+                                                          <span className="text-xs text-red-400">{uploadErrors['default']}</span>
+                                                      )}
                                                   </div>
                                               )}
                                               
@@ -580,13 +659,15 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
                                     <button 
                                         onClick={submitUpload}
                                         disabled={
-                                            (activeSubTopic.uploadRequirements && activeSubTopic.uploadRequirements.length > 0)
+                                            isUploading ||
+                                            ((activeSubTopic.uploadRequirements && activeSubTopic.uploadRequirements.length > 0)
                                             ? activeSubTopic.uploadRequirements.some(req => !uploadedFiles[req])
-                                            : !uploadedFiles['default']
+                                            : !uploadedFiles['default'])
                                         } 
-                                        className="px-8 py-3 bg-green-600 hover:bg-green-500 text-white font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-green-500/20"
+                                        className="px-8 py-3 bg-green-600 hover:bg-green-500 text-white font-bold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-green-500/20 flex items-center gap-2"
                                     >
-                                        Submit Exercise
+                                        {isUploading && <Loader2 className="w-4 h-4 animate-spin" />}
+                                        {isUploading ? 'Uploading...' : 'Submit Exercise'}
                                     </button>
                                 </div>
                               )}
