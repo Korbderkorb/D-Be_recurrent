@@ -205,6 +205,9 @@ export interface Notification {
   timestamp: string;
   read: boolean;
   evaluated?: boolean;
+  completed?: boolean;
+  grade?: number | string;
+  feedback?: string;
   deadlineNotificationSent?: boolean;
   type: 'EXERCISE_SUBMISSION' | 'DEADLINE_WARNING';
   files: {

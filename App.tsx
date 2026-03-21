@@ -950,10 +950,21 @@ const App: React.FC = () => {
                     // Also find and update the notification
                     const notif = notifications.find(n => n.submissionId === submissionId);
                     if (notif) {
-                        await setDoc(doc(db, 'notifications', notif.id), { evaluated: true }, { merge: true });
+                        await setDoc(doc(db, 'notifications', notif.id), { 
+                            evaluated: true,
+                            grade,
+                            feedback
+                        }, { merge: true });
                     }
                 } catch (error) {
                     handleFirestoreError(error, OperationType.WRITE, `submissions/${submissionId}`);
+                }
+            }}
+            onToggleNotificationCompleted={async (id, completed) => {
+                try {
+                    await setDoc(doc(db, 'notifications', id), { completed }, { merge: true });
+                } catch (error) {
+                    handleFirestoreError(error, OperationType.WRITE, `notifications/${id}`);
                 }
             }}
             onDeleteFile={async (fileUrl, submissionId, fileName) => {

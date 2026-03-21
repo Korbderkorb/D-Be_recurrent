@@ -604,6 +604,7 @@ interface AdminBuilderProps {
   initialTab?: 'ANALYTICS' | 'CURRICULUM' | 'TEACHERS' | 'USERS_LIST' | 'TAGS' | 'USER_INTERFACE' | 'NOTIFICATIONS';
   onMarkNotificationRead: (notificationId: string) => Promise<void>;
   onEvaluateSubmission: (submissionId: string, score: number, feedback: string) => Promise<void>;
+  onToggleNotificationCompleted?: (id: string, completed: boolean) => Promise<void>;
   onDeleteFile?: (fileUrl: string, submissionId: string, fileName: string) => Promise<void>;
   onApplyChanges: (newTopics: Topic[], newTeachers: Teacher[], newUsers: User[], newLandingConfig: LandingConfig, newTags: Tag[]) => Promise<void>;
   onExit: () => void;
@@ -2166,6 +2167,19 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
                                   {new Date(notif.timestamp).toLocaleString()}
                                 </div>
                               </div>
+                              
+                              {notif.evaluated && (
+                                <div className="mb-3 p-2 bg-emerald-500/5 border border-emerald-500/10 rounded">
+                                  <div className="flex justify-between items-center mb-1">
+                                    <span className="text-[9px] font-bold text-emerald-400 uppercase">Evaluation Result</span>
+                                    <span className="text-xs font-bold text-emerald-400">{notif.grade}/100</span>
+                                  </div>
+                                  {notif.feedback && (
+                                    <p className="text-[10px] text-slate-400 italic">"{notif.feedback}"</p>
+                                  )}
+                                </div>
+                              )}
+
                               <div className="flex flex-wrap gap-2 mt-2">
                                 {notif.files.map((file, fIdx) => (
                                   <a 
@@ -2986,15 +3000,18 @@ interface NotificationsViewProps {
   notifications: AppNotification[];
   onMarkRead: (id: string) => void;
   onEvaluate: (submissionId: string, score: number, feedback: string) => Promise<void>;
+  onToggleCompleted?: (id: string, completed: boolean) => Promise<void>;
   onDeleteFile?: (fileUrl: string, submissionId: string, fileName: string) => Promise<void>;
 }
 
-function NotificationsView({ notifications, onMarkRead, onEvaluate, onDeleteFile }: NotificationsViewProps) {
+function NotificationsView({ notifications, onMarkRead, onEvaluate, onToggleCompleted, onDeleteFile }: NotificationsViewProps) {
   const [evaluatingId, setEvaluatingId] = useState<string | null>(null);
+  const [showEvaluationId, setShowEvaluationId] = useState<string | null>(null);
   const [score, setScore] = useState<number>(0);
   const [feedback, setFeedback] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [isTogglingCompleted, setIsTogglingCompleted] = useState<string | null>(null);
 
   const sortedNotifications = [...notifications].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 
@@ -3058,6 +3075,19 @@ function NotificationsView({ notifications, onMarkRead, onEvaluate, onDeleteFile
     }
   };
 
+  const handleToggleCompleted = async (e: React.MouseEvent, id: string, completed: boolean) => {
+    e.stopPropagation();
+    if (!onToggleCompleted) return;
+    setIsTogglingCompleted(id);
+    try {
+      await onToggleCompleted(id, !completed);
+    } catch (error) {
+      console.error("Failed to toggle completed:", error);
+    } finally {
+      setIsTogglingCompleted(null);
+    }
+  };
+
   const getDaysLeft = (timestamp: string) => {
     const submissionDate = new Date(timestamp);
     const deadlineDate = new Date(submissionDate.getTime() + (28 * 24 * 60 * 60 * 1000)); // 4 weeks
@@ -3092,7 +3122,43 @@ function NotificationsView({ notifications, onMarkRead, onEvaluate, onDeleteFile
             sortedNotifications.map(notif => {
               const daysLeft = getDaysLeft(notif.timestamp);
               const isUrgent = daysLeft <= 7 && !notif.evaluated;
+              const isCompleted = notif.completed || false;
               
+              if (isCompleted) {
+                return (
+                  <div 
+                    key={notif.id} 
+                    className="bg-slate-900/40 rounded-xl border border-slate-800/50 opacity-60 hover:opacity-100 transition-all group"
+                  >
+                    <div className="px-6 py-3 flex items-center justify-between gap-4">
+                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <button 
+                          onClick={(e) => handleToggleCompleted(e, notif.id, isCompleted)}
+                          disabled={isTogglingCompleted === notif.id}
+                          className="text-emerald-500 hover:text-emerald-400 transition-colors shrink-0"
+                        >
+                          {isTogglingCompleted === notif.id ? <RefreshCw size={18} className="animate-spin" /> : <CheckSquare size={18} />}
+                        </button>
+                        <div className="flex items-center gap-2 truncate">
+                          <span className="font-bold text-slate-300 text-sm truncate">{notif.userName}</span>
+                          <span className="text-slate-600 text-[10px]">•</span>
+                          <span className="text-slate-500 text-[10px] truncate">{notif.subTopicTitle}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4 shrink-0">
+                        <span className="text-[10px] text-slate-600 font-mono">{new Date(notif.timestamp).toLocaleDateString()}</span>
+                        <button 
+                          onClick={(e) => handleToggleCompleted(e, notif.id, isCompleted)}
+                          className="text-[10px] font-bold text-emerald-500/50 uppercase tracking-widest hidden group-hover:block"
+                        >
+                          Restore
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
               return (
                 <div 
                   key={notif.id} 
@@ -3102,6 +3168,13 @@ function NotificationsView({ notifications, onMarkRead, onEvaluate, onDeleteFile
                   <div className="p-6">
                     <div className="flex justify-between items-start mb-4">
                       <div className="flex items-center gap-3">
+                        <button 
+                          onClick={(e) => handleToggleCompleted(e, notif.id, isCompleted)}
+                          disabled={isTogglingCompleted === notif.id}
+                          className="text-slate-600 hover:text-emerald-500 transition-colors"
+                        >
+                          {isTogglingCompleted === notif.id ? <RefreshCw size={20} className="animate-spin" /> : <Square size={20} />}
+                        </button>
                         <div className={`w-10 h-10 rounded-full flex items-center justify-center ${notif.type === 'DEADLINE_WARNING' ? 'bg-red-500/20 text-red-400' : notif.evaluated ? 'bg-emerald-500/20 text-emerald-400' : notif.read ? 'bg-slate-800 text-slate-500' : 'bg-blue-500/20 text-blue-400'}`}>
                           {notif.type === 'DEADLINE_WARNING' ? <AlertTriangle size={20} /> : notif.evaluated ? <CheckCircle2 size={20} /> : <FileUp size={20} />}
                         </div>
@@ -3131,6 +3204,19 @@ function NotificationsView({ notifications, onMarkRead, onEvaluate, onDeleteFile
                         )}
                       </div>
                     </div>
+
+                    {/* Show Evaluation Details if evaluated and toggled */}
+                    {notif.evaluated && showEvaluationId === notif.id && (
+                      <div className="mb-4 p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-xl animate-in fade-in slide-in-from-top-2">
+                        <div className="flex justify-between items-center mb-2">
+                          <h4 className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Evaluation Result</h4>
+                          <span className="text-sm font-bold text-emerald-400">{notif.grade}/100</span>
+                        </div>
+                        {notif.feedback && (
+                          <p className="text-sm text-slate-300 italic">"{notif.feedback}"</p>
+                        )}
+                      </div>
+                    )}
 
                     <div className="bg-slate-950/50 rounded-lg p-4 border border-slate-800/50 mb-4">
                       <h4 className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Attached Files</h4>
@@ -3171,6 +3257,17 @@ function NotificationsView({ notifications, onMarkRead, onEvaluate, onDeleteFile
                     </div>
 
                     <div className="flex justify-end gap-3">
+                      {notif.evaluated && (
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowEvaluationId(showEvaluationId === notif.id ? null : notif.id);
+                          }}
+                          className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold border border-slate-700 text-slate-400 hover:text-white hover:border-slate-600 transition-all"
+                        >
+                          <Eye size={14} /> {showEvaluationId === notif.id ? 'Hide Evaluation' : 'Show Evaluation'}
+                        </button>
+                      )}
                       {evaluatingId === notif.id ? (
                         <div className="w-full bg-slate-800/50 p-4 rounded-lg border border-blue-500/20 animate-in fade-in slide-in-from-top-2">
                           <div className="flex justify-between items-center mb-4">
@@ -3255,6 +3352,7 @@ export default function AdminBuilder({
   initialTab = 'ANALYTICS',
   onMarkNotificationRead,
   onEvaluateSubmission,
+  onToggleNotificationCompleted,
   onDeleteFile,
   onApplyChanges, 
   onExit 
@@ -4459,6 +4557,7 @@ export default function AdminBuilder({
               notifications={notifications}
               onMarkRead={onMarkNotificationRead}
               onEvaluate={onEvaluateSubmission}
+              onToggleCompleted={onToggleNotificationCompleted}
               onDeleteFile={onDeleteFile}
             />
           )}
