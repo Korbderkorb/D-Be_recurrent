@@ -38,6 +38,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
   const transformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
   const [hiddenTeacherEmails, setHiddenTeacherEmails] = useState<Set<string>>(new Set());
   const [previewTopicId, setPreviewTopicId] = useState<string | null>(null);
+  const previewTopicIdRef = useRef<string | null>(null);
   const [isInstructorMenuOpen, setIsInstructorMenuOpen] = useState(false);
 
   // Derive unique teachers from topics
@@ -236,6 +237,12 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
 
     svg.call(zoom);
     
+    svg.on("click", () => {
+        previewTopicIdRef.current = null;
+        setPreviewTopicId(null);
+        zoomGroup.selectAll(".hover-overlay").transition().duration(200).attr("opacity", 0);
+    });
+    
     // Always zoom to fit on initial mount or when topics change, unless user has already panned/zoomed
     if (isZoomIdentity) {
         svg.call(zoom.transform, initialTransform);
@@ -391,6 +398,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
             return "none";
         })
         .on("click", (e, d) => {
+            e.stopPropagation();
             if (!hiddenTeacherEmails.has(d.teacher.email)) {
                 // We allow clicking on prerequisite locked topics to show the alert
                 if (d.locked) return; 
@@ -398,9 +406,10 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
                 // Mobile double-click logic: first click shows preview, second click opens
                 const isMobile = window.innerWidth < 768;
                 if (isMobile) {
-                    if (previewTopicId === d.id) {
+                    if (previewTopicIdRef.current === d.id) {
                         onSelectTopic(d);
                     } else {
+                        previewTopicIdRef.current = d.id;
                         setPreviewTopicId(d.id);
                         // Show hover overlay manually for mobile
                         zoomGroup.selectAll(".hover-overlay").attr("opacity", 0);
@@ -516,7 +525,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
 
             const isMobile = window.innerWidth < 768;
             const buttonHtml = isMobile && !d.locked && !d.prerequisiteLocked ? `
-                <div style="margin-top: 10px; padding: 10px; background: #0f172a; color: #3b82f6; text-align: center; border: 1px solid #3b82f6; font-family: ui-monospace, monospace; font-weight: bold; font-size: 12px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.1em; box-shadow: 0 0 15px rgba(59, 130, 246, 0.15);">
+                <div style="margin-top: 10px; padding: 10px; background: #0f172a; color: #3b82f6; text-align: center; border: 1px solid #3b82f6; font-family: ui-monospace, monospace; font-weight: bold; font-size: 12px; cursor: pointer; text-transform: uppercase; letter-spacing: 0.1em; box-shadow: 0 0 15px rgba(59, 130, 246, 0.15); pointer-events: all;">
                     START LEARNING
                 </div>
                 <div style="margin-top: 6px; text-align: center; font-size: 8px; color: #64748b; font-family: ui-monospace, monospace; text-transform: uppercase; letter-spacing: 0.05em;">
