@@ -204,7 +204,9 @@ export interface Notification {
   submissionId: string;
   timestamp: string;
   read: boolean;
-  type: 'EXERCISE_SUBMISSION';
+  evaluated?: boolean;
+  deadlineNotificationSent?: boolean;
+  type: 'EXERCISE_SUBMISSION' | 'DEADLINE_WARNING';
   files: {
     name: string;
     url: string;

@@ -20,7 +20,7 @@ import {
   useSortable
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Download, Plus, Trash2, Edit2, GripVertical, ChevronRight, Video, Upload, HelpCircle, UploadCloud, RefreshCw, Copy, AlertCircle, Info, Settings, Save, CheckSquare, Square, X, Users, GraduationCap, Layers, UserPlus, Key, Eye, Shield, BarChart3, Search, Lock as LockIcon, Sparkles, CheckCircle2, Clock, History, XCircle, ChevronDown, ChevronUp, FileText, Printer, FileCode, FileUp, ExternalLink, Award, BellOff } from 'lucide-react';
+import { Download, Plus, Trash2, Edit2, GripVertical, ChevronRight, Video, Upload, HelpCircle, UploadCloud, RefreshCw, Copy, AlertCircle, Info, Settings, Save, CheckSquare, Square, X, Users, GraduationCap, Layers, UserPlus, Key, Eye, Shield, BarChart3, Search, Lock as LockIcon, Sparkles, CheckCircle2, Clock, History, XCircle, ChevronDown, ChevronUp, FileText, Printer, FileCode, FileUp, ExternalLink, Award, BellOff, AlertTriangle } from 'lucide-react';
 import { 
   BarChart, 
   Bar, 
@@ -599,8 +599,10 @@ interface AdminBuilderProps {
   initialTags: Tag[];
   initialLandingConfig: LandingConfig;
   notifications: AppNotification[];
+  initialTab?: 'ANALYTICS' | 'CURRICULUM' | 'TEACHERS' | 'USERS_LIST' | 'TAGS' | 'USER_INTERFACE' | 'NOTIFICATIONS';
   onMarkNotificationRead: (notificationId: string) => Promise<void>;
   onEvaluateSubmission: (submissionId: string, score: number, feedback: string) => Promise<void>;
+  onDeleteFile?: (fileUrl: string, submissionId: string, fileName: string) => Promise<void>;
   onApplyChanges: (newTopics: Topic[], newTeachers: Teacher[], newUsers: User[], newLandingConfig: LandingConfig, newTags: Tag[]) => Promise<void>;
   onExit: () => void;
 }
@@ -2982,13 +2984,15 @@ interface NotificationsViewProps {
   notifications: AppNotification[];
   onMarkRead: (id: string) => void;
   onEvaluate: (submissionId: string, score: number, feedback: string) => Promise<void>;
+  onDeleteFile?: (fileUrl: string, submissionId: string, fileName: string) => Promise<void>;
 }
 
-function NotificationsView({ notifications, onMarkRead, onEvaluate }: NotificationsViewProps) {
+function NotificationsView({ notifications, onMarkRead, onEvaluate, onDeleteFile }: NotificationsViewProps) {
   const [evaluatingId, setEvaluatingId] = useState<string | null>(null);
   const [score, setScore] = useState<number>(0);
   const [feedback, setFeedback] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
 
   const sortedNotifications = [...notifications].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 
@@ -3011,6 +3015,55 @@ function NotificationsView({ notifications, onMarkRead, onEvaluate }: Notificati
     }
   };
 
+  const handleDownload = async (fileUrl: string, originalName: string, studentName: string, date: string, moduleName: string) => {
+    try {
+      const response = await fetch(fileUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Format date for filename
+      const formattedDate = new Date(date).toISOString().split('T')[0];
+      const cleanModuleName = moduleName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      const cleanStudentName = studentName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+      const extension = originalName.split('.').pop();
+      
+      link.download = `${cleanStudentName}_${formattedDate}_${cleanModuleName}.${extension}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Download failed:", error);
+      // Fallback to direct link if fetch fails
+      window.open(fileUrl, '_blank');
+    }
+  };
+
+  const handleDelete = async (fileUrl: string, submissionId: string, fileName: string) => {
+    if (!onDeleteFile) return;
+    if (!confirm(`Are you sure you want to delete "${fileName}" from storage? This cannot be undone.`)) return;
+    
+    setIsDeleting(fileUrl);
+    try {
+      await onDeleteFile(fileUrl, submissionId, fileName);
+    } catch (error) {
+      console.error("Delete failed:", error);
+    } finally {
+      setIsDeleting(null);
+    }
+  };
+
+  const getDaysLeft = (timestamp: string) => {
+    const submissionDate = new Date(timestamp);
+    const deadlineDate = new Date(submissionDate.getTime() + (28 * 24 * 60 * 60 * 1000)); // 4 weeks
+    const now = new Date();
+    const diffTime = deadlineDate.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
   return (
     <div className="h-full bg-slate-950 p-8 overflow-y-auto">
       <div className="max-w-4xl mx-auto">
@@ -3019,126 +3072,163 @@ function NotificationsView({ notifications, onMarkRead, onEvaluate }: Notificati
             <h2 className="text-2xl font-bold text-white">Notifications & Submissions</h2>
             <p className="text-slate-400">Review student uploads and provide evaluations.</p>
           </div>
-          <div className="bg-slate-900 px-4 py-2 rounded-lg border border-slate-800">
-            <span className="text-xs text-slate-500 uppercase font-bold mr-2">Unread:</span>
-            <span className="text-blue-400 font-bold">{notifications.filter(n => !n.read).length}</span>
+          <div className="flex gap-4">
+            <div className="bg-slate-900 px-4 py-2 rounded-lg border border-slate-800">
+              <span className="text-xs text-slate-500 uppercase font-bold mr-2">Unread:</span>
+              <span className="text-blue-400 font-bold">{notifications.filter(n => !n.read).length}</span>
+            </div>
+            <div className="bg-slate-900 px-4 py-2 rounded-lg border border-slate-800">
+              <span className="text-xs text-slate-500 uppercase font-bold mr-2">Pending Eval:</span>
+              <span className="text-orange-400 font-bold">{notifications.filter(n => !n.evaluated).length}</span>
+            </div>
           </div>
         </div>
 
         <div className="space-y-4">
           {sortedNotifications.length > 0 ? (
-            sortedNotifications.map(notif => (
-              <div 
-                key={notif.id} 
-                className={`bg-slate-900 rounded-xl border transition-all ${notif.read ? 'border-slate-800 opacity-80' : 'border-blue-500/30 shadow-lg shadow-blue-500/5'}`}
-                onClick={() => !notif.read && onMarkRead(notif.id)}
-              >
-                <div className="p-6">
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${notif.read ? 'bg-slate-800 text-slate-500' : 'bg-blue-500/20 text-blue-400'}`}>
-                        <FileUp size={20} />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h3 className="font-bold text-white">{notif.userName}</h3>
-                          {!notif.read && <span className="w-2 h-2 bg-blue-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.5)]"></span>}
+            sortedNotifications.map(notif => {
+              const daysLeft = getDaysLeft(notif.timestamp);
+              const isUrgent = daysLeft <= 7 && !notif.evaluated;
+              
+              return (
+                <div 
+                  key={notif.id} 
+                  className={`bg-slate-900 rounded-xl border transition-all ${notif.read ? 'border-slate-800 opacity-90' : 'border-blue-500/30 shadow-lg shadow-blue-500/5'}`}
+                  onClick={() => !notif.read && onMarkRead(notif.id)}
+                >
+                  <div className="p-6">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${notif.type === 'DEADLINE_WARNING' ? 'bg-red-500/20 text-red-400' : notif.evaluated ? 'bg-emerald-500/20 text-emerald-400' : notif.read ? 'bg-slate-800 text-slate-500' : 'bg-blue-500/20 text-blue-400'}`}>
+                          {notif.type === 'DEADLINE_WARNING' ? <AlertTriangle size={20} /> : notif.evaluated ? <CheckCircle2 size={20} /> : <FileUp size={20} />}
                         </div>
-                        <p className="text-xs text-slate-500">
-                          Uploaded to <span className="text-slate-300 font-medium">{notif.subTopicTitle}</span> in <span className="text-slate-300 font-medium">{notif.topicTitle}</span>
-                        </p>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-bold text-white">{notif.userName}</h3>
+                            {!notif.read && <span className="w-2 h-2 bg-blue-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.5)]"></span>}
+                            {notif.type === 'DEADLINE_WARNING' ? (
+                              <span className="px-2 py-0.5 bg-red-500/10 text-red-400 text-[10px] font-bold rounded uppercase tracking-wider border border-red-500/20">Deadline Warning</span>
+                            ) : notif.evaluated ? (
+                              <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[10px] font-bold rounded uppercase tracking-wider border border-emerald-500/20">Evaluated</span>
+                            ) : (
+                              <span className="px-2 py-0.5 bg-orange-500/10 text-orange-400 text-[10px] font-bold rounded uppercase tracking-wider border border-orange-500/20">Pending</span>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-500">
+                            Uploaded to <span className="text-slate-300 font-medium">{notif.subTopicTitle}</span> in <span className="text-slate-300 font-medium">{notif.topicTitle}</span>
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-[10px] text-slate-500 font-mono mb-1">{new Date(notif.timestamp).toLocaleString()}</div>
+                        {!notif.evaluated && (
+                          <div className={`text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 justify-end ${isUrgent ? 'text-red-400 animate-pulse' : 'text-slate-400'}`}>
+                            <Clock size={10} /> {daysLeft > 0 ? `${daysLeft} days left` : 'Deadline passed'}
+                          </div>
+                        )}
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="text-[10px] text-slate-500 font-mono mb-1">{new Date(notif.timestamp).toLocaleString()}</div>
-                      <div className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Exercise Submission</div>
-                    </div>
-                  </div>
 
-                  <div className="bg-slate-950/50 rounded-lg p-4 border border-slate-800/50 mb-4">
-                    <h4 className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Attached Files</h4>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {notif.files.map((file, idx) => (
-                        <a 
-                          key={idx} 
-                          href={file.url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="flex items-center justify-between p-3 bg-slate-900 border border-slate-800 rounded-lg hover:border-blue-500/50 hover:bg-slate-800 transition-all group"
-                        >
-                          <div className="flex items-center gap-3 truncate">
-                            <div className="p-2 bg-blue-500/10 rounded text-blue-400 group-hover:bg-blue-500/20 transition-colors">
-                              <Download size={16} />
+                    <div className="bg-slate-950/50 rounded-lg p-4 border border-slate-800/50 mb-4">
+                      <h4 className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Attached Files</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {notif.files.map((file, idx) => (
+                          <div key={idx} className="flex items-center gap-2">
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDownload(file.url, file.name, notif.userName, notif.timestamp, notif.subTopicTitle);
+                              }}
+                              className="flex-1 flex items-center justify-between p-3 bg-slate-900 border border-slate-800 rounded-lg hover:border-blue-500/50 hover:bg-slate-800 transition-all group"
+                            >
+                              <div className="flex items-center gap-3 truncate">
+                                <div className="p-2 bg-blue-500/10 rounded text-blue-400 group-hover:bg-blue-500/20 transition-colors">
+                                  <Download size={16} />
+                                </div>
+                                <span className="text-sm text-slate-300 truncate">{file.name}</span>
+                              </div>
+                              <ExternalLink size={14} className="text-slate-600 group-hover:text-blue-400" />
+                            </button>
+                            {onDeleteFile && (
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(file.url, notif.submissionId, file.name);
+                                }}
+                                disabled={isDeleting === file.url}
+                                className="p-3 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-lg border border-red-500/20 transition-all disabled:opacity-50"
+                                title="Delete from Storage"
+                              >
+                                {isDeleting === file.url ? <RefreshCw size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end gap-3">
+                      {evaluatingId === notif.id ? (
+                        <div className="w-full bg-slate-800/50 p-4 rounded-lg border border-blue-500/20 animate-in fade-in slide-in-from-top-2">
+                          <div className="flex justify-between items-center mb-4">
+                            <h4 className="text-sm font-bold text-white">Evaluate Submission</h4>
+                            <button onClick={() => setEvaluatingId(null)} className="text-slate-500 hover:text-white"><X size={16}/></button>
+                          </div>
+                          <div className="space-y-4">
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Score (0-100)</label>
+                              <input 
+                                type="number" 
+                                min="0" 
+                                max="100" 
+                                value={score}
+                                onChange={e => setScore(parseInt(e.target.value) || 0)}
+                                className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-blue-500"
+                              />
                             </div>
-                            <span className="text-sm text-slate-300 truncate">{file.name}</span>
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Feedback (Optional)</label>
+                              <textarea 
+                                value={feedback}
+                                onChange={e => setFeedback(e.target.value)}
+                                rows={3}
+                                className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-blue-500 resize-none"
+                                placeholder="Great work! The implementation is clean..."
+                              />
+                            </div>
+                            <div className="flex justify-end gap-2">
+                              <button 
+                                onClick={() => setEvaluatingId(null)}
+                                className="px-4 py-2 text-xs font-bold text-slate-400 hover:text-white transition-colors"
+                              >
+                                Cancel
+                              </button>
+                              <button 
+                                onClick={() => handleSubmitEvaluation(notif.submissionId)}
+                                disabled={isSubmitting}
+                                className="px-6 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-2"
+                              >
+                                {isSubmitting ? 'Saving...' : 'Submit Evaluation'}
+                              </button>
+                            </div>
                           </div>
-                          <ExternalLink size={14} className="text-slate-600 group-hover:text-blue-400" />
-                        </a>
-                      ))}
+                        </div>
+                      ) : (
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleStartEvaluate(notif);
+                          }}
+                          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold border transition-all ${notif.evaluated ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20'}`}
+                        >
+                          <Award size={14} /> {notif.evaluated ? 'Update Evaluation' : 'Evaluate Submission'}
+                        </button>
+                      )}
                     </div>
-                  </div>
-
-                  <div className="flex justify-end gap-3">
-                    {evaluatingId === notif.id ? (
-                      <div className="w-full bg-slate-800/50 p-4 rounded-lg border border-blue-500/20 animate-in fade-in slide-in-from-top-2">
-                        <div className="flex justify-between items-center mb-4">
-                          <h4 className="text-sm font-bold text-white">Evaluate Submission</h4>
-                          <button onClick={() => setEvaluatingId(null)} className="text-slate-500 hover:text-white"><X size={16}/></button>
-                        </div>
-                        <div className="space-y-4">
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Score (0-100)</label>
-                            <input 
-                              type="number" 
-                              min="0" 
-                              max="100" 
-                              value={score}
-                              onChange={e => setScore(parseInt(e.target.value) || 0)}
-                              className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-blue-500"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Feedback (Optional)</label>
-                            <textarea 
-                              value={feedback}
-                              onChange={e => setFeedback(e.target.value)}
-                              rows={3}
-                              className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-blue-500 resize-none"
-                              placeholder="Great work! The implementation is clean..."
-                            />
-                          </div>
-                          <div className="flex justify-end gap-2">
-                            <button 
-                              onClick={() => setEvaluatingId(null)}
-                              className="px-4 py-2 text-xs font-bold text-slate-400 hover:text-white transition-colors"
-                            >
-                              Cancel
-                            </button>
-                            <button 
-                              onClick={() => handleSubmitEvaluation(notif.submissionId)}
-                              disabled={isSubmitting}
-                              className="px-6 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-2"
-                            >
-                              {isSubmitting ? 'Saving...' : 'Submit Evaluation'}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleStartEvaluate(notif);
-                        }}
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 rounded-lg text-xs font-bold border border-blue-500/20 transition-all"
-                      >
-                        <Award size={14} /> Evaluate Submission
-                      </button>
-                    )}
                   </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           ) : (
             <div className="flex flex-col items-center justify-center py-20 bg-slate-900/50 rounded-2xl border border-dashed border-slate-800">
               <BellOff size={48} className="text-slate-700 mb-4" />
@@ -3159,12 +3249,14 @@ export default function AdminBuilder({
   initialTags, 
   initialLandingConfig, 
   notifications,
+  initialTab = 'ANALYTICS',
   onMarkNotificationRead,
   onEvaluateSubmission,
+  onDeleteFile,
   onApplyChanges, 
   onExit 
 }: AdminBuilderProps) {
-  const [activeTab, setActiveTab] = useState<'ANALYTICS' | 'CURRICULUM' | 'TEACHERS' | 'USERS_LIST' | 'TAGS' | 'USER_INTERFACE' | 'NOTIFICATIONS'>('ANALYTICS');
+  const [activeTab, setActiveTab] = useState<'ANALYTICS' | 'CURRICULUM' | 'TEACHERS' | 'USERS_LIST' | 'TAGS' | 'USER_INTERFACE' | 'NOTIFICATIONS'>(initialTab);
   const [showUsersDropdown, setShowUsersDropdown] = useState(false);
   
   // States

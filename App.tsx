@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { auth, db } from './firebase';
+import { auth, db, storage } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, deleteDoc, onSnapshot, getDocFromServer, collection, getDocs, query, writeBatch } from 'firebase/firestore';
+import { ref, deleteObject } from 'firebase/storage';
 import { MEDIA_ROOT } from './constants';
 import initialCurriculum from './src/data/curriculum.json';
 import { Topic, ViewState, User, Comment, QuizAttempt, Teacher, LandingConfig, CompletionRecord, Tag, ExerciseSubmission, Notification as AppNotification } from './types';
@@ -237,6 +238,51 @@ const App: React.FC = () => {
   const [currentUsers, setCurrentUsers] = useState<User[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [isNotificationsLoaded, setIsNotificationsLoaded] = useState(false);
+  const [adminInitialTab, setAdminInitialTab] = useState<'ANALYTICS' | 'CURRICULUM' | 'TEACHERS' | 'USERS_LIST' | 'TAGS' | 'USER_INTERFACE' | 'NOTIFICATIONS'>('ANALYTICS');
+
+  // Deadline check effect
+  useEffect(() => {
+    if (currentUser?.role !== 'admin' || !isNotificationsLoaded) return;
+
+    const checkDeadlines = async () => {
+      const now = new Date();
+      const batch = writeBatch(db);
+      let hasChanges = false;
+
+      for (const notif of notifications) {
+        if (notif.type === 'EXERCISE_SUBMISSION' && !notif.evaluated && !notif.deadlineNotificationSent) {
+          const submissionDate = new Date(notif.timestamp);
+          const diffDays = (now.getTime() - submissionDate.getTime()) / (1000 * 60 * 60 * 24);
+
+          if (diffDays >= 21) { // 3 weeks passed, 1 week left
+            const warningId = `warning_${notif.id}`;
+            const warningNotif: AppNotification = {
+              ...notif,
+              id: warningId,
+              type: 'DEADLINE_WARNING',
+              timestamp: now.toISOString(),
+              read: false,
+              evaluated: false
+            };
+            
+            batch.set(doc(db, 'notifications', warningId), warningNotif);
+            batch.update(doc(db, 'notifications', notif.id), { deadlineNotificationSent: true });
+            hasChanges = true;
+          }
+        }
+      }
+
+      if (hasChanges) {
+        try {
+          await batch.commit();
+        } catch (error) {
+          console.error("Failed to commit deadline warnings:", error);
+        }
+      }
+    };
+
+    checkDeadlines();
+  }, [notifications, currentUser, isNotificationsLoaded]);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [landingConfig, setLandingConfig] = useState<LandingConfig>({
     title: "Digital Built Environment",
@@ -720,6 +766,7 @@ const App: React.FC = () => {
                   submissionId: submissionData.id,
                   timestamp: new Date().toISOString(),
                   read: false,
+                  evaluated: false,
                   type: 'EXERCISE_SUBMISSION',
                   files: submissionData.files.map(f => ({ name: f.name, url: f.url }))
               };
@@ -882,6 +929,7 @@ const App: React.FC = () => {
             initialTags={currentTags}
             initialLandingConfig={landingConfig}
             notifications={notifications}
+            initialTab={adminInitialTab}
             onApplyChanges={handleApplyAdminChanges}
             onExit={() => setViewState(ViewState.HOME)}
             onMarkNotificationRead={async (id) => {
@@ -898,8 +946,41 @@ const App: React.FC = () => {
                         feedback, 
                         status: 'reviewed' 
                     }, { merge: true });
+
+                    // Also find and update the notification
+                    const notif = notifications.find(n => n.submissionId === submissionId);
+                    if (notif) {
+                        await setDoc(doc(db, 'notifications', notif.id), { evaluated: true }, { merge: true });
+                    }
                 } catch (error) {
                     handleFirestoreError(error, OperationType.WRITE, `submissions/${submissionId}`);
+                }
+            }}
+            onDeleteFile={async (fileUrl, submissionId, fileName) => {
+                try {
+                    // 1. Delete from Storage
+                    const fileRef = ref(storage, fileUrl);
+                    await deleteObject(fileRef);
+
+                    // 2. Update Submission in Firestore to remove the file reference
+                    const submissionRef = doc(db, 'submissions', submissionId);
+                    const submissionSnap = await getDoc(submissionRef);
+                    
+                    if (submissionSnap.exists()) {
+                        const data = submissionSnap.data() as ExerciseSubmission;
+                        const updatedFiles = data.files.filter(f => f.url !== fileUrl);
+                        await setDoc(submissionRef, { files: updatedFiles }, { merge: true });
+                        
+                        // 3. Update Notification in Firestore
+                        const notif = notifications.find(n => n.submissionId === submissionId);
+                        if (notif) {
+                            const updatedNotifFiles = notif.files.filter(f => f.url !== fileUrl);
+                            await setDoc(doc(db, 'notifications', notif.id), { files: updatedNotifFiles }, { merge: true });
+                        }
+                    }
+                } catch (error) {
+                    console.error("Failed to delete file:", error);
+                    throw error;
                 }
             }}
         />
@@ -1036,8 +1117,8 @@ const App: React.FC = () => {
                                         {currentUser.role === 'admin' && (
                                             <button 
                                                 onClick={() => {
+                                                    setAdminInitialTab('NOTIFICATIONS');
                                                     setViewState(ViewState.ADMIN_BUILDER);
-                                                    // We'll need to pass a tab state to AdminBuilder to open Notifications tab
                                                     setShowUserDropdown(false);
                                                 }}
                                                 className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
