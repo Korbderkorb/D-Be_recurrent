@@ -1439,9 +1439,11 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
                       <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
                       <Tooltip 
-                        contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', color: '#fff' }}
-                        itemStyle={{ fontSize: '12px', color: '#fff' }}
-                        labelStyle={{ color: '#fff' }}
+                        contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', color: '#fff', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }}
+                        itemStyle={{ fontSize: '12px', color: '#fff', padding: '2px 0' }}
+                        labelStyle={{ color: '#94a3b8', fontWeight: 'bold', marginBottom: '4px' }}
+                        cursor={{ fill: 'rgba(255, 255, 255, 0.03)', radius: 8 }}
+                        wrapperStyle={{ outline: 'none' }}
                       />
                       {graphMetric !== 'both' && <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '12px' }} />}
                       {(graphMetric === 'progress' || graphMetric === 'both') && (
@@ -1521,9 +1523,10 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
                       <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
                       <Tooltip 
-                        contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', color: '#fff' }}
-                        itemStyle={{ fontSize: '12px', color: '#fff' }}
-                        labelStyle={{ color: '#fff' }}
+                        contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', color: '#fff', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }}
+                        itemStyle={{ fontSize: '12px', color: '#fff', padding: '2px 0' }}
+                        labelStyle={{ color: '#94a3b8', fontWeight: 'bold', marginBottom: '4px' }}
+                        wrapperStyle={{ outline: 'none' }}
                       />
                       <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '12px' }} />
                       {(graphMetric === 'progress' || graphMetric === 'both') && (
@@ -1555,8 +1558,10 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
                       <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
                       <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
                       <Tooltip 
-                        contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', color: '#fff' }}
-                        itemStyle={{ fontSize: '12px' }}
+                        contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', color: '#fff', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }}
+                        itemStyle={{ fontSize: '12px', color: '#fff', padding: '2px 0' }}
+                        labelStyle={{ color: '#94a3b8', fontWeight: 'bold', marginBottom: '4px' }}
+                        wrapperStyle={{ outline: 'none' }}
                       />
                       <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '12px' }} />
                       {(graphMetric === 'progress' || graphMetric === 'both') && (
@@ -1644,6 +1649,8 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
                       content={<CustomTimelineTooltip />} 
                       shared={false}
                       trigger="hover"
+                      wrapperStyle={{ outline: 'none' }}
+                      cursor={{ stroke: '#3b82f6', strokeWidth: 1, strokeDasharray: '4 4' }}
                     />
                     <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '12px' }} />
                     {timelineData.map(userTimeline => (
@@ -1734,11 +1741,12 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
                       label={{ value: 'Average Score %', angle: -90, position: 'insideLeft', fontSize: 10, fill: '#475569', fontWeight: 'bold' }}
                     />
                     <Tooltip 
-                      cursor={{ fill: '#1e293b' }}
-                      contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', color: '#fff' }}
-                      itemStyle={{ fontSize: '12px', color: '#fff' }}
-                      labelStyle={{ color: '#fff' }}
+                      cursor={{ fill: 'rgba(255, 255, 255, 0.03)', radius: 8 }}
+                      contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', color: '#fff', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }}
+                      itemStyle={{ fontSize: '12px', color: '#fff', padding: '2px 0' }}
+                      labelStyle={{ color: '#94a3b8', fontWeight: 'bold', marginBottom: '4px' }}
                       formatter={(value: any) => [`${value}%`, 'Avg Score']}
+                      wrapperStyle={{ outline: 'none' }}
                     />
                     <Bar 
                       dataKey="avgScore" 
@@ -1974,11 +1982,13 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
                           minTickGap={20}
                         />
                         <YAxis domain={[0, 100]} hide={true} />
-                        <Tooltip 
-                          labelFormatter={(t) => new Date(t).toLocaleString()}
-                          contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '8px', color: '#fff' }}
-                          itemStyle={{ fontSize: '10px', color: '#fff' }}
-                        />
+                      <Tooltip 
+                        labelFormatter={(t) => new Date(t).toLocaleString()}
+                        contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', color: '#fff', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }}
+                        itemStyle={{ fontSize: '10px', color: '#fff' }}
+                        wrapperStyle={{ outline: 'none' }}
+                        cursor={{ stroke: '#3b82f6', strokeWidth: 1, strokeDasharray: '4 4' }}
+                      />
                         <Line 
                           type="monotone" 
                           dataKey="progress" 
@@ -2042,6 +2052,12 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
                         ]}>
                           <PolarGrid stroke="#1e293b" />
                           <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: '#64748b' }} />
+                          <Tooltip 
+                            contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', color: '#fff', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }}
+                            itemStyle={{ fontSize: '12px', color: '#fff', padding: '2px 0' }}
+                            labelStyle={{ color: '#94a3b8', fontWeight: 'bold', marginBottom: '4px' }}
+                            wrapperStyle={{ outline: 'none' }}
+                          />
                           <Radar name={selectedUser.name} dataKey="A" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} />
                           <Radar name="Group Avg" dataKey="B" stroke="#64748b" fill="#64748b" fillOpacity={0.3} />
                           <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', color: '#64748b' }} />
@@ -2379,6 +2395,13 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
                         <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                         <XAxis dataKey="name" tick={{ fontSize: 10 }} />
                         <YAxis domain={[0, 100]} tick={{ fontSize: 10 }} />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                          itemStyle={{ fontSize: '12px', color: '#1e293b' }}
+                          labelStyle={{ fontWeight: 'bold', color: '#64748b' }}
+                          cursor={{ fill: 'rgba(0, 0, 0, 0.02)', radius: 8 }}
+                          wrapperStyle={{ outline: 'none' }}
+                        />
                         <Bar dataKey="progress" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Progress %" />
                         <Bar dataKey="avgScore" fill="#10b981" radius={[4, 4, 0, 0]} name="Avg Score %" />
                         <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '20px' }} />
@@ -2430,6 +2453,13 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
                           domain={[0, 100]} 
                           tick={{ fontSize: 10 }}
                           label={{ value: 'Average Score %', angle: -90, position: 'insideLeft', fontSize: 10, fill: '#94a3b8', fontWeight: 'bold' }}
+                        />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                          itemStyle={{ fontSize: '12px', color: '#1e293b' }}
+                          labelStyle={{ fontWeight: 'bold', color: '#64748b' }}
+                          cursor={{ fill: 'rgba(0, 0, 0, 0.02)', radius: 8 }}
+                          wrapperStyle={{ outline: 'none' }}
                         />
                         <Bar dataKey="avgScore" fill="#3b82f6" radius={[4, 4, 0, 0]}>
                           <LabelList 
@@ -2673,6 +2703,12 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
                       ]}>
                         <PolarGrid stroke="#e2e8f0" />
                         <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                        <Tooltip 
+                          contentStyle={{ backgroundColor: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                          itemStyle={{ fontSize: '12px', color: '#1e293b' }}
+                          labelStyle={{ fontWeight: 'bold', color: '#64748b' }}
+                          wrapperStyle={{ outline: 'none' }}
+                        />
                         <Radar name={selectedUserForPrint.name} dataKey="A" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} />
                         <Legend wrapperStyle={{ fontSize: '10px', marginLeft: '-12px', marginRight: '80px', paddingLeft: '1px' }} />
                       </RadarChart>
@@ -3012,8 +3048,24 @@ function NotificationsView({ notifications, onMarkRead, onEvaluate, onToggleComp
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isTogglingCompleted, setIsTogglingCompleted] = useState<string | null>(null);
+  
+  // Sorting states
+  const [sortBy, setSortBy] = useState<'time' | 'user' | 'module'>('time');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
-  const sortedNotifications = [...notifications].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+  const sortedNotifications = useMemo(() => {
+    return [...notifications].sort((a, b) => {
+      let comparison = 0;
+      if (sortBy === 'time') {
+        comparison = a.timestamp.localeCompare(b.timestamp);
+      } else if (sortBy === 'user') {
+        comparison = a.userName.localeCompare(b.userName);
+      } else if (sortBy === 'module') {
+        comparison = a.subTopicTitle.localeCompare(b.subTopicTitle);
+      }
+      return sortOrder === 'desc' ? -comparison : comparison;
+    });
+  }, [notifications, sortBy, sortOrder]);
 
   const handleStartEvaluate = (notif: AppNotification) => {
     setEvaluatingId(notif.id);
@@ -3100,18 +3152,48 @@ function NotificationsView({ notifications, onMarkRead, onEvaluate, onToggleComp
   return (
     <div className="h-full bg-slate-950 p-8 overflow-y-auto">
       <div className="max-w-4xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h2 className="text-2xl font-bold text-white">Notifications & Submissions</h2>
-            <p className="text-slate-400">Review student uploads and provide evaluations.</p>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
+          <div className="flex items-center gap-4">
+            <div className="flex flex-col">
+              <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 ml-1">Sort By</label>
+              <div className="flex gap-1">
+                <button 
+                  onClick={() => setSortBy('time')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${sortBy === 'time' ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20' : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'}`}
+                >
+                  Time
+                </button>
+                <button 
+                  onClick={() => setSortBy('user')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${sortBy === 'user' ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20' : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'}`}
+                >
+                  User
+                </button>
+                <button 
+                  onClick={() => setSortBy('module')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${sortBy === 'module' ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20' : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'}`}
+                >
+                  Module
+                </button>
+              </div>
+            </div>
+            <div className="flex flex-col">
+              <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 ml-1">Order</label>
+              <button 
+                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                className="p-1.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-400 hover:text-white transition-all"
+              >
+                {sortOrder === 'desc' ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
+              </button>
+            </div>
           </div>
-          <div className="flex gap-4">
-            <div className="bg-slate-900 px-4 py-2 rounded-lg border border-slate-800">
-              <span className="text-xs text-slate-500 uppercase font-bold mr-2">Unread:</span>
+          <div className="flex gap-3">
+            <div className="bg-slate-800/50 px-4 py-2 rounded-xl border border-slate-700/50">
+              <span className="text-[10px] text-slate-500 uppercase font-bold mr-2">Unread</span>
               <span className="text-blue-400 font-bold">{notifications.filter(n => !n.read).length}</span>
             </div>
-            <div className="bg-slate-900 px-4 py-2 rounded-lg border border-slate-800">
-              <span className="text-xs text-slate-500 uppercase font-bold mr-2">Pending Eval:</span>
+            <div className="bg-slate-800/50 px-4 py-2 rounded-xl border border-slate-700/50">
+              <span className="text-[10px] text-slate-500 uppercase font-bold mr-2">Pending</span>
               <span className="text-orange-400 font-bold">{notifications.filter(n => !n.evaluated).length}</span>
             </div>
           </div>
