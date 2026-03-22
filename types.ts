@@ -7,6 +7,7 @@ export interface Reaction {
 
 export interface Comment {
   id: string;
+  userId: string;
   user: string;
   avatar: string;
   text: string;
@@ -64,6 +65,7 @@ export interface ExerciseSubmission {
   status: 'pending' | 'reviewed' | 'rejected';
   feedback?: string;
   grade?: string | number;
+  comments?: Comment[];
 }
 
 export interface SubTopic {
@@ -148,6 +150,15 @@ export interface LandingConfig {
   browserTitle?: string;
   faviconUrl?: string;
 
+  // Interface Settings
+  showTeachersTab?: boolean;
+  showStudentAnalytics?: boolean;
+  showStudentRadar?: boolean;
+  showStudentBar?: boolean;
+  showStudentLine?: boolean;
+  showStudentScatter?: boolean;
+  showStudentSubmissions?: boolean;
+
   // Login Page
   loginTitle?: string;
   loginSubtitle?: string;
@@ -210,8 +221,12 @@ export interface Notification {
   completed?: boolean;
   grade?: number | string;
   feedback?: string;
+  comments?: Comment[];
+  lastCommentTimestamp?: string;
+  hasNewComments?: boolean;
+  targetUserId?: string; // 'admin' or a specific student userId
   deadlineNotificationSent?: boolean;
-  type: 'EXERCISE_SUBMISSION' | 'DEADLINE_WARNING';
+  type: 'EXERCISE_SUBMISSION' | 'DEADLINE_WARNING' | 'SUBMISSION_COMMENT';
   files: {
     name: string;
     url: string;

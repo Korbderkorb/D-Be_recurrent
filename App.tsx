@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db, storage } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, deleteDoc, onSnapshot, getDocFromServer, collection, getDocs, query, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, onSnapshot, getDocFromServer, collection, getDocs, query, writeBatch, where } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
 import { MEDIA_ROOT } from './constants';
 import initialCurriculum from './src/data/curriculum.json';
@@ -12,9 +12,15 @@ import TopicGraph from './components/TopicGraph';
 import TopicDetail from './components/TopicDetail';
 import Login from './components/Login';
 import ModuleList from './components/ModuleList';
-import AdminBuilder from './components/AdminBuilder';
+import AdminBuilder, { AnalyticsView, NotificationsView } from './components/AdminBuilder';
 import Joyride, { Step, CallBackProps, STATUS } from 'react-joyride';
-import { BookOpen, Layers, Search, LogOut, LayoutGrid, Network, ArrowRight, ArrowLeft, Edit3, Lock, AlertTriangle, GraduationCap, Bell, ChevronDown, User as UserIcon, X, CheckCircle2, History, RotateCcw, FileText, MessageCircle, Download, PlayCircle, Mail, Copy, Check } from 'lucide-react';
+import { BookOpen, Layers, Search, LogOut, LayoutGrid, Network, ArrowRight, ArrowLeft, Edit3, Lock, AlertTriangle, GraduationCap, Bell, ChevronDown, User as UserIcon, X, CheckCircle2, History, RotateCcw, FileText, MessageCircle, Download, PlayCircle, Mail, Copy, Check, List, BarChart3, TrendingUp, Target, Award, Clock, MessageSquare, Send } from 'lucide-react';
+import { 
+  BarChart, Bar, LineChart, Line, RadarChart, Radar, 
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
+  PolarGrid, PolarAngleAxis, PolarRadiusAxis, Area, AreaChart, 
+  Scatter, ScatterChart, ZAxis, Cell 
+} from 'recharts';
 
 const tourSteps: Step[] = [
   {
@@ -169,6 +175,421 @@ const TourTooltip = ({
     </motion.div>
   );
 };
+
+// ===============================================================
+// STUDENT ANALYTICS VIEW
+// ===============================================================
+function StudentAnalyticsView({ user, topics, landingConfig, submissions, onPostSubmissionComment, initialTab = 'OVERVIEW' }: { 
+  user: User, 
+  topics: Topic[], 
+  landingConfig: LandingConfig,
+  submissions: ExerciseSubmission[],
+  onPostSubmissionComment: (submissionId: string, text: string) => Promise<void>,
+  initialTab?: 'OVERVIEW' | 'SUBMISSIONS'
+}) {
+  const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'SUBMISSIONS'>(initialTab);
+  
+  // Update activeTab if initialTab changes
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
+  const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
+
+  const performanceData = useMemo(() => {
+    const totalSubTopics = topics.reduce((acc, t) => acc + t.subTopics.length, 0) || 1;
+    const completed = (user.completedSubTopics || []).length;
+    const quizAttempts = user.quizAttempts || [];
+    
+    const avgScore = quizAttempts.length > 0 
+      ? Math.round(quizAttempts.reduce((acc, a) => acc + (a.score / a.total), 0) / quizAttempts.length * 100)
+      : 0;
+
+    const uniqueDays = new Set((user.completedSubTopics || []).map(c => c.completedAt?.split('T')[0])).size;
+    const consistency = Math.min(100, (uniqueDays / 7) * 100);
+    const engagement = Math.min(100, (quizAttempts.length / totalSubTopics) * 100);
+    const avgTime = quizAttempts.length > 0 
+      ? quizAttempts.reduce((acc, a) => acc + a.timeTaken, 0) / quizAttempts.length
+      : 0;
+    const speed = avgTime > 0 ? Math.max(0, 100 - (avgTime / 240) * 100) : 0;
+
+    return [
+      { subject: 'Progress', A: Math.round((completed / totalSubTopics) * 100), fullMark: 100 },
+      { subject: 'Score', A: avgScore, fullMark: 100 },
+      { subject: 'Consistency', A: Math.round(consistency), fullMark: 100 },
+      { subject: 'Engagement', A: Math.round(engagement), fullMark: 100 },
+      { subject: 'Speed', A: Math.round(speed), fullMark: 100 },
+    ];
+  }, [user, topics]);
+
+  const moduleProgressData = useMemo(() => {
+    return topics.map(t => {
+      const completed = t.subTopics.filter(st => 
+        (user.completedSubTopics || []).some(c => c.id === st.id)
+      ).length;
+      return {
+        name: t.title,
+        completed,
+        total: t.subTopics.length,
+        percentage: Math.round((completed / t.subTopics.length) * 100)
+      };
+    });
+  }, [user, topics]);
+
+  const timelineData = useMemo(() => {
+    const events: any[] = [];
+    (user.completedSubTopics || []).forEach(c => {
+      events.push({
+        date: c.completedAt?.split('T')[0],
+        type: 'completion',
+        val: 1
+      });
+    });
+    (user.quizAttempts || []).forEach(a => {
+      events.push({
+        date: a.timestamp.split('T')[0],
+        type: 'quiz',
+        score: Math.round((a.score / a.total) * 100)
+      });
+    });
+
+    const sortedDates = [...new Set(events.map(e => e.date))].sort();
+    let cumulativeProgress = 0;
+    const totalSubTopics = topics.reduce((acc, t) => acc + t.subTopics.length, 0) || 1;
+
+    return sortedDates.map(date => {
+      const dayEvents = events.filter(e => e.date === date);
+      const completions = dayEvents.filter(e => e.type === 'completion').length;
+      cumulativeProgress += completions;
+      const dayQuizzes = dayEvents.filter(e => e.type === 'quiz');
+      const avgScore = dayQuizzes.length > 0 
+        ? Math.round(dayQuizzes.reduce((acc, q) => acc + q.score, 0) / dayQuizzes.length)
+        : null;
+
+      return {
+        date,
+        progress: Math.round((cumulativeProgress / totalSubTopics) * 100),
+        score: avgScore
+      };
+    });
+  }, [user, topics]);
+
+  const scatterData = useMemo(() => {
+    return (user.quizAttempts || []).map(a => ({
+      time: Math.round(a.timeTaken / 60 * 10) / 10,
+      score: Math.round((a.score / a.total) * 100),
+      name: topics.flatMap(t => t.subTopics).find(st => st.id === a.subTopicId)?.title || 'Unknown'
+    }));
+  }, [user, topics]);
+
+  return (
+    <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-8">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-bold text-white mb-2">Personal Analytics</h2>
+          <p className="text-slate-400">Track your learning journey and performance metrics.</p>
+        </div>
+        <div className="flex gap-4">
+          {landingConfig.showStudentSubmissions !== false && (
+            <div className="flex bg-slate-900/50 border border-slate-800 rounded-2xl p-1">
+              <button 
+                onClick={() => setActiveTab('OVERVIEW')}
+                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'OVERVIEW' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:text-white'}`}
+              >
+                Overview
+              </button>
+              <button 
+                onClick={() => setActiveTab('SUBMISSIONS')}
+                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'SUBMISSIONS' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:text-white'}`}
+              >
+                Submissions
+              </button>
+            </div>
+          )}
+          <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 flex items-center gap-4">
+            <div className="w-10 h-10 bg-blue-500/20 rounded-xl flex items-center justify-center text-blue-400">
+              <Target className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Overall Progress</div>
+              <div className="text-xl font-bold text-white">{performanceData[0].A}%</div>
+            </div>
+          </div>
+          <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 flex items-center gap-4">
+            <div className="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center text-emerald-400">
+              <Award className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Avg Quiz Score</div>
+              <div className="text-xl font-bold text-white">{performanceData[1].A}%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {activeTab === 'OVERVIEW' ? (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* RADAR CHART */}
+          {landingConfig.showStudentRadar !== false && (
+            <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-6">
+              <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-blue-400" />
+                Performance Profile
+              </h3>
+              <div className="h-[300px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <RadarChart cx="50%" cy="50%" outerRadius="80%" data={performanceData}>
+                    <PolarGrid stroke="#334155" />
+                    <PolarAngleAxis dataKey="subject" tick={{ fill: '#94a3b8', fontSize: 12 }} />
+                    <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
+                    <Radar
+                      name="Performance"
+                      dataKey="A"
+                      stroke="#3b82f6"
+                      fill="#3b82f6"
+                      fillOpacity={0.5}
+                    />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px' }}
+                      itemStyle={{ color: '#fff' }}
+                    />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* BAR CHART */}
+          {landingConfig.showStudentBar !== false && (
+            <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-6">
+              <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+                <Layers className="w-5 h-5 text-purple-400" />
+                Module Completion
+              </h3>
+              <div className="h-[300px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={moduleProgressData} layout="vertical">
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" horizontal={false} />
+                    <XAxis type="number" domain={[0, 100]} hide />
+                    <YAxis dataKey="name" type="category" width={100} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                    <Tooltip 
+                      cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                      contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px' }}
+                    />
+                    <Bar dataKey="percentage" fill="#8b5cf6" radius={[0, 4, 4, 0]} barSize={20} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* LINE CHART */}
+          {landingConfig.showStudentLine !== false && (
+            <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-6 lg:col-span-2">
+              <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-emerald-400" />
+                Learning Timeline
+              </h3>
+              <div className="h-[300px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={timelineData}>
+                    <defs>
+                      <linearGradient id="colorProgress" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                    <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                    <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                    <Tooltip 
+                      contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px' }}
+                    />
+                    <Area type="monotone" dataKey="progress" stroke="#10b981" fillOpacity={1} fill="url(#colorProgress)" strokeWidth={3} />
+                    <Line type="monotone" dataKey="score" stroke="#f59e0b" strokeWidth={2} dot={{ r: 4 }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+
+          {/* SCATTER CHART */}
+          {landingConfig.showStudentScatter !== false && (
+            <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-6 lg:col-span-2">
+              <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+                <Clock className="w-5 h-5 text-orange-400" />
+                Quiz Performance vs Time
+              </h3>
+              <div className="h-[300px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                    <XAxis type="number" dataKey="time" name="Time" unit="min" tick={{ fill: '#94a3b8', fontSize: 10 }} label={{ value: 'Time (min)', position: 'bottom', fill: '#94a3b8', fontSize: 12 }} />
+                    <YAxis type="number" dataKey="score" name="Score" unit="%" tick={{ fill: '#94a3b8', fontSize: 10 }} label={{ value: 'Score (%)', angle: -90, position: 'left', fill: '#94a3b8', fontSize: 12 }} />
+                    <ZAxis type="category" dataKey="name" name="Module" />
+                    <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px' }} />
+                    <Scatter name="Quizzes" data={scatterData} fill="#f97316">
+                      {scatterData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={entry.score >= 80 ? '#10b981' : entry.score >= 50 ? '#f59e0b' : '#ef4444'} />
+                      ))}
+                    </Scatter>
+                  </ScatterChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {submissions.length === 0 ? (
+            <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-12 text-center">
+              <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center text-slate-600 mx-auto mb-4">
+                <FileText size={32} />
+              </div>
+              <h4 className="text-white font-bold text-lg">No Submissions Yet</h4>
+              <p className="text-slate-500 max-w-sm mx-auto mt-2">Complete exercises in your modules to see your submissions and feedback here.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-6">
+              {submissions.map(sub => {
+                const subTopic = topics.flatMap(t => t.subTopics).find(st => st.id === sub.subTopicId);
+                const topic = topics.find(t => t.id === sub.topicId);
+                
+                return (
+                  <div key={sub.id} className="bg-slate-900/50 border border-slate-800 rounded-3xl overflow-hidden">
+                    <div className="p-6 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`w-2 h-2 rounded-full ${
+                            sub.status === 'reviewed' ? 'bg-emerald-500' : 
+                            sub.status === 'rejected' ? 'bg-red-500' : 'bg-blue-500'
+                          }`} />
+                          <h4 className="text-white font-bold">{subTopic?.title || 'Exercise Submission'}</h4>
+                        </div>
+                        <p className="text-xs text-slate-500">{topic?.title} • {new Date(sub.timestamp).toLocaleString()}</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                          sub.status === 'reviewed' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 
+                          sub.status === 'rejected' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 
+                          'bg-blue-500/10 text-blue-400 border border-blue-500/20'
+                        }`}>
+                          {sub.status}
+                        </div>
+                        {sub.grade !== undefined && (
+                          <div className="px-3 py-1 bg-blue-600 text-white text-[10px] font-bold rounded-full">
+                            Grade: {sub.grade}/100
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
+                      <div className="space-y-6">
+                        <div>
+                          <h5 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Evaluation & Feedback</h5>
+                          {sub.feedback ? (
+                            <div className="p-4 bg-slate-950/50 border border-slate-800 rounded-2xl">
+                              <p className="text-sm text-slate-300 italic leading-relaxed">"{sub.feedback}"</p>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-slate-500 italic">No feedback provided yet.</p>
+                          )}
+                        </div>
+                        
+                        <div>
+                          <h5 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Submitted Files</h5>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {sub.files.map((file, idx) => (
+                              <a 
+                                key={idx}
+                                href={file.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex items-center gap-3 p-3 bg-slate-950/50 border border-slate-800 rounded-xl hover:border-blue-500/50 transition-all group"
+                              >
+                                <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-slate-500 group-hover:text-blue-400">
+                                  <FileText size={16} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-xs font-bold text-slate-300 truncate">{file.name}</div>
+                                  <div className="text-[10px] text-slate-500">{(file.size / 1024 / 1024).toFixed(2)} MB</div>
+                                </div>
+                                <Download size={14} className="text-slate-600 group-hover:text-blue-400" />
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-4">
+                        <h5 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Internal Discussion</h5>
+                        <div className="bg-slate-950/50 border border-slate-800 rounded-2xl p-4 flex flex-col h-[300px]">
+                          <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-2 custom-scrollbar">
+                            {(sub.comments || []).length === 0 ? (
+                              <div className="h-full flex flex-col items-center justify-center text-center p-4">
+                                <MessageSquare size={24} className="text-slate-800 mb-2" />
+                                <p className="text-xs text-slate-600">No comments yet. Start a discussion with your teacher about this evaluation.</p>
+                              </div>
+                            ) : (
+                              (sub.comments || []).map(comment => (
+                                <div key={comment.id} className={`flex gap-3 ${comment.user === user.name ? 'flex-row-reverse' : ''}`}>
+                                  <img src={comment.avatar} alt={comment.user} className="w-8 h-8 rounded-lg shrink-0" />
+                                  <div className={`flex flex-col ${comment.user === user.name ? 'items-end' : ''}`}>
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="text-[10px] font-bold text-white">{comment.user}</span>
+                                      <span className="text-[9px] text-slate-600">{new Date(comment.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                    </div>
+                                    <div className={`p-3 rounded-2xl text-xs ${
+                                      comment.user === user.name ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-slate-800 text-slate-300 rounded-tl-none'
+                                    }`}>
+                                      {comment.text}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                          
+                          <div className="flex gap-2">
+                            <input 
+                              type="text"
+                              value={commentInputs[sub.id] || ''}
+                              onChange={e => setCommentInputs(prev => ({ ...prev, [sub.id]: e.target.value }))}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' && commentInputs[sub.id]?.trim()) {
+                                  onPostSubmissionComment(sub.id, commentInputs[sub.id]);
+                                  setCommentInputs(prev => ({ ...prev, [sub.id]: '' }));
+                                }
+                              }}
+                              placeholder="Type a message..."
+                              className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                            />
+                            <button 
+                              onClick={() => {
+                                if (commentInputs[sub.id]?.trim()) {
+                                  onPostSubmissionComment(sub.id, commentInputs[sub.id]);
+                                  setCommentInputs(prev => ({ ...prev, [sub.id]: '' }));
+                                }
+                              }}
+                              disabled={!commentInputs[sub.id]?.trim()}
+                              className="w-10 h-10 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 text-white rounded-xl flex items-center justify-center transition-all"
+                            >
+                              <Send size={16} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const App: React.FC = () => {
   const [viewState, setViewState] = useState<ViewState>(ViewState.LOGIN);
@@ -451,6 +872,29 @@ const App: React.FC = () => {
 
     return () => unsubscribe();
   }, [selectedSubTopicId, isAuthReady]);
+
+  // Student Submissions Sync
+  useEffect(() => {
+    if (!currentUser || !isAuthReady || currentUser.role === 'admin') {
+      setStudentSubmissions([]);
+      return;
+    }
+
+    const q = query(collection(db, 'submissions'), where('userId', '==', currentUser.id));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const subs: ExerciseSubmission[] = [];
+      snapshot.forEach(doc => {
+        subs.push({ id: doc.id, ...doc.data() } as ExerciseSubmission);
+      });
+      // Sort by timestamp descending
+      subs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      setStudentSubmissions(subs);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'submissions');
+    });
+
+    return () => unsubscribe();
+  }, [currentUser, isAuthReady]);
   
   // App Data State (synced from Firestore)
   const [currentTopics, setCurrentTopics] = useState<Topic[]>([]);
@@ -462,6 +906,7 @@ const App: React.FC = () => {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [isNotificationsLoaded, setIsNotificationsLoaded] = useState(false);
   const [adminInitialTab, setAdminInitialTab] = useState<'ANALYTICS' | 'CURRICULUM' | 'TEACHERS' | 'USERS_LIST' | 'TAGS' | 'USER_INTERFACE' | 'NOTIFICATIONS'>('ANALYTICS');
+  const [studentInitialTab, setStudentInitialTab] = useState<'OVERVIEW' | 'SUBMISSIONS'>('OVERVIEW');
 
   // Deadline check effect
   useEffect(() => {
@@ -507,16 +952,22 @@ const App: React.FC = () => {
     checkDeadlines();
   }, [notifications, currentUser, isNotificationsLoaded]);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
+  const [highlightedNotificationId, setHighlightedNotificationId] = useState<string | null>(null);
   const userDropdownRef = useRef<HTMLDivElement>(null);
+  const notificationsDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
         setShowUserDropdown(false);
       }
+      if (notificationsDropdownRef.current && !notificationsDropdownRef.current.contains(event.target as Node)) {
+        setShowNotificationsDropdown(false);
+      }
     };
 
-    if (showUserDropdown) {
+    if (showUserDropdown || showNotificationsDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
     } else {
       document.removeEventListener('mousedown', handleClickOutside);
@@ -525,7 +976,32 @@ const App: React.FC = () => {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showUserDropdown]);
+  }, [showUserDropdown, showNotificationsDropdown]);
+
+  const handleNotificationClick = (notif: AppNotification) => {
+      setShowNotificationsDropdown(false);
+      setHighlightedNotificationId(notif.id);
+      setDashboardMode('NOTIFICATIONS');
+      // Mark as read after a short delay to allow the UI to highlight it
+      setTimeout(async () => {
+          try {
+              await setDoc(doc(db, 'notifications', notif.id), { read: true }, { merge: true });
+          } catch (error) {
+              console.error("Failed to mark notification as read:", error);
+          }
+      }, 2000);
+  };
+
+  const pulsingRedStyle = `
+    @keyframes pulse-red {
+      0% { transform: scale(1); opacity: 1; color: inherit; }
+      50% { transform: scale(1.1); opacity: 0.8; color: #ef4444; }
+      100% { transform: scale(1); opacity: 1; color: inherit; }
+    }
+    .animate-pulse-red {
+      animation: pulse-red 2s infinite;
+    }
+  `;
   const [landingConfig, setLandingConfig] = useState<LandingConfig>({
     title: "Digital Built Environment",
     subtitle: "Recurrent Program",
@@ -605,28 +1081,50 @@ const App: React.FC = () => {
     return () => unsubscribeUsers();
   }, [currentUser?.role, isAuthReady]);
 
-  // Notifications Sync for Admin
+  // Notifications Sync
   useEffect(() => {
-    if (currentUser?.role !== 'admin' || !isAuthReady) {
+    if (!currentUser || !isAuthReady) {
       setNotifications([]);
       setIsNotificationsLoaded(false);
       return;
     }
 
-    const unsubscribe = onSnapshot(collection(db, 'notifications'), (snapshot) => {
-      const notifs: AppNotification[] = [];
+    // Admins see all notifications targeted to 'admin', their own ID, or legacy notifications (no targetUserId)
+    // Students only see notifications targeted to them
+    let q;
+    if (currentUser.role === 'admin') {
+        q = query(collection(db, 'notifications'));
+    } else {
+        q = query(collection(db, 'notifications'), where('targetUserId', '==', currentUser.id));
+    }
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      let notifs: AppNotification[] = [];
       snapshot.forEach((doc) => {
         const data = doc.data();
         notifs.push({ id: doc.id, ...data } as AppNotification);
       });
-      setNotifications(notifs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+      
+      if (currentUser.role === 'admin') {
+          // For admins, filter out notifications that are explicitly targeted to a specific student (not the admin)
+          notifs = notifs.filter(n => !n.targetUserId || n.targetUserId === 'admin' || n.targetUserId === currentUser.id);
+      }
+
+      // Sort by lastCommentTimestamp if available, otherwise by timestamp
+      const sortedNotifs = notifs.sort((a, b) => {
+        const timeA = new Date(a.lastCommentTimestamp || a.timestamp).getTime();
+        const timeB = new Date(b.lastCommentTimestamp || b.timestamp).getTime();
+        return timeB - timeA;
+      });
+      
+      setNotifications(sortedNotifs);
       setIsNotificationsLoaded(true);
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'notifications');
     });
 
     return () => unsubscribe();
-  }, [currentUser?.role, isAuthReady]);
+  }, [currentUser?.id, currentUser?.role, isAuthReady]);
 
   // Topics Sync from Firestore
   useEffect(() => {
@@ -731,7 +1229,7 @@ const App: React.FC = () => {
   }, [currentUser, isAuthReady, isCurriculumLoaded]);
 
   // Dashboard State
-  const [dashboardMode, setDashboardMode] = useState<'GRAPH' | 'LIST' | 'TEACHERS'>('GRAPH');
+  const [dashboardMode, setDashboardMode] = useState<'GRAPH' | 'LIST' | 'TEACHERS' | 'ANALYTICS' | 'NOTIFICATIONS'>('GRAPH');
   const [selectedTeacherEmail, setSelectedTeacherEmail] = useState<string | null>(null);
 
   // Persistence State
@@ -740,6 +1238,17 @@ const App: React.FC = () => {
   const [topicComments, setTopicComments] = useState<Record<string, Comment[]>>({});
   const [quizProgress, setQuizProgress] = useState<Record<string, QuizAttempt[]>>({});
   const [isProgressLoaded, setIsProgressLoaded] = useState(false);
+  const [studentSubmissions, setStudentSubmissions] = useState<ExerciseSubmission[]>([]);
+
+  const userWithProgress = useMemo(() => {
+    if (!currentUser) return null;
+    return {
+      ...currentUser,
+      completedSubTopics: completionRecords,
+      submittedExercises: exerciseRecords,
+      quizAttempts: Object.values(quizProgress).flat()
+    };
+  }, [currentUser, completionRecords, exerciseRecords, quizProgress]);
 
   const completedSubTopics = useMemo(() => new Set(completionRecords.map(r => r.id)), [completionRecords]);
   const submittedExercises = useMemo(() => new Set(exerciseRecords.map(r => r.id)), [exerciseRecords]);
@@ -960,12 +1469,13 @@ const App: React.FC = () => {
   };
 
   const toggleSubTopicCompletion = (subTopicId: string) => {
+    const now = new Date().toISOString();
     setCompletionRecords(prev => {
         const index = prev.findIndex(r => r.id === subTopicId);
         if (index >= 0) {
             return prev.filter(r => r.id !== subTopicId);
         } else {
-            return [...prev, { id: subTopicId, completedAt: new Date().toISOString() }];
+            return [...prev, { id: subTopicId, completedAt: now }];
         }
     });
   };
@@ -979,13 +1489,14 @@ const App: React.FC = () => {
           }));
           
           if (quizData.passed) {
+              const now = quizData.timestamp;
               setExerciseRecords(prev => {
                   if (prev.some(r => r.id === subTopicId)) return prev;
-                  return [...prev, { id: subTopicId, completedAt: new Date().toISOString() }];
+                  return [...prev, { id: subTopicId, completedAt: now }];
               });
               setCompletionRecords(prev => {
                   if (prev.some(r => r.id === subTopicId)) return prev;
-                  return [...prev, { id: subTopicId, completedAt: new Date().toISOString() }];
+                  return [...prev, { id: subTopicId, completedAt: now }];
               });
           }
       } else if (submissionData) {
@@ -1008,6 +1519,7 @@ const App: React.FC = () => {
                   timestamp: new Date().toISOString(),
                   read: false,
                   evaluated: false,
+                  targetUserId: 'admin',
                   type: 'EXERCISE_SUBMISSION',
                   files: submissionData.files.map(f => ({ name: f.name, url: f.url }))
               };
@@ -1040,6 +1552,7 @@ const App: React.FC = () => {
       if (!currentUser) return;
       const newComment: Comment = {
           id: Date.now().toString(),
+          userId: currentUser.id,
           user: currentUser.name,
           avatar: currentUser.avatar,
           text: text,
@@ -1059,6 +1572,31 @@ const App: React.FC = () => {
           await setDoc(doc(db, 'comments', subTopicId), {
               comments: updatedComments
           }, { merge: true });
+
+          // Notify the admin if it's a student posting
+          if (currentUser.role !== 'admin') {
+              const topic = currentTopics.find(t => t.subTopics.some(st => st.id === subTopicId));
+              const subTopic = topic?.subTopics.find(st => st.id === subTopicId);
+              
+              const notifId = `comment_${Date.now()}_admin`;
+              const notification: AppNotification = {
+                  id: notifId,
+                  userId: currentUser.id,
+                  userName: currentUser.name,
+                  topicId: topic?.id || '',
+                  subTopicId: subTopicId,
+                  topicTitle: topic?.title || '',
+                  subTopicTitle: subTopic?.title || '',
+                  submissionId: '',
+                  timestamp: new Date().toISOString(),
+                  read: false,
+                  targetUserId: 'admin',
+                  type: 'SUBMISSION_COMMENT',
+                  comments: [newComment],
+                  files: []
+              };
+              await setDoc(doc(db, 'notifications', notifId), notification);
+          }
       } catch (error) {
           handleFirestoreError(error, OperationType.WRITE, `comments/${subTopicId}`);
       }
@@ -1068,6 +1606,7 @@ const App: React.FC = () => {
       if (!currentUser) return;
       const newReply: Comment = {
           id: Date.now().toString(),
+          userId: currentUser.id,
           user: currentUser.name,
           avatar: currentUser.avatar,
           text: text,
@@ -1077,16 +1616,19 @@ const App: React.FC = () => {
       };
 
       const comments = topicComments[subTopicId] || [];
-      const addReplyToComment = (c: Comment): Comment => {
+      let parentCommentAuthorId: string | null = null;
+
+      const findParentAndAddReply = (c: Comment): Comment => {
           if (c.id === parentCommentId) {
+              parentCommentAuthorId = c.userId;
               return { ...c, replies: [...c.replies, newReply] };
           }
           if (c.replies.length > 0) {
-              return { ...c, replies: c.replies.map(addReplyToComment) };
+              return { ...c, replies: c.replies.map(findParentAndAddReply) };
           }
           return c;
       };
-      const updatedComments = comments.map(addReplyToComment);
+      const updatedComments = comments.map(findParentAndAddReply);
 
       setTopicComments(prev => ({ ...prev, [subTopicId]: updatedComments }));
 
@@ -1094,13 +1636,253 @@ const App: React.FC = () => {
           await setDoc(doc(db, 'comments', subTopicId), {
               comments: updatedComments
           }, { merge: true });
+
+          // Notify the parent comment author if it's not the current user
+          if (parentCommentAuthorId && parentCommentAuthorId !== currentUser.id) {
+              const topic = currentTopics.find(t => t.subTopics.some(st => st.id === subTopicId));
+              const subTopic = topic?.subTopics.find(st => st.id === subTopicId);
+              
+              const notifId = `reply_${Date.now()}_${parentCommentAuthorId}`;
+              const notification: AppNotification = {
+                  id: notifId,
+                  userId: currentUser.id,
+                  userName: currentUser.name,
+                  topicId: topic?.id || '',
+                  subTopicId: subTopicId,
+                  topicTitle: topic?.title || '',
+                  subTopicTitle: subTopic?.title || '',
+                  submissionId: '', // Not a submission
+                  timestamp: new Date().toISOString(),
+                  read: false,
+                  targetUserId: parentCommentAuthorId,
+                  type: 'SUBMISSION_COMMENT', // Reusing this type for general comments too
+                  comments: [newReply],
+                  files: []
+              };
+              await setDoc(doc(db, 'notifications', notifId), notification);
+          }
       } catch (error) {
           handleFirestoreError(error, OperationType.WRITE, `comments/${subTopicId}`);
       }
   };
 
-  const handleDeleteComment = async (subTopicId: string, commentId: string) => {
-      const comments = topicComments[subTopicId] || [];
+  const handlePostSubmissionComment = async (submissionId: string, text: string) => {
+      if (!currentUser) return;
+      
+      const submission = studentSubmissions.find(s => s.id === submissionId) || 
+                          notifications.find(n => n.submissionId === submissionId);
+      if (!submission) return;
+
+      try {
+          const newComment: Comment = {
+              id: `comment_${Date.now()}`,
+              userId: currentUser.id,
+              user: currentUser.name,
+              avatar: currentUser.avatar,
+              text,
+              timestamp: new Date().toISOString(),
+              reactions: {},
+              replies: []
+          };
+
+          const currentComments = (submission as any).comments || [];
+          const updatedComments = [...currentComments, newComment];
+
+          // Update the submission document
+          await setDoc(doc(db, 'submissions', submissionId), {
+              comments: updatedComments
+          }, { merge: true });
+
+          // Update ALL notifications associated with this submissionId
+          // This ensures both admin and student views stay in sync
+          const relatedNotifications = notifications.filter(n => n.submissionId === submissionId);
+          
+          if (relatedNotifications.length > 0) {
+              for (const notif of relatedNotifications) {
+                  await setDoc(doc(db, 'notifications', notif.id), {
+                      read: notif.targetUserId === currentUser.id, // Mark as read for the person who posted
+                      hasNewComments: true,
+                      lastCommentTimestamp: new Date().toISOString(),
+                      comments: updatedComments
+                  }, { merge: true });
+              }
+          }
+
+          // If no notification exists for the OTHER party, create one
+          const otherPartyId = currentUser.role === 'admin' 
+              ? ((submission as any).userId || (submission as any).id) // Student ID
+              : 'admin';
+          
+          const hasNotifForOtherParty = relatedNotifications.some(n => n.targetUserId === otherPartyId);
+          
+          if (!hasNotifForOtherParty) {
+              const notifId = `notif_${Date.now()}_${otherPartyId}`;
+              const notification: AppNotification = {
+                  id: notifId,
+                  userId: currentUser.id,
+                  userName: currentUser.name,
+                  topicId: (submission as any).topicId || '',
+                  subTopicId: (submission as any).subTopicId || '',
+                  topicTitle: (submission as any).topicTitle || '',
+                  subTopicTitle: (submission as any).subTopicTitle || '',
+                  submissionId: submissionId,
+                  timestamp: new Date().toISOString(),
+                  read: false,
+                  hasNewComments: true,
+                  lastCommentTimestamp: new Date().toISOString(),
+                  targetUserId: otherPartyId,
+                  type: 'SUBMISSION_COMMENT',
+                  comments: updatedComments,
+                  files: (submission as any).files || []
+              };
+              await setDoc(doc(db, 'notifications', notifId), notification);
+          }
+      } catch (error) {
+          handleFirestoreError(error, OperationType.WRITE, `submissions/${submissionId}`);
+      }
+  };
+
+  const handleMarkNotificationRead = async (id: string) => {
+      try {
+          await setDoc(doc(db, 'notifications', id), { read: true }, { merge: true });
+      } catch (error) {
+          handleFirestoreError(error, OperationType.WRITE, `notifications/${id}`);
+      }
+  };
+
+  const handleEvaluateSubmission = async (submissionId: string, grade: number, feedback: string) => {
+      try {
+          await setDoc(doc(db, 'submissions', submissionId), { 
+              grade, 
+              feedback, 
+              status: 'reviewed' 
+          }, { merge: true });
+
+          // Update admin notification
+          const adminNotif = notifications.find(n => n.submissionId === submissionId && n.targetUserId === 'admin');
+          if (adminNotif) {
+              await setDoc(doc(db, 'notifications', adminNotif.id), { 
+                  evaluated: true,
+                  grade,
+                  feedback
+              }, { merge: true });
+          }
+
+          // Create/Update student notification
+          const submission = studentSubmissions.find(s => s.id === submissionId) || 
+                           notifications.find(n => n.submissionId === submissionId);
+          const studentId = (submission as any)?.userId || (submission as any)?.id;
+          
+          if (studentId) {
+              const studentNotif = notifications.find(n => n.submissionId === submissionId && n.targetUserId === studentId);
+              if (studentNotif) {
+                  await setDoc(doc(db, 'notifications', studentNotif.id), {
+                      read: false,
+                      evaluated: true,
+                      grade,
+                      feedback,
+                      timestamp: new Date().toISOString()
+                  }, { merge: true });
+              } else {
+                  const notifId = `notif_eval_${Date.now()}`;
+                  const notification: AppNotification = {
+                      id: notifId,
+                      userId: currentUser?.id || 'admin',
+                      userName: currentUser?.name || 'Instructor',
+                      topicId: (submission as any)?.topicId || '',
+                      subTopicId: (submission as any)?.subTopicId || '',
+                      topicTitle: (submission as any)?.topicTitle || '',
+                      subTopicTitle: (submission as any)?.subTopicTitle || '',
+                      submissionId: submissionId,
+                      timestamp: new Date().toISOString(),
+                      read: false,
+                      evaluated: true,
+                      grade,
+                      feedback,
+                      targetUserId: studentId,
+                      type: 'EXERCISE_SUBMISSION',
+                      files: (submission as any)?.files || []
+                  };
+                  await setDoc(doc(db, 'notifications', notifId), notification);
+              }
+          }
+      } catch (error) {
+          handleFirestoreError(error, OperationType.WRITE, `submissions/${submissionId}`);
+      }
+  };
+
+  const handleToggleNotificationCompleted = async (id: string, completed: boolean) => {
+      try {
+          await setDoc(doc(db, 'notifications', id), { completed }, { merge: true });
+      } catch (error) {
+          handleFirestoreError(error, OperationType.WRITE, `notifications/${id}`);
+      }
+  };
+
+  const handleDeleteFile = async (fileUrl: string, submissionId: string, fileName: string) => {
+      try {
+          // 1. Delete from Storage
+          const fileRef = ref(storage, fileUrl);
+          await deleteObject(fileRef);
+
+          // 2. Update Submission in Firestore to remove the file reference
+          const submissionRef = doc(db, 'submissions', submissionId);
+          const submissionSnap = await getDoc(submissionRef);
+          
+          if (submissionSnap.exists()) {
+              const data = submissionSnap.data() as ExerciseSubmission;
+              const updatedFiles = data.files.filter(f => f.url !== fileUrl);
+              await setDoc(submissionRef, { files: updatedFiles }, { merge: true });
+              
+              // 3. Update Notification in Firestore
+              const notif = notifications.find(n => n.submissionId === submissionId);
+              if (notif) {
+                  const updatedNotifFiles = notif.files.filter(f => f.url !== fileUrl);
+                  await setDoc(doc(db, 'notifications', notif.id), { files: updatedNotifFiles }, { merge: true });
+              }
+          }
+      } catch (error) {
+          console.error("Failed to delete file:", error);
+          throw error;
+      }
+  };
+
+  const handleDeleteComment = async (id: string, commentId: string, isSubmission: boolean = false) => {
+      if (isSubmission) {
+          const submission = studentSubmissions.find(s => s.id === id) || 
+                             notifications.find(n => n.submissionId === id);
+          if (!submission) return;
+
+          const comments = (submission as any).comments || [];
+          const deleteComment = (list: Comment[]): Comment[] => {
+              return list
+                  .filter(c => c.id !== commentId) 
+                  .map(c => ({
+                      ...c,
+                      replies: deleteComment(c.replies) 
+                  }));
+          };
+          const updatedComments = deleteComment(comments);
+
+          try {
+              await setDoc(doc(db, 'submissions', id), {
+                  comments: updatedComments
+              }, { merge: true });
+
+              // Also update any related notifications
+              const relatedNotifications = notifications.filter(n => n.submissionId === id);
+              for (const notif of relatedNotifications) {
+                  await setDoc(doc(db, 'notifications', notif.id), {
+                      comments: updatedComments
+                  }, { merge: true });
+              }
+          } catch (error) {
+              handleFirestoreError(error, OperationType.WRITE, `submissions/${id}`);
+          }
+          return;
+      }
+
+      const comments = topicComments[id] || [];
       const deleteComment = (list: Comment[]): Comment[] => {
           return list
               .filter(c => c.id !== commentId) 
@@ -1111,14 +1893,14 @@ const App: React.FC = () => {
       };
       const updatedComments = deleteComment(comments);
       
-      setTopicComments(prev => ({ ...prev, [subTopicId]: updatedComments }));
+      setTopicComments(prev => ({ ...prev, [id]: updatedComments }));
 
       try {
-          await setDoc(doc(db, 'comments', subTopicId), {
+          await setDoc(doc(db, 'comments', id), {
               comments: updatedComments
           }, { merge: true });
       } catch (error) {
-          handleFirestoreError(error, OperationType.WRITE, `comments/${subTopicId}`);
+          handleFirestoreError(error, OperationType.WRITE, `comments/${id}`);
       }
   };
 
@@ -1173,74 +1955,19 @@ const App: React.FC = () => {
             initialTab={adminInitialTab}
             onApplyChanges={handleApplyAdminChanges}
             onExit={() => setViewState(ViewState.HOME)}
-            onMarkNotificationRead={async (id) => {
-                try {
-                    await setDoc(doc(db, 'notifications', id), { read: true }, { merge: true });
-                } catch (error) {
-                    handleFirestoreError(error, OperationType.WRITE, `notifications/${id}`);
-                }
-            }}
-            onEvaluateSubmission={async (submissionId, grade, feedback) => {
-                try {
-                    await setDoc(doc(db, 'submissions', submissionId), { 
-                        grade, 
-                        feedback, 
-                        status: 'reviewed' 
-                    }, { merge: true });
-
-                    // Also find and update the notification
-                    const notif = notifications.find(n => n.submissionId === submissionId);
-                    if (notif) {
-                        await setDoc(doc(db, 'notifications', notif.id), { 
-                            evaluated: true,
-                            grade,
-                            feedback
-                        }, { merge: true });
-                    }
-                } catch (error) {
-                    handleFirestoreError(error, OperationType.WRITE, `submissions/${submissionId}`);
-                }
-            }}
-            onToggleNotificationCompleted={async (id, completed) => {
-                try {
-                    await setDoc(doc(db, 'notifications', id), { completed }, { merge: true });
-                } catch (error) {
-                    handleFirestoreError(error, OperationType.WRITE, `notifications/${id}`);
-                }
-            }}
-            onDeleteFile={async (fileUrl, submissionId, fileName) => {
-                try {
-                    // 1. Delete from Storage
-                    const fileRef = ref(storage, fileUrl);
-                    await deleteObject(fileRef);
-
-                    // 2. Update Submission in Firestore to remove the file reference
-                    const submissionRef = doc(db, 'submissions', submissionId);
-                    const submissionSnap = await getDoc(submissionRef);
-                    
-                    if (submissionSnap.exists()) {
-                        const data = submissionSnap.data() as ExerciseSubmission;
-                        const updatedFiles = data.files.filter(f => f.url !== fileUrl);
-                        await setDoc(submissionRef, { files: updatedFiles }, { merge: true });
-                        
-                        // 3. Update Notification in Firestore
-                        const notif = notifications.find(n => n.submissionId === submissionId);
-                        if (notif) {
-                            const updatedNotifFiles = notif.files.filter(f => f.url !== fileUrl);
-                            await setDoc(doc(db, 'notifications', notif.id), { files: updatedNotifFiles }, { merge: true });
-                        }
-                    }
-                } catch (error) {
-                    console.error("Failed to delete file:", error);
-                    throw error;
-                }
-            }}
+            onPostSubmissionComment={handlePostSubmissionComment}
+            onDeleteComment={handleDeleteComment}
+            onMarkNotificationRead={handleMarkNotificationRead}
+            onEvaluateSubmission={handleEvaluateSubmission}
+            onToggleNotificationCompleted={handleToggleNotificationCompleted}
+            onDeleteFile={handleDeleteFile}
         />
       );
   }
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 selection:bg-blue-500/30 font-sans">
+      <style>{pulsingRedStyle}</style>
       <Joyride
         steps={tourSteps}
         run={runTour}
@@ -1421,17 +2148,44 @@ const App: React.FC = () => {
                     id="tab-list"
                     className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-all ${dashboardMode === 'LIST' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
                 >
-                    <LayoutGrid className="w-4 h-4" />
-                    <span className="hidden lg:inline">View Progress</span>
+                    <List className="w-4 h-4" />
+                    <span className="hidden lg:inline">Modules</span>
                 </button>
-                <button 
-                    onClick={() => setDashboardMode('TEACHERS')}
-                    id="tab-teachers"
-                    className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-all ${dashboardMode === 'TEACHERS' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
-                >
-                    <GraduationCap className="w-4 h-4" />
-                    <span className="hidden lg:inline">Teachers</span>
-                </button>
+                {currentUser?.role === 'admin' && (
+                    <button 
+                        onClick={() => setDashboardMode('NOTIFICATIONS')}
+                        id="tab-notifications"
+                        className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-all relative ${dashboardMode === 'NOTIFICATIONS' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                    >
+                        <Bell className={`w-4 h-4 ${notifications.some(n => !n.read) ? 'text-red-500 animate-pulse-red' : ''}`} />
+                        <span className="hidden lg:inline">Notifications</span>
+                        {notifications.filter(n => !n.read).length > 0 && (
+                            <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-600 text-white text-[9px] font-bold rounded-full flex items-center justify-center border-2 border-slate-900 shadow-[0_0_8px_rgba(239,68,68,0.5)]">
+                                {notifications.filter(n => !n.read).length}
+                            </span>
+                        )}
+                    </button>
+                )}
+                {landingConfig.showStudentAnalytics && (
+                    <button 
+                        onClick={() => setDashboardMode('ANALYTICS')}
+                        id="tab-analytics"
+                        className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-all ${dashboardMode === 'ANALYTICS' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                    >
+                        <BarChart3 className="w-4 h-4" />
+                        <span className="hidden lg:inline">Analytics</span>
+                    </button>
+                )}
+                {(currentUser?.role === 'admin' || landingConfig.showTeachersTab !== false) && (
+                    <button 
+                        onClick={() => setDashboardMode('TEACHERS')}
+                        id="tab-teachers"
+                        className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-all ${dashboardMode === 'TEACHERS' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                    >
+                        <GraduationCap className="w-4 h-4" />
+                        <span className="hidden lg:inline">Teachers</span>
+                    </button>
+                )}
             </div>
 
             <div className="flex items-center gap-4">
@@ -1439,15 +2193,81 @@ const App: React.FC = () => {
                     <button 
                         onClick={() => setViewState(ViewState.ADMIN_BUILDER)}
                         className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors"
-                        title="Curriculum Builder"
+                        title="Admin Builder"
                     >
                         <Edit3 className="w-4 h-4" />
-                        <span className="hidden md:inline">Curriculum Builder</span>
+                        <span className="hidden md:inline">Admin Builder</span>
                     </button>
                 )}
 
                 {currentUser && (
                     <div className="flex items-center gap-3 border-l border-slate-800 pl-4 relative">
+                        {/* Notification Bell */}
+                        <div className="relative" ref={notificationsDropdownRef}>
+                            <button 
+                                onClick={() => {
+                                    if (notifications.filter(n => !n.read).length > 0) {
+                                        setShowNotificationsDropdown(!showNotificationsDropdown);
+                                    } else {
+                                        setDashboardMode('NOTIFICATIONS');
+                                    }
+                                }}
+                                className="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-full transition-all relative group"
+                                title="Notifications"
+                            >
+                                <Bell className={`w-5 h-5 ${notifications.some(n => !n.read) ? 'text-red-500 animate-pulse-red' : ''}`} />
+                                {notifications.filter(n => !n.read).length > 0 && (
+                                    <span className="absolute top-1 right-1 w-4 h-4 bg-red-600 text-white text-[9px] font-bold rounded-full flex items-center justify-center border-2 border-slate-950 shadow-[0_0_8px_rgba(239,68,68,0.5)]">
+                                        {notifications.filter(n => !n.read).length}
+                                    </span>
+                                )}
+                            </button>
+
+                            {showNotificationsDropdown && (
+                                <div className="absolute right-0 mt-2 w-80 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
+                                    <div className="px-4 py-2 border-b border-slate-800 mb-2 flex justify-between items-center">
+                                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">New Notifications</p>
+                                        <button 
+                                            onClick={() => {
+                                                setShowNotificationsDropdown(false);
+                                                setDashboardMode('NOTIFICATIONS');
+                                            }}
+                                            className="text-[10px] text-blue-400 hover:text-blue-300 font-medium"
+                                        >
+                                            View All
+                                        </button>
+                                    </div>
+                                    <div className="max-h-96 overflow-y-auto">
+                                        {notifications.filter(n => !n.read).length === 0 ? (
+                                            <div className="px-4 py-8 text-center">
+                                                <Bell className="w-8 h-8 text-slate-700 mx-auto mb-2" />
+                                                <p className="text-sm text-slate-500">No new notifications</p>
+                                            </div>
+                                        ) : (
+                                            notifications.filter(n => !n.read).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).map(notif => (
+                                                <button 
+                                                    key={notif.id}
+                                                    onClick={() => handleNotificationClick(notif)}
+                                                    className="w-full px-4 py-3 hover:bg-slate-800/50 text-left transition-all border-b border-slate-800/30 last:border-0 group"
+                                                >
+                                                    <div className="flex gap-3">
+                                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${notif.type === 'DEADLINE_WARNING' ? 'bg-red-500/20 text-red-400' : 'bg-blue-500/20 text-blue-400'}`}>
+                                                            {notif.type === 'DEADLINE_WARNING' ? <AlertTriangle size={14} /> : <MessageSquare size={14} />}
+                                                        </div>
+                                                        <div className="min-w-0 flex-1">
+                                                            <p className="text-xs font-bold text-white truncate group-hover:text-blue-400 transition-colors">{notif.userName}</p>
+                                                            <p className="text-[10px] text-slate-400 truncate mb-1">{notif.subTopicTitle}</p>
+                                                            <p className="text-[9px] text-slate-600 font-mono">{new Date(notif.timestamp).toLocaleString()}</p>
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            ))
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
                         <div className="relative" ref={userDropdownRef}>
                             <button 
                                 onClick={() => setShowUserDropdown(!showUserDropdown)}
@@ -1455,12 +2275,6 @@ const App: React.FC = () => {
                             >
                                 <img src={currentUser.avatar} alt="User" className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700" />
                                 <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${showUserDropdown ? 'rotate-180' : ''}`} />
-                                
-                                {currentUser.role === 'admin' && notifications.filter(n => !n.read).length > 0 && (
-                                    <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center border-2 border-slate-950 animate-pulse">
-                                        {notifications.filter(n => !n.read).length}
-                                    </div>
-                                )}
                             </button>
 
                             {showUserDropdown && (
@@ -1470,24 +2284,21 @@ const App: React.FC = () => {
                                         <p className="text-[10px] text-slate-500 uppercase tracking-wider">{currentUser.role}</p>
                                     </div>
                                         
-                                        {currentUser.role === 'admin' && (
-                                            <button 
-                                                onClick={() => {
-                                                    setAdminInitialTab('NOTIFICATIONS');
-                                                    setViewState(ViewState.ADMIN_BUILDER);
-                                                    setShowUserDropdown(false);
-                                                }}
-                                                className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
-                                            >
-                                                <Bell className="w-4 h-4 text-blue-400" />
-                                                <span>Notifications</span>
-                                                {notifications.filter(n => !n.read).length > 0 && (
-                                                    <span className="ml-auto bg-blue-500/20 text-blue-400 text-[10px] px-1.5 py-0.5 rounded-full font-bold">
-                                                        {notifications.filter(n => !n.read).length}
-                                                    </span>
-                                                )}
-                                            </button>
-                                        )}
+                                        <button 
+                                            onClick={() => {
+                                                setDashboardMode('NOTIFICATIONS');
+                                                setShowUserDropdown(false);
+                                            }}
+                                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+                                        >
+                                            <Bell className="w-4 h-4 text-blue-400" />
+                                            <span>Notifications</span>
+                                            {notifications.filter(n => !n.read).length > 0 && (
+                                                <span className="ml-auto bg-blue-500/20 text-blue-400 text-[10px] px-1.5 py-0.5 rounded-full font-bold">
+                                                    {notifications.filter(n => !n.read).length}
+                                                </span>
+                                            )}
+                                        </button>
 
                                         <button 
                                             onClick={handleLogout}
@@ -1583,18 +2394,18 @@ const App: React.FC = () => {
                                             onClick={() => setSelectedTeacherEmail(t.email)} 
                                             className="bg-slate-900 border border-slate-800 rounded-2xl p-6 hover:bg-slate-800 hover:border-slate-700 transition-all cursor-pointer group"
                                         >
-                                             <div className="flex flex-col items-center text-center bg-white rounded-xl p-4">
+                                             <div className="flex flex-col items-center text-center bg-slate-950/50 rounded-xl p-4 border border-slate-800/50">
                                                 <img src={t.avatar} alt={t.name} className="w-24 h-24 rounded-full mb-4 object-cover border-4 border-slate-800 group-hover:border-blue-500/50 transition-colors" />
-                                                <h3 className="text-xl font-bold text-[#000000] mb-1 group-hover:text-blue-400 transition-colors">{t.name}</h3>
+                                                <h3 className="text-xl font-bold text-white mb-1 group-hover:text-blue-400 transition-colors">{t.name}</h3>
                                                 <p className="text-slate-400 text-sm mb-4">{t.role}</p>
                                                 
                                                 {t.bio && (
                                                     <p className="text-slate-500 text-xs line-clamp-2 mb-6 h-8">{t.bio}</p>
                                                 )}
-
+ 
                                                 <div className="w-full bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 mb-6">
-                                                    <div className="text-xs text-slate-500 font-mono mb-1 uppercase tracking-wider bg-[#0f172a] p-1 rounded">Modules Taught</div>
-                                                    <div className="text-lg font-bold text-white bg-[#0f172a] p-1 rounded">
+                                                    <div className="text-xs text-slate-500 font-mono mb-1 uppercase tracking-wider bg-slate-950/50 p-1 rounded">Modules Taught</div>
+                                                    <div className="text-lg font-bold text-white bg-slate-950/50 p-1 rounded">
                                                         {currentTopics.filter(top => top.teacher.email === t.email).length}
                                                     </div>
                                                 </div>
@@ -1635,6 +2446,99 @@ const App: React.FC = () => {
                                         lockedTopicIds={lockedTopicIds}
                                         prerequisiteLockedIds={prerequisiteLockedIds}
                                     />
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {dashboardMode === 'ANALYTICS' && userWithProgress && (
+                    <div className="h-full overflow-y-auto">
+                        {currentUser?.role === 'admin' ? (
+                            <div className="p-6">
+                                <AnalyticsView 
+                                    users={currentUsers}
+                                    topics={currentTopics}
+                                    tags={currentTags}
+                                    landingConfig={landingConfig}
+                                    notifications={notifications}
+                                    onEvaluateSubmission={handleEvaluateSubmission}
+                                    onPostSubmissionComment={handlePostSubmissionComment}
+                                    onDeleteComment={handleDeleteComment}
+                                />
+                            </div>
+                        ) : (
+                            <StudentAnalyticsView 
+                                user={userWithProgress} 
+                                topics={currentTopics} 
+                                landingConfig={landingConfig} 
+                                submissions={studentSubmissions}
+                                onPostSubmissionComment={handlePostSubmissionComment}
+                                initialTab={studentInitialTab}
+                            />
+                        )}
+                    </div>
+                )}
+
+                {dashboardMode === 'NOTIFICATIONS' && (
+                    <div className="h-full overflow-y-auto bg-[#0f172a]">
+                        {currentUser?.role === 'admin' ? (
+                            <div className="p-6 max-w-7xl mx-auto">
+                                <NotificationsView 
+                                    notifications={notifications}
+                                    highlightedId={highlightedNotificationId}
+                                    onMarkRead={handleMarkNotificationRead}
+                                    onEvaluate={handleEvaluateSubmission}
+                                    onPostSubmissionComment={handlePostSubmissionComment}
+                                    onDeleteComment={handleDeleteComment}
+                                    onToggleCompleted={handleToggleNotificationCompleted}
+                                    onDeleteFile={handleDeleteFile}
+                                />
+                            </div>
+                        ) : (
+                            <div className="p-6 max-w-4xl mx-auto">
+                                <h2 className="text-2xl font-bold text-white mb-6">Your Notifications</h2>
+                                <div className="space-y-4">
+                                    {notifications.length === 0 ? (
+                                        <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 text-center">
+                                            <Bell className="w-12 h-12 text-slate-700 mx-auto mb-4" />
+                                            <p className="text-slate-400">No notifications yet</p>
+                                        </div>
+                                    ) : (
+                                        notifications.map(notif => (
+                                            <div 
+                                                key={notif.id}
+                                                onClick={() => {
+                                                    handleMarkNotificationRead(notif.id);
+                                                    if (notif.type === 'EXERCISE_SUBMISSION' || notif.type === 'SUBMISSION_COMMENT') {
+                                                        setStudentInitialTab('SUBMISSIONS');
+                                                        setDashboardMode('ANALYTICS');
+                                                    }
+                                                }}
+                                                className={`bg-slate-900 border ${notif.read ? 'border-slate-800' : 'border-blue-500/50 bg-blue-500/5'} rounded-xl p-4 cursor-pointer hover:bg-slate-800 transition-all`}
+                                            >
+                                                <div className="flex items-start gap-4">
+                                                    <div className={`p-2 rounded-lg ${notif.read ? 'bg-slate-800 text-slate-400' : 'bg-blue-500 text-white'}`}>
+                                                        <Bell className="w-5 h-5" />
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center justify-between mb-1">
+                                                            <h3 className="font-bold text-white">{notif.type === 'EXERCISE_SUBMISSION' ? 'Submission Evaluated' : 'New Comment'}</h3>
+                                                            <span className="text-xs text-slate-500">{new Date(notif.timestamp).toLocaleDateString()}</span>
+                                                        </div>
+                                                        <p className="text-sm text-slate-400">
+                                                            {notif.type === 'EXERCISE_SUBMISSION' 
+                                                                ? `Your submission for "${notif.subTopicTitle}" has been evaluated.`
+                                                                : `There is a new comment on your submission for "${notif.subTopicTitle}".`}
+                                                        </p>
+                                                        {!notif.read && (
+                                                            <span className="inline-block mt-2 px-2 py-0.5 bg-blue-500 text-white text-[10px] font-bold rounded uppercase tracking-wider">New</span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
                                 </div>
                             </div>
                         )}

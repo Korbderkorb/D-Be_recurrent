@@ -130,7 +130,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
     for (let lvl = 1; lvl <= maxLevel; lvl++) {
         const nodes = levels[lvl] || [];
         // Sort nodes within each level by their original array index
-        const sortedNodes = [...nodes].sort((a, b) => (topicOrderMap.get(a.id) || 0) - (topicOrderMap.get(b.id) || 0));
+        const sortedNodes = [...nodes].sort((a, b) => ((topicOrderMap.get(a.id) as number) || 0) - ((topicOrderMap.get(b.id) as number) || 0));
         applySpacing(sortedNodes, 100 + (lvl - 1) * LEVEL_SPACING);
     }
 
@@ -202,9 +202,8 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
     const zoom = d3.zoom<SVGSVGElement, unknown>()
         .scaleExtent([0.05, 4])
         .filter((event) => {
-            // Allow left button (0) and middle button (1)
-            // Default d3 filter is: (!event.ctrlKey || event.type === 'wheel') && !event.button
-            return (!event.ctrlKey || event.type === 'wheel') && (event.button === 0 || event.button === 1);
+            // Allow left button (0), middle button (1), and touch events (button is undefined)
+            return (!event.ctrlKey || event.type === 'wheel') && (event.button === 0 || event.button === 1 || event.button === undefined);
         })
         .on("zoom", (event) => {
             zoomGroup.attr("transform", event.transform);
@@ -223,7 +222,8 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
     const graphWidth = maxX - minX;
     const graphHeight = maxY - minY;
     
-    const padding = 100;
+    const isMobile = width < 768;
+    const padding = isMobile ? 20 : 100;
     const availableWidth = width - (padding * 2);
     const availableHeight = height - (padding * 2);
     
@@ -717,7 +717,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
     const topicOrderMap = new Map(topics.map((t, i) => [t.id, i]));
     for (let lvl = 1; lvl <= maxLevel; lvl++) {
         const nodes = levels[lvl] || [];
-        const sortedNodes = [...nodes].sort((a, b) => (topicOrderMap.get(a.id) || 0) - (topicOrderMap.get(b.id) || 0));
+        const sortedNodes = [...nodes].sort((a, b) => ((topicOrderMap.get(a.id) as number) || 0) - ((topicOrderMap.get(b.id) as number) || 0));
         const count = sortedNodes.length;
         const totalHeight = count * NODE_SPACING;
         const startY = (height / 2) - (totalHeight / 2) + (NODE_SPACING / 2);
@@ -739,7 +739,8 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
     const graphWidth = maxX - minX;
     const graphHeight = maxY - minY;
     
-    const padding = 100;
+    const isMobile = width < 768;
+    const padding = isMobile ? 20 : 100;
     const availableWidth = width - (padding * 2);
     const availableHeight = height - (padding * 2);
     

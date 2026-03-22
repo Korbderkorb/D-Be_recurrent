@@ -20,7 +20,7 @@ import {
   useSortable
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Download, Plus, Trash2, Edit2, GripVertical, ChevronRight, Video, Upload, HelpCircle, UploadCloud, RefreshCw, Copy, AlertCircle, Info, Settings, Save, CheckSquare, Square, X, Users, GraduationCap, Layers, UserPlus, Key, Eye, Shield, BarChart3, Search, Lock as LockIcon, Sparkles, CheckCircle2, Clock, History, XCircle, ChevronDown, ChevronUp, FileText, Printer, FileCode, FileUp, ExternalLink, Award, BellOff, AlertTriangle } from 'lucide-react';
+import { Download, Plus, Trash2, Edit2, GripVertical, ChevronRight, Video, Upload, HelpCircle, UploadCloud, RefreshCw, Copy, AlertCircle, Info, Settings, Save, CheckSquare, Square, X, Users, GraduationCap, Layers, UserPlus, Key, Eye, Shield, BarChart3, Search, Lock as LockIcon, Sparkles, CheckCircle2, Clock, History, XCircle, ChevronDown, ChevronUp, FileText, Printer, FileCode, FileUp, ExternalLink, Award, BellOff, AlertTriangle, MessageSquare, Send } from 'lucide-react';
 import { ref, getBlob } from 'firebase/storage';
 import { storage } from '../firebase';
 import { 
@@ -536,6 +536,7 @@ const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSu
 
 // --- SORTABLE TOPIC ITEM ---
 interface SortableTopicItemProps {
+    key?: any;
     topic: Topic;
     isSelected: boolean;
     onSelect: () => void;
@@ -604,6 +605,8 @@ interface AdminBuilderProps {
   initialTab?: 'ANALYTICS' | 'CURRICULUM' | 'TEACHERS' | 'USERS_LIST' | 'TAGS' | 'USER_INTERFACE' | 'NOTIFICATIONS';
   onMarkNotificationRead: (notificationId: string) => Promise<void>;
   onEvaluateSubmission: (submissionId: string, score: number, feedback: string) => Promise<void>;
+  onPostSubmissionComment?: (submissionId: string, text: string) => Promise<void>;
+  onDeleteComment?: (id: string, commentId: string, isSubmission: boolean) => Promise<void>;
   onToggleNotificationCompleted?: (id: string, completed: boolean) => Promise<void>;
   onDeleteFile?: (fileUrl: string, submissionId: string, fileName: string) => Promise<void>;
   onApplyChanges: (newTopics: Topic[], newTeachers: Teacher[], newUsers: User[], newLandingConfig: LandingConfig, newTags: Tag[]) => Promise<void>;
@@ -611,13 +614,23 @@ interface AdminBuilderProps {
 }
 
 // --- User Performance View Component ---
-function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEvaluateSubmission }: { users: User[], topics: Topic[], tags: Tag[], landingConfig: LandingConfig, notifications: AppNotification[], onEvaluateSubmission: (submissionId: string, score: number, feedback: string) => Promise<void> }) {
+export function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEvaluateSubmission, onPostSubmissionComment, onDeleteComment }: { 
+  users: User[], 
+  topics: Topic[], 
+  tags: Tag[], 
+  landingConfig: LandingConfig, 
+  notifications: AppNotification[], 
+  onEvaluateSubmission: (submissionId: string, score: number, feedback: string) => Promise<void>,
+  onPostSubmissionComment?: (submissionId: string, text: string) => Promise<void>,
+  onDeleteComment?: (id: string, commentId: string, isSubmission: boolean) => Promise<void>
+}) {
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [exportFormat, setExportFormat] = useState<'text' | 'csv' | 'print'>('print');
   const [isPrinting, setIsPrinting] = useState(false);
   const [selectedUserForPrint, setSelectedUserForPrint] = useState<User | null>(null);
   const [selectedQuizForDetails, setSelectedQuizForDetails] = useState<string | null>(null);
+  const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const printRef = useRef<HTMLDivElement>(null);
 
   const handleDownloadPDF = async () => {
@@ -2193,6 +2206,69 @@ function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEv
                                 </div>
                               )}
 
+                              {/* Submission Discussion */}
+                              <div className="mt-3 pt-3 border-t border-slate-800">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <MessageSquare size={10} className="text-blue-400" />
+                                  <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Internal Discussion</span>
+                                </div>
+                                <div className="space-y-2 max-h-[150px] overflow-y-auto mb-2 pr-1 custom-scrollbar">
+                                  {notif.comments && notif.comments.length > 0 ? (
+                                    notif.comments.map(comment => (
+                                      <div key={comment.id} className="group relative bg-slate-900/50 rounded p-2 border border-slate-800/50">
+                                        <div className="flex justify-between items-start mb-1">
+                                          <div className="flex items-center gap-1.5">
+                                            <img src={comment.avatar} alt={comment.user} className="w-4 h-4 rounded" />
+                                            <span className="text-[9px] font-bold text-white">{comment.user}</span>
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-[8px] text-slate-600">{new Date(comment.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                            {onDeleteComment && (
+                                              <button 
+                                                onClick={() => onDeleteComment(notif.submissionId, comment.id, true)}
+                                                className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-400 transition-all"
+                                              >
+                                                <Trash2 size={10} />
+                                              </button>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <p className="text-[10px] text-slate-400 leading-relaxed">{comment.text}</p>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <p className="text-[9px] text-slate-600 italic">No comments yet.</p>
+                                  )}
+                                </div>
+                                <div className="flex gap-2">
+                                  <input 
+                                    type="text"
+                                    value={commentInputs[notif.submissionId] || ''}
+                                    onChange={e => setCommentInputs(prev => ({ ...prev, [notif.submissionId]: e.target.value }))}
+                                    onKeyDown={e => {
+                                      if (e.key === 'Enter' && commentInputs[notif.submissionId]?.trim() && onPostSubmissionComment) {
+                                        onPostSubmissionComment(notif.submissionId, commentInputs[notif.submissionId]);
+                                        setCommentInputs(prev => ({ ...prev, [notif.submissionId]: '' }));
+                                      }
+                                    }}
+                                    placeholder="Reply to student..."
+                                    className="flex-1 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[10px] text-white outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                                  />
+                                  <button 
+                                    onClick={() => {
+                                      if (commentInputs[notif.submissionId]?.trim() && onPostSubmissionComment) {
+                                        onPostSubmissionComment(notif.submissionId, commentInputs[notif.submissionId]);
+                                        setCommentInputs(prev => ({ ...prev, [notif.submissionId]: '' }));
+                                      }
+                                    }}
+                                    disabled={!commentInputs[notif.submissionId]?.trim()}
+                                    className="w-6 h-6 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 text-white rounded flex items-center justify-center transition-all"
+                                  >
+                                    <Send size={10} />
+                                  </button>
+                                </div>
+                              </div>
+
                               <div className="flex flex-wrap gap-2 mt-2">
                                 {notif.files.map((file, fIdx) => (
                                   <a 
@@ -3088,15 +3164,27 @@ function TagManagementView({ tags, setTags }: { tags: Tag[], setTags: React.Disp
 }
 
 // --- NOTIFICATIONS VIEW ---
-interface NotificationsViewProps {
+export interface NotificationsViewProps {
   notifications: AppNotification[];
   onMarkRead: (id: string) => void;
   onEvaluate: (submissionId: string, score: number, feedback: string) => Promise<void>;
   onToggleCompleted?: (id: string, completed: boolean) => Promise<void>;
   onDeleteFile?: (fileUrl: string, submissionId: string, fileName: string) => Promise<void>;
+  onPostSubmissionComment?: (submissionId: string, text: string) => Promise<void>;
+  onDeleteComment?: (submissionId: string, commentId: string, isSubmission: boolean) => Promise<void>;
+  highlightedId?: string | null;
 }
 
-function NotificationsView({ notifications, onMarkRead, onEvaluate, onToggleCompleted, onDeleteFile }: NotificationsViewProps) {
+export function NotificationsView({ 
+  notifications, 
+  onMarkRead, 
+  onEvaluate, 
+  onToggleCompleted, 
+  onDeleteFile,
+  onPostSubmissionComment,
+  onDeleteComment,
+  highlightedId
+}: NotificationsViewProps) {
   const [evaluatingId, setEvaluatingId] = useState<string | null>(null);
   const [showEvaluationId, setShowEvaluationId] = useState<string | null>(null);
   const [score, setScore] = useState<number>(0);
@@ -3104,6 +3192,8 @@ function NotificationsView({ notifications, onMarkRead, onEvaluate, onToggleComp
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isTogglingCompleted, setIsTogglingCompleted] = useState<string | null>(null);
+  const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
+  const [expandedReadIds, setExpandedReadIds] = useState<string[]>([]);
   
   // Sorting states
   const [sortBy, setSortBy] = useState<'time' | 'user' | 'module'>('time');
@@ -3113,15 +3203,37 @@ function NotificationsView({ notifications, onMarkRead, onEvaluate, onToggleComp
     return [...notifications].sort((a, b) => {
       let comparison = 0;
       if (sortBy === 'time') {
-        comparison = a.timestamp.localeCompare(b.timestamp);
+        const timeA = new Date(a.lastCommentTimestamp || a.timestamp).getTime();
+        const timeB = new Date(b.lastCommentTimestamp || b.timestamp).getTime();
+        comparison = timeA - timeB;
       } else if (sortBy === 'user') {
         comparison = a.userName.localeCompare(b.userName);
       } else if (sortBy === 'module') {
         comparison = a.subTopicTitle.localeCompare(b.subTopicTitle);
       }
+      
+      // If times are equal or we are sorting by something else, secondary sort by timestamp
+      if (comparison === 0) {
+          const tA = new Date(a.timestamp).getTime();
+          const tB = new Date(b.timestamp).getTime();
+          comparison = tA - tB;
+      }
+
       return sortOrder === 'desc' ? -comparison : comparison;
     });
   }, [notifications, sortBy, sortOrder]);
+
+  useEffect(() => {
+    if (highlightedId && !expandedReadIds.includes(highlightedId)) {
+      setExpandedReadIds(prev => [...prev, highlightedId]);
+    }
+  }, [highlightedId]);
+
+  const toggleExpandRead = (id: string) => {
+    setExpandedReadIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  };
 
   const handleStartEvaluate = (notif: AppNotification) => {
     setEvaluatingId(notif.id);
@@ -3300,10 +3412,17 @@ function NotificationsView({ notifications, onMarkRead, onEvaluate, onToggleComp
               return (
                 <div 
                   key={notif.id} 
-                  className={`bg-slate-900 rounded-xl border transition-all ${notif.read ? 'border-slate-800 opacity-90' : 'border-blue-500/30 shadow-lg shadow-blue-500/5'}`}
+                  id={`notification-${notif.id}`}
+                  className={`bg-slate-900 rounded-xl border transition-all duration-500 ${
+                    highlightedId === notif.id 
+                      ? 'border-blue-500 ring-2 ring-blue-500/50 scale-[1.02] shadow-2xl shadow-blue-500/20 z-10' 
+                      : notif.read 
+                        ? 'border-slate-800 opacity-50 scale-[0.98] grayscale-[0.5]' 
+                        : 'border-blue-500/30 shadow-lg shadow-blue-500/5'
+                  }`}
                   onClick={() => !notif.read && onMarkRead(notif.id)}
                 >
-                  <div className="p-6">
+                  <div className={`p-6 ${notif.read && !expandedReadIds.includes(notif.id) ? 'py-3' : ''}`}>
                     <div className="flex justify-between items-start mb-4">
                       <div className="flex items-center gap-3">
                         <button 
@@ -3319,13 +3438,25 @@ function NotificationsView({ notifications, onMarkRead, onEvaluate, onToggleComp
                         <div>
                           <div className="flex items-center gap-2">
                             <h3 className="font-bold text-white">{notif.userName}</h3>
-                            {!notif.read && <span className="w-2 h-2 bg-blue-500 rounded-full shadow-[0_0_8px_rgba(59,130,246,0.5)]"></span>}
+                            {!notif.read && (
+                                <span className="px-2 py-0.5 bg-emerald-500 text-white text-[10px] font-bold rounded uppercase tracking-wider shadow-[0_0_10px_rgba(16,185,129,0.3)]">New</span>
+                            )}
                             {notif.type === 'DEADLINE_WARNING' ? (
                               <span className="px-2 py-0.5 bg-red-500/10 text-red-400 text-[10px] font-bold rounded uppercase tracking-wider border border-red-500/20">Deadline Warning</span>
                             ) : notif.evaluated ? (
-                              <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[10px] font-bold rounded uppercase tracking-wider border border-emerald-500/20">Evaluated</span>
+                              <div className="flex gap-2">
+                                <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[10px] font-bold rounded uppercase tracking-wider border border-emerald-500/20">Evaluated</span>
+                                {notif.hasNewComments && (
+                                  <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[10px] font-bold rounded uppercase tracking-wider border border-blue-500/20 animate-pulse">New Comments</span>
+                                )}
+                              </div>
                             ) : (
-                              <span className="px-2 py-0.5 bg-orange-500/10 text-orange-400 text-[10px] font-bold rounded uppercase tracking-wider border border-orange-500/20">Pending</span>
+                              <div className="flex gap-2">
+                                <span className="px-2 py-0.5 bg-orange-500/10 text-orange-400 text-[10px] font-bold rounded uppercase tracking-wider border border-orange-500/20">Pending Review</span>
+                                {notif.hasNewComments && (
+                                  <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[10px] font-bold rounded uppercase tracking-wider border border-blue-500/20 animate-pulse">New Comments</span>
+                                )}
+                              </div>
                             )}
                           </div>
                           <p className="text-xs text-slate-500">
@@ -3333,8 +3464,23 @@ function NotificationsView({ notifications, onMarkRead, onEvaluate, onToggleComp
                           </p>
                         </div>
                       </div>
-                      <div className="text-right">
+                      <div className="text-right flex flex-col items-end gap-2">
                         <div className="text-[10px] text-slate-500 font-mono mb-1">{new Date(notif.timestamp).toLocaleString()}</div>
+                        {notif.read && (
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleExpandRead(notif.id);
+                            }}
+                            className="flex items-center gap-1 text-[10px] font-bold text-blue-400 hover:text-blue-300 transition-colors uppercase tracking-widest"
+                          >
+                            {expandedReadIds.includes(notif.id) ? (
+                              <><ChevronUp size={12} /> Collapse</>
+                            ) : (
+                              <><ChevronDown size={12} /> Expand Thread</>
+                            )}
+                          </button>
+                        )}
                         {!notif.evaluated && (
                           <div className={`text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 justify-end ${isUrgent ? 'text-red-400 animate-pulse' : 'text-slate-400'}`}>
                             <Clock size={10} /> {daysLeft > 0 ? `${daysLeft} days left` : 'Deadline passed'}
@@ -3343,6 +3489,8 @@ function NotificationsView({ notifications, onMarkRead, onEvaluate, onToggleComp
                       </div>
                     </div>
 
+                    {(!notif.read || expandedReadIds.includes(notif.id)) && (
+                        <>
                     {/* Show Evaluation Details if evaluated and toggled */}
                     {notif.evaluated && showEvaluationId === notif.id && (
                       <div className="mb-4 p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-xl animate-in fade-in slide-in-from-top-2">
@@ -3391,6 +3539,75 @@ function NotificationsView({ notifications, onMarkRead, onEvaluate, onToggleComp
                             )}
                           </div>
                         ))}
+                      </div>
+                    </div>
+
+                    {/* Discussion Window */}
+                    <div className="mt-6 pt-6 border-t border-slate-800 mb-6">
+                      <div className="flex items-center gap-2 mb-4">
+                        <MessageSquare size={14} className="text-blue-400" />
+                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Submission Discussion</span>
+                      </div>
+                      <div className="space-y-3 max-h-[300px] overflow-y-auto mb-4 pr-2 custom-scrollbar">
+                        {notif.comments && notif.comments.length > 0 ? (
+                          notif.comments.map(comment => (
+                            <div key={comment.id} className="group relative bg-slate-800/30 rounded-xl p-3 border border-slate-800/50">
+                              <div className="flex justify-between items-start mb-2">
+                                <div className="flex items-center gap-2">
+                                  <img src={comment.avatar} alt={comment.user} className="w-5 h-5 rounded-lg" />
+                                  <span className="text-xs font-bold text-white">{comment.user}</span>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                  <span className="text-[10px] text-slate-600">{new Date(comment.timestamp).toLocaleString()}</span>
+                                  {onDeleteComment && (
+                                    <button 
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onDeleteComment(notif.submissionId, comment.id, true);
+                                      }}
+                                      className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-400 transition-all"
+                                    >
+                                      <Trash2 size={12} />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                              <p className="text-xs text-slate-400 leading-relaxed">{comment.text}</p>
+                            </div>
+                          ))
+                        ) : (
+                          <p className="text-xs text-slate-600 italic text-center py-4">No comments yet. Start the conversation!</p>
+                        )}
+                      </div>
+                      <div className="flex gap-3">
+                        <input 
+                          type="text"
+                          value={commentInputs[notif.submissionId] || ''}
+                          onChange={e => setCommentInputs(prev => ({ ...prev, [notif.submissionId]: e.target.value }))}
+                          onClick={e => e.stopPropagation()}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && commentInputs[notif.submissionId]?.trim() && onPostSubmissionComment) {
+                              e.stopPropagation();
+                              onPostSubmissionComment(notif.submissionId, commentInputs[notif.submissionId]);
+                              setCommentInputs(prev => ({ ...prev, [notif.submissionId]: '' }));
+                            }
+                          }}
+                          placeholder="Type your message..."
+                          className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                        />
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (commentInputs[notif.submissionId]?.trim() && onPostSubmissionComment) {
+                              onPostSubmissionComment(notif.submissionId, commentInputs[notif.submissionId]);
+                              setCommentInputs(prev => ({ ...prev, [notif.submissionId]: '' }));
+                            }
+                          }}
+                          disabled={!commentInputs[notif.submissionId]?.trim()}
+                          className="w-10 h-10 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 text-white rounded-xl flex items-center justify-center transition-all shadow-lg shadow-blue-500/20"
+                        >
+                          <Send size={16} />
+                        </button>
                       </div>
                     </div>
 
@@ -3463,6 +3680,8 @@ function NotificationsView({ notifications, onMarkRead, onEvaluate, onToggleComp
                         </button>
                       )}
                     </div>
+                    </>
+                    )}
                   </div>
                 </div>
               );
@@ -3481,19 +3700,21 @@ function NotificationsView({ notifications, onMarkRead, onEvaluate, onToggleComp
 }
 
 export default function AdminBuilder({ 
-  initialTopics, 
-  initialTeachers, 
-  initialUsers, 
-  initialTags, 
-  initialLandingConfig, 
-  notifications,
-  initialTab = 'ANALYTICS',
-  onMarkNotificationRead,
-  onEvaluateSubmission,
-  onToggleNotificationCompleted,
-  onDeleteFile,
-  onApplyChanges, 
-  onExit 
+    initialTopics, 
+    initialTeachers, 
+    initialUsers, 
+    initialTags, 
+    initialLandingConfig, 
+    notifications, 
+    initialTab = 'ANALYTICS',
+    onMarkNotificationRead,
+    onEvaluateSubmission,
+    onPostSubmissionComment,
+    onDeleteComment,
+    onToggleNotificationCompleted,
+    onDeleteFile,
+    onApplyChanges,
+    onExit
 }: AdminBuilderProps) {
   const [activeTab, setActiveTab] = useState<'ANALYTICS' | 'CURRICULUM' | 'TEACHERS' | 'USERS_LIST' | 'TAGS' | 'USER_INTERFACE' | 'NOTIFICATIONS'>(initialTab);
   const [showUsersDropdown, setShowUsersDropdown] = useState(false);
@@ -3788,7 +4009,7 @@ export default function AdminBuilder({
 
   return (
     <div className="fixed inset-0 z-[100] bg-slate-950 text-slate-200 flex flex-col font-sans overflow-hidden">
-      <header className="min-h-[4rem] bg-slate-900 border-b border-slate-800 flex flex-col lg:flex-row items-center justify-between px-4 lg:px-6 py-3 lg:py-0 shrink-0 gap-4">
+      <header className="min-h-[4rem] bg-slate-900 border-b border-slate-800 flex flex-col lg:flex-row items-center justify-between px-4 lg:px-6 py-3 lg:py-0 shrink-0 gap-4 z-50 relative">
           <div className="flex items-center justify-between w-full lg:w-auto gap-4">
               <h1 className="text-white font-bold text-base sm:text-lg flex items-center gap-2 truncate">
                   <Edit2 size={18} className="text-blue-500 shrink-0" />
@@ -3809,7 +4030,7 @@ export default function AdminBuilder({
               </div>
           </div>
 
-          <div className="flex items-center gap-2 w-full lg:w-auto overflow-x-auto no-scrollbar pb-1 lg:pb-0">
+          <div className="flex items-center gap-2 w-full lg:w-auto pb-1 lg:pb-0">
               <div className="flex bg-slate-800 p-1 rounded-lg shrink-0">
                   <button 
                     onClick={() => setActiveTab('NOTIFICATIONS')}
@@ -4434,6 +4655,99 @@ export default function AdminBuilder({
                           </div>
                       </div>
 
+                      {/* SECTION 5: INTERFACE SETTINGS */}
+                      <div className="bg-slate-900 rounded-2xl border border-slate-800 shadow-sm overflow-hidden">
+                          <div className="bg-slate-800/50 px-6 py-3 border-b border-slate-800">
+                              <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">5. Interface Settings</h3>
+                          </div>
+                          <div className="p-6 space-y-6">
+                              <div className="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl border border-slate-800">
+                                  <div>
+                                      <h4 className="text-sm font-bold text-white">Show Teachers Tab</h4>
+                                      <p className="text-xs text-slate-500">Enable or disable the "Teachers" tab for students.</p>
+                                  </div>
+                                  <button 
+                                      onClick={() => setLandingConfig({...landingConfig, showTeachersTab: landingConfig.showTeachersTab === false ? true : false})}
+                                      className={`w-12 h-6 rounded-full transition-all relative ${landingConfig.showTeachersTab !== false ? 'bg-blue-600' : 'bg-slate-700'}`}
+                                  >
+                                      <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${landingConfig.showTeachersTab !== false ? 'left-7' : 'left-1'}`} />
+                                  </button>
+                              </div>
+
+                              <div className="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl border border-slate-800">
+                                  <div>
+                                      <h4 className="text-sm font-bold text-white">Show Student Analytics</h4>
+                                      <p className="text-xs text-slate-500">Allow students to see their personal progress tab.</p>
+                                  </div>
+                                  <button 
+                                      onClick={() => setLandingConfig({...landingConfig, showStudentAnalytics: !landingConfig.showStudentAnalytics})}
+                                      className={`w-12 h-6 rounded-full transition-all relative ${landingConfig.showStudentAnalytics ? 'bg-blue-600' : 'bg-slate-700'}`}
+                                  >
+                                      <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${landingConfig.showStudentAnalytics ? 'left-7' : 'left-1'}`} />
+                                  </button>
+                              </div>
+
+                              {landingConfig.showStudentAnalytics && (
+                                  <div className="pl-6 space-y-4 border-l-2 border-slate-800 ml-4">
+                                      <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-lg">
+                                          <div className="text-xs font-medium text-slate-300">Radar Chart (Performance)</div>
+                                          <button 
+                                              onClick={() => setLandingConfig({...landingConfig, showStudentRadar: landingConfig.showStudentRadar === false ? true : false})}
+                                              className={`w-10 h-5 rounded-full transition-all relative ${landingConfig.showStudentRadar !== false ? 'bg-blue-500/50' : 'bg-slate-700'}`}
+                                          >
+                                              <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${landingConfig.showStudentRadar !== false ? 'left-6' : 'left-1'}`} />
+                                          </button>
+                                      </div>
+                                      <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-lg">
+                                          <div className="text-xs font-medium text-slate-300">Bar Chart (Module Progress)</div>
+                                          <button 
+                                              onClick={() => setLandingConfig({...landingConfig, showStudentBar: landingConfig.showStudentBar === false ? true : false})}
+                                              className={`w-10 h-5 rounded-full transition-all relative ${landingConfig.showStudentBar !== false ? 'bg-blue-500/50' : 'bg-slate-700'}`}
+                                          >
+                                              <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${landingConfig.showStudentBar !== false ? 'left-6' : 'left-1'}`} />
+                                          </button>
+                                      </div>
+                                      <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-lg">
+                                          <div className="text-xs font-medium text-slate-300">Line Chart (Timeline)</div>
+                                          <button 
+                                              onClick={() => setLandingConfig({...landingConfig, showStudentLine: landingConfig.showStudentLine === false ? true : false})}
+                                              className={`w-10 h-5 rounded-full transition-all relative ${landingConfig.showStudentLine !== false ? 'bg-blue-500/50' : 'bg-slate-700'}`}
+                                          >
+                                              <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${landingConfig.showStudentLine !== false ? 'left-6' : 'left-1'}`} />
+                                          </button>
+                                      </div>
+                                      <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-lg">
+                                          <div className="text-xs font-medium text-slate-300">Scatter Plot (Quiz Performance)</div>
+                                          <button 
+                                              onClick={() => setLandingConfig({...landingConfig, showStudentScatter: landingConfig.showStudentScatter === false ? true : false})}
+                                              className={`w-10 h-5 rounded-full transition-all relative ${landingConfig.showStudentScatter !== false ? 'bg-blue-500/50' : 'bg-slate-700'}`}
+                                          >
+                                              <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${landingConfig.showStudentScatter !== false ? 'left-6' : 'left-1'}`} />
+                                          </button>
+                                      </div>
+                                      <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-lg">
+                                          <div className="text-xs font-medium text-slate-300">Show Submissions Tab</div>
+                                          <button 
+                                              onClick={() => setLandingConfig({...landingConfig, showStudentSubmissions: landingConfig.showStudentSubmissions === false ? true : false})}
+                                              className={`w-10 h-5 rounded-full transition-all relative ${landingConfig.showStudentSubmissions !== false ? 'bg-blue-500/50' : 'bg-slate-700'}`}
+                                          >
+                                              <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${landingConfig.showStudentSubmissions !== false ? 'left-6' : 'left-1'}`} />
+                                          </button>
+                                      </div>
+                                      <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-lg">
+                                          <div className="text-xs font-medium text-slate-300">Show Submissions Tab</div>
+                                          <button 
+                                              onClick={() => setLandingConfig({...landingConfig, showStudentSubmissions: landingConfig.showStudentSubmissions === false ? true : false})}
+                                              className={`w-10 h-5 rounded-full transition-all relative ${landingConfig.showStudentSubmissions !== false ? 'bg-blue-500/50' : 'bg-slate-700'}`}
+                                          >
+                                              <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${landingConfig.showStudentSubmissions !== false ? 'left-6' : 'left-1'}`} />
+                                          </button>
+                                      </div>
+                                  </div>
+                              )}
+                          </div>
+                      </div>
+
                       <div className="p-6 bg-blue-500/10 border border-blue-500/20 rounded-2xl">
                           <div className="flex gap-4">
                               <div className="w-10 h-10 bg-blue-500/20 rounded-full flex items-center justify-center shrink-0">
@@ -4713,6 +5027,8 @@ export default function AdminBuilder({
               onEvaluate={onEvaluateSubmission}
               onToggleCompleted={onToggleNotificationCompleted}
               onDeleteFile={onDeleteFile}
+              onPostSubmissionComment={onPostSubmissionComment}
+              onDeleteComment={onDeleteComment}
             />
           )}
 
@@ -4726,6 +5042,8 @@ export default function AdminBuilder({
                           landingConfig={landingConfig}
                           notifications={notifications}
                           onEvaluateSubmission={onEvaluateSubmission}
+                          onPostSubmissionComment={onPostSubmissionComment}
+                          onDeleteComment={onDeleteComment}
                       />
                   </div>
               </div>

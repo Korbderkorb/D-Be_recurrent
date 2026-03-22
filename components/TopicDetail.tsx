@@ -345,7 +345,7 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
 
       const attempt: QuizAttempt = {
           subTopicId: activeSubTopic.id,
-          timestamp: new Date().toLocaleString(),
+          timestamp: new Date().toISOString(),
           answers: selectedQuizAnswers,
           passed: score === total,
           score,
@@ -414,7 +414,8 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
           const totalFiles = Object.keys(uploadedFiles).length;
           let filesCompleted = 0;
           
-          for (const [reqKey, file] of Object.entries(uploadedFiles)) {
+          for (const [reqKey, fileObj] of Object.entries(uploadedFiles)) {
+              const file = fileObj as File;
               console.log(`Uploading file: ${file.name} for requirement: ${reqKey}`);
               const storageRef = ref(storage, `submissions/${currentUser.id}/${activeSubTopic.id}/${Date.now()}_${file.name}`);
               
