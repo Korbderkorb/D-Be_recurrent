@@ -12,6 +12,7 @@
         "role": { "type": "string", "enum": ["admin", "student"] },
         "status": { "type": "string", "enum": ["pending", "active"] },
         "profileColor": { "type": "string", "description": "Custom color for the user's avatar and graphs" },
+        "theme": { "type": "string", "enum": ["light", "dark"], "description": "User's preferred theme" },
         "tags": { "type": "array", "items": { "type": "string" }, "description": "List of tag names assigned to the user" },
         "allowedTopics": { "type": "array", "items": { "type": "string" } },
         "hasCompletedTour": { "type": "boolean", "description": "Whether the user has finished the onboarding tutorial" },
@@ -103,6 +104,12 @@
         "subtitle": { "type": "string" },
         "tag": { "type": "string" },
         "heroImage": { "type": "string" },
+        "heroImageLight": { "type": "string" },
+        "heroImageDark": { "type": "string" },
+        "appLogoUrlLight": { "type": "string" },
+        "appLogoUrlDark": { "type": "string" },
+        "faviconUrlLight": { "type": "string" },
+        "faviconUrlDark": { "type": "string" },
         "description": { "type": "string" },
         "quote": { "type": "string" }
       },
@@ -152,12 +159,12 @@
     },
     "Notification": {
       "title": "Notification",
-      "description": "System notification for admins",
+      "description": "System notification for users and admins",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
-        "userId": { "type": "string" },
-        "userName": { "type": "string" },
+        "userId": { "type": "string", "description": "The user who this notification is FOR" },
+        "userName": { "type": "string", "description": "The user who triggered the notification" },
         "topicId": { "type": "string" },
         "subTopicId": { "type": "string" },
         "topicTitle": { "type": "string" },
@@ -165,19 +172,17 @@
         "submissionId": { "type": "string" },
         "timestamp": { "type": "string" },
         "read": { "type": "boolean" },
-        "type": { "type": "string", "enum": ["EXERCISE_SUBMISSION"] },
-        "files": {
-          "type": "array",
-          "items": {
-            "type": "object",
-            "properties": {
-              "name": { "type": "string" },
-              "url": { "type": "string" }
-            }
-          }
-        }
+        "type": { "type": "string", "enum": ["EXERCISE_SUBMISSION", "SUBMISSION_COMMENT", "DEADLINE_WARNING"] },
+        "files": { "type": "array", "items": { "type": "object" } },
+        "evaluated": { "type": "boolean" },
+        "grade": { "type": "number" },
+        "feedback": { "type": "string" },
+        "completed": { "type": "boolean" },
+        "hasNewComments": { "type": "boolean" },
+        "lastCommentTimestamp": { "type": "string" },
+        "targetUserId": { "type": "string" }
       },
-      "required": ["id", "userId", "userName", "topicId", "subTopicId", "topicTitle", "subTopicTitle", "submissionId", "timestamp", "read", "type", "files"]
+      "required": ["id", "userId", "userName", "topicId", "subTopicId", "topicTitle", "subTopicTitle", "timestamp", "read", "type"]
     },
     "Comment": {
       "title": "Comment",
@@ -189,7 +194,7 @@
         "avatar": { "type": "string" },
         "text": { "type": "string" },
         "timestamp": { "type": "string" },
-        "reactions": { "type": "object", "description": "Map of emoji to count" },
+        "reactions": { "type": "object", "description": "Map of emoji to array of user IDs" },
         "replies": { "type": "array", "items": { "$ref": "Comment" } }
       },
       "required": ["id", "user", "avatar", "text", "timestamp", "reactions", "replies"]

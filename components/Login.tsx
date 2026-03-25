@@ -11,11 +11,12 @@ interface LoginProps {
   validUsers?: User[];
   bootstrapAdminEmail: string;
   landingConfig: LandingConfig;
+  theme: 'light' | 'dark';
 }
 
 type AuthMode = 'LOGIN' | 'SIGNUP' | 'FIRST_TIME';
 
-const Login: React.FC<LoginProps> = ({ onLogin, validUsers, bootstrapAdminEmail, landingConfig }) => {
+const Login: React.FC<LoginProps> = ({ onLogin, validUsers, bootstrapAdminEmail, landingConfig, theme }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -116,53 +117,61 @@ const Login: React.FC<LoginProps> = ({ onLogin, validUsers, bootstrapAdminEmail,
     }
   };
 
-  return (
-    <div className="min-h-screen flex bg-slate-950 text-slate-200">
+    const getThemeImage = (lightUrl?: string, darkUrl?: string, defaultUrl?: string) => {
+        if (theme === 'light' && lightUrl) return lightUrl;
+        if (theme === 'dark' && darkUrl) return darkUrl;
+        return defaultUrl || '';
+    };
+
+    return (
+    <div className={`min-h-screen flex transition-colors duration-300 ${theme === 'dark' ? 'bg-slate-950 text-slate-200' : 'bg-slate-50 text-slate-800'}`}>
       
       {/* Left Side - Brand & Aesthetic */}
-      <div className="hidden lg:flex lg:w-1/2 relative flex-col justify-between p-12 overflow-hidden border-r border-slate-800">
+      <div className={`hidden lg:flex lg:w-1/2 relative flex-col justify-between p-12 overflow-hidden border-r transition-colors duration-300 ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200'}`}>
         <div className="absolute inset-0 z-0">
              <img 
-                src={landingConfig.heroImage} 
-                className="w-full h-full object-cover opacity-20"
+                src={getThemeImage(landingConfig.loginImageUrlLight, landingConfig.loginImageUrlDark, landingConfig.loginImageUrl) || undefined} 
+                className={`w-full h-full object-cover ${theme === 'dark' ? 'opacity-20' : 'opacity-10'}`}
                 alt="Architecture"
              />
-             <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/50 to-transparent"></div>
+             <div className={`absolute inset-0 bg-gradient-to-t ${theme === 'dark' ? 'from-slate-950 via-slate-950/50' : 'from-slate-100 via-slate-100/50'} to-transparent`}></div>
         </div>
 
         <div className="relative z-10">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400 text-xs font-bold uppercase tracking-wider w-fit mb-6">
+            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-bold uppercase tracking-wider w-fit mb-6 ${
+                theme === 'dark' ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' : 'bg-blue-50 border-blue-200 text-blue-600'
+            }`}>
                 <Layers className="w-3 h-3" /> {landingConfig.tag}
             </div>
-            <h1 className="text-6xl font-extrabold text-white mb-2 leading-tight">
+            <h1 className={`text-6xl font-extrabold mb-2 leading-tight ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                 {landingConfig.title}
             </h1>
-            <h2 className="text-3xl font-light text-slate-300">
+            <h2 className={`text-3xl font-light ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>
                 {landingConfig.subtitle}
             </h2>
         </div>
 
         <div className="relative z-10 max-w-md">
-            <p className="text-slate-400 text-lg leading-relaxed mb-8">
+            <p className={`text-lg leading-relaxed mb-8 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>
                 "{landingConfig.quote}"
             </p>
             <div className="flex gap-2">
                  <div className="w-12 h-1 bg-blue-500 rounded-full"></div>
-                 <div className="w-2 h-1 bg-slate-700 rounded-full"></div>
-                 <div className="w-2 h-1 bg-slate-700 rounded-full"></div>
+                 <div className={`w-2 h-1 rounded-full ${theme === 'dark' ? 'bg-slate-700' : 'bg-slate-300'}`}></div>
+                 <div className={`w-2 h-1 rounded-full ${theme === 'dark' ? 'bg-slate-700' : 'bg-slate-300'}`}></div>
             </div>
         </div>
       </div>
 
       {/* Right Side - Login Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-slate-950">
+      <div className={`w-full lg:w-1/2 flex items-center justify-center p-8 transition-colors duration-300 ${theme === 'dark' ? 'bg-slate-950' : 'bg-white'}`}>
         <div className="w-full max-w-md space-y-8">
             <div className="text-center lg:text-left">
-                <h3 className="text-2xl font-bold text-white">
+                <h3 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                     {authMode === 'LOGIN' ? (landingConfig.loginTitle || 'Welcome back') : 
                      authMode === 'FIRST_TIME' ? (landingConfig.firstTimeLoginTitle || 'First Time Login') : 'Create an account'}
                 </h3>
-                <p className="text-slate-500 mt-2">
+                <p className={`mt-2 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>
                     {authMode === 'LOGIN' ? (landingConfig.loginSubtitle || 'Sign in to access your module tutorials.') : 
                      authMode === 'FIRST_TIME' ? (landingConfig.firstTimeLoginSubtitle || 'Enter your invited email to set up your password.') : 
                      'Sign up to start your learning journey.'}
@@ -171,7 +180,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, validUsers, bootstrapAdminEmail,
 
             <form onSubmit={handleAuth} className="space-y-6">
                 <div className="space-y-2">
-                    <label className="text-sm font-medium text-slate-300">Email</label>
+                    <label className={`text-sm font-medium ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Email</label>
                     <div className="relative">
                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
                         <input 
@@ -180,13 +189,15 @@ const Login: React.FC<LoginProps> = ({ onLogin, validUsers, bootstrapAdminEmail,
                             placeholder="student@university.edu"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-700 rounded-xl py-3 pl-10 pr-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                            className={`w-full border rounded-xl py-3 pl-10 pr-4 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
+                                theme === 'dark' ? 'bg-slate-900 border-slate-700 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
+                            }`}
                         />
                     </div>
                 </div>
 
                 <div className="space-y-2">
-                    <label className="text-sm font-medium text-slate-300">
+                    <label className={`text-sm font-medium ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>
                         {authMode === 'FIRST_TIME' ? 'Set Password' : 'Password'}
                     </label>
                     <div className="relative">
@@ -197,7 +208,9 @@ const Login: React.FC<LoginProps> = ({ onLogin, validUsers, bootstrapAdminEmail,
                             placeholder="••••••••"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className="w-full bg-slate-900 border border-slate-700 rounded-xl py-3 pl-10 pr-4 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                            className={`w-full border rounded-xl py-3 pl-10 pr-4 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
+                                theme === 'dark' ? 'bg-slate-900 border-slate-700 text-white' : 'bg-slate-50 border-slate-200 text-slate-900'
+                            }`}
                         />
                     </div>
                 </div>
@@ -233,14 +246,14 @@ const Login: React.FC<LoginProps> = ({ onLogin, validUsers, bootstrapAdminEmail,
                 ) : (
                     <button 
                         onClick={() => setAuthMode('LOGIN')}
-                        className="text-slate-400 hover:text-white text-sm font-medium transition-colors"
+                        className={`text-sm font-medium transition-colors ${theme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'}`}
                     >
                         Already have an account? Sign In
                     </button>
                 )}
             </div>
             
-            <p className="text-center text-sm text-slate-500">
+            <p className={`text-center text-sm ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>
                 Contact your course administrator if you have trouble logging in.
             </p>
         </div>

@@ -5,9 +5,10 @@ interface VideoPlayerProps {
   title: string;
   videoUrl?: string;
   poster?: string;
+  theme?: 'light' | 'dark';
 }
 
-const VideoPlayer: React.FC<VideoPlayerProps> = ({ title, videoUrl }) => {
+const VideoPlayer: React.FC<VideoPlayerProps> = ({ title, videoUrl, theme = 'dark' }) => {
   // Extract and normalize embed URL
   const embedUrl = useMemo(() => {
     if (!videoUrl) return '';
@@ -67,7 +68,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ title, videoUrl }) => {
   const hasError = !embedUrl;
 
   return (
-    <div className="relative w-full aspect-video bg-black rounded-xl overflow-hidden shadow-2xl border border-slate-800">
+    <div className={`relative w-full aspect-video rounded-xl overflow-hidden shadow-2xl border transition-colors duration-300 ${theme === 'dark' ? 'bg-black border-slate-800' : 'bg-slate-200 border-slate-300'}`}>
       {embedUrl ? (
         <iframe
           src={embedUrl}
@@ -79,14 +80,14 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({ title, videoUrl }) => {
           allowFullScreen
         />
       ) : (
-        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 p-8 text-center">
-          <div className="w-16 h-16 rounded-full bg-slate-900 flex items-center justify-center mb-4 border border-slate-800">
-            <AlertCircle className="w-8 h-8 text-slate-600" />
+        <div className={`absolute inset-0 flex flex-col items-center justify-center p-8 text-center transition-colors ${theme === 'dark' ? 'bg-black/90' : 'bg-slate-100/90'}`}>
+          <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 border transition-colors ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+            <AlertCircle className={`w-8 h-8 ${theme === 'dark' ? 'text-slate-600' : 'text-slate-400'}`} />
           </div>
-          <div className="font-mono text-sm font-bold text-slate-400 mb-2 tracking-widest uppercase">
+          <div className={`font-mono text-sm font-bold mb-2 tracking-widest uppercase transition-colors ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
             {hasError ? 'Video URL Missing' : 'Loading Video...'}
           </div>
-          <div className="font-mono text-[10px] text-slate-600 bg-slate-950 px-3 py-1.5 rounded border border-slate-900 break-all max-w-md">
+          <div className={`font-mono text-[10px] px-3 py-1.5 rounded border break-all max-w-md transition-colors ${theme === 'dark' ? 'text-slate-600 bg-slate-950 border-slate-900' : 'text-slate-500 bg-white border-slate-200'}`}>
             {videoUrl || 'No URL provided'}
           </div>
         </div>

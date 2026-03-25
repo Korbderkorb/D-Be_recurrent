@@ -13,6 +13,7 @@ interface TopicGraphProps {
   graphTitle?: string;
   graphSubtitle?: string;
   onStartTour?: () => void;
+  theme: 'light' | 'dark';
 }
 
 // Layout Constants
@@ -30,7 +31,8 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
   prerequisiteLockedIds = new Set(),
   graphTitle,
   graphSubtitle,
-  onStartTour
+  onStartTour,
+  theme
 }) => {
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -276,9 +278,9 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
     pattern.append("path")
         .attr("d", `M 3 0 L -3 0 M 0 3 L 0 -3`)
         .attr("transform", `translate(${patternSize/2}, ${patternSize/2})`)
-        .attr("stroke", "#475569")
+        .attr("stroke", theme === 'dark' ? "#475569" : "#e2e8f0")
         .attr("stroke-width", 1)
-        .attr("opacity", 0.4);
+        .attr("opacity", 0.6);
 
     nodes.forEach(node => {
         defs.append("pattern")
@@ -450,16 +452,16 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
         .attr("height", NODE_HEIGHT)
         .attr("rx", 0)
         .attr("fill", "#000")
-        .attr("fill-opacity", 0.5)
-        .attr("transform", "translate(4, 4)");
+        .attr("fill-opacity", theme === 'dark' ? 0.5 : 0.1)
+        .attr("transform", theme === 'dark' ? "translate(4, 4)" : "translate(3, 3)");
 
     nodeGroups.append("rect")
         .attr("class", "node-body")
         .attr("width", NODE_WIDTH)
         .attr("height", NODE_HEIGHT)
         .attr("rx", 0)
-        .attr("fill", "#1e293b") 
-        .attr("stroke", d => d.locked ? "#475569" : (d.complete ? "#22c55e" : (d.level === 1 ? "#3b82f6" : "#334155")))
+        .attr("fill", theme === 'dark' ? "#1e293b" : "#ffffff") 
+        .attr("stroke", d => d.locked ? (theme === 'dark' ? "#475569" : "#94a3b8") : (d.complete ? "#22c55e" : (d.level === 1 ? "#3b82f6" : (theme === 'dark' ? "#334155" : "#94a3b8"))))
         .attr("stroke-width", d => (d.complete || d.level === 1) && !d.locked ? 2 : 1);
 
     nodeGroups.append("rect")
@@ -477,7 +479,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
         .attr("y", 1)
         .attr("width", NODE_WIDTH - 2)
         .attr("height", NODE_HEIGHT - 42)
-        .attr("fill", "rgba(15, 23, 42, 0.6)");
+        .attr("fill", theme === 'dark' ? "rgba(15, 23, 42, 0.6)" : "rgba(241, 245, 249, 0.6)");
 
     // Locked Icon (Permanently Locked)
     const permanentlyLockedNodes = nodeGroups.filter(d => d.locked);
@@ -485,8 +487,8 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
         .attr("cx", NODE_WIDTH / 2)
         .attr("cy", (NODE_HEIGHT - 42) / 2)
         .attr("r", 20)
-        .attr("fill", "#0f172a")
-        .attr("stroke", "#475569");
+        .attr("fill", theme === 'dark' ? "#0f172a" : "#f8fafc")
+        .attr("stroke", theme === 'dark' ? "#475569" : "#e2e8f0");
         
     permanentlyLockedNodes.append("path")
         .attr("d", "M12 11V7a4 4 0 0 0-8 0v4H3v10h18V11h-1zm-4 0h-4V7a2 2 0 1 1 4 0v4z") // Simple lock path
@@ -499,7 +501,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
         .attr("cx", NODE_WIDTH / 2)
         .attr("cy", (NODE_HEIGHT - 42) / 2)
         .attr("r", 20)
-        .attr("fill", "#0f172a")
+        .attr("fill", theme === 'dark' ? "#0f172a" : "#f8fafc")
         .attr("stroke", "#fbbf24"); // Yellow stroke for prereq
         
     prereqLockedNodes.append("path")
@@ -516,7 +518,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
         .attr("y", 1)
         .attr("width", NODE_WIDTH - 2)
         .attr("height", NODE_HEIGHT - 2)
-        .attr("fill", "rgba(15, 23, 42, 0.95)");
+        .attr("fill", theme === 'dark' ? "rgba(15, 23, 42, 0.95)" : "rgba(255, 255, 255, 0.95)");
 
     hoverGroup.append("foreignObject")
         .attr("x", 10)
@@ -526,7 +528,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
         .append("xhtml:div")
         .style("font-family", "ui-monospace, monospace")
         .style("font-size", "10px")
-        .style("color", "#cbd5e1") 
+        .style("color", theme === 'dark' ? "#cbd5e1" : "#475569") 
         .style("height", "100%")
         .style("display", "flex")
         .style("flex-direction", "column")
@@ -563,7 +565,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
                 .transition().duration(200)
                 .attr("opacity", 1);
             
-            const cornerColor = d.prerequisiteLocked ? "#fbbf24" : "#fff";
+            const cornerColor = d.prerequisiteLocked ? "#fbbf24" : (theme === 'dark' ? "#fff" : "#000");
             d3.select(this).selectAll(".corner-marker")
                 .transition().duration(200)
                 .attr("opacity", 1)
@@ -571,7 +573,8 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
             
             d3.select(this).select(".node-body")
                 .transition().duration(200)
-                .attr("stroke-width", 0);
+                .attr("stroke", theme === 'dark' ? "#fff" : "#94a3b8")
+                .attr("stroke-width", 1);
 
             // 2. Highlight Connected Links (Brighter & Animated)
             const connectedLinks = zoomGroup.selectAll(".link")
@@ -581,6 +584,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
                 .classed("animate-dash", true) 
                 .attr("stroke", "#4ade80") 
                 .attr("stroke-width", 3)
+                .attr("stroke-dasharray", "8,8")
                 .attr("opacity", 1);
 
             // 4. Highlight Neighbor Nodes
@@ -594,7 +598,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
                 .filter((n: any) => neighborIds.has(n.id) && !hiddenTeacherEmails.has(n.teacher.email) && !n.locked)
                 .select(".node-body")
                 .transition().duration(200)
-                .attr("stroke", "#fff")
+                .attr("stroke", theme === 'dark' ? "#fff" : "#94a3b8")
                 .attr("stroke-width", 2)
                 .attr("stroke-opacity", 0.5); 
         })
@@ -608,11 +612,11 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
             d3.select(this).selectAll(".corner-marker")
                 .transition().duration(200)
                 .attr("opacity", 0)
-                .attr("stroke", "#fff");
+                .attr("stroke", theme === 'dark' ? "#fff" : "#000");
             
             d3.select(this).select(".node-body")
                 .transition().duration(200)
-                .attr("stroke", d.complete ? "#22c55e" : (d.level === 1 ? "#3b82f6" : "#334155"))
+                .attr("stroke", d.complete ? "#22c55e" : (d.level === 1 ? "#3b82f6" : (theme === 'dark' ? "#334155" : "#94a3b8")))
                 .attr("stroke-width", d.complete || d.level === 1 ? 2 : 1)
                 .attr("stroke-opacity", 1);
 
@@ -620,6 +624,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
                 .classed("animate-dash", false)
                 .attr("stroke", (l: any) => l.active ? "#4ade80" : "#64748b")
                 .attr("stroke-width", (l: any) => l.active ? 4 : 2)
+                .attr("stroke-dasharray", (l: any) => l.active ? "0" : "6,6")
                 .attr("opacity", (l: any) => {
                      const sourceHidden = hiddenTeacherEmails.has(l.source.teacher.email);
                      const targetHidden = hiddenTeacherEmails.has(l.target.teacher.email);
@@ -634,7 +639,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
                 .filter((n: any) => !hiddenTeacherEmails.has(n.teacher.email) && !n.locked)
                 .select(".node-body")
                 .transition().duration(200)
-                .attr("stroke", (n: any) => n.complete ? "#22c55e" : (n.level === 1 ? "#3b82f6" : "#334155"))
+                .attr("stroke", (n: any) => n.complete ? "#22c55e" : (n.level === 1 ? "#3b82f6" : (theme === 'dark' ? "#334155" : "#94a3b8")))
                 .attr("stroke-width", (n: any) => n.complete || n.level === 1 ? 2 : 1)
                 .attr("stroke-opacity", 1);
         });
@@ -644,7 +649,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
         .attr("y", NODE_HEIGHT - 40)
         .attr("width", NODE_WIDTH - 2)
         .attr("height", 39)
-        .attr("fill", "#334155"); 
+        .attr("fill", theme === 'dark' ? "#334155" : "#f8fafc"); 
 
     nodeGroups.append("text")
         .text(d => d.title.length > 25 ? d.title.substring(0, 22) + '...' : d.title)
@@ -652,7 +657,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
         .attr("y", NODE_HEIGHT - 24)
         .attr("font-family", "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace")
         .attr("font-size", "11px")
-        .attr("fill", "#f8fafc")
+        .attr("fill", theme === 'dark' ? "#f8fafc" : "#0f172a")
         .attr("font-weight", "bold");
     
     nodeGroups.append("rect")
@@ -660,7 +665,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
         .attr("y", NODE_HEIGHT - 6) 
         .attr("width", NODE_WIDTH - 2)
         .attr("height", 5)
-        .attr("fill", "#475569");
+        .attr("fill", theme === 'dark' ? "#475569" : "#e2e8f0");
 
     nodeGroups.append("rect")
         .attr("x", 1)
@@ -676,7 +681,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
         .attr("text-anchor", "end")
         .attr("font-family", "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace")
         .attr("font-size", "9px")
-        .attr("fill", d => d.complete ? "#22c55e" : "#cbd5e1");
+        .attr("fill", d => d.complete ? "#22c55e" : (theme === 'dark' ? "#cbd5e1" : "#64748b"));
 
     const corners = [
         "M 0 10 L 0 0 L 10 0",
@@ -695,7 +700,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
             .attr("opacity", 0); 
     });
 
-  }, [topics, onSelectTopic, completedSubTopics, getProgressStats, hiddenTeacherEmails, lockedTopicIds]);
+  }, [topics, onSelectTopic, completedSubTopics, getProgressStats, hiddenTeacherEmails, lockedTopicIds, theme]);
 
   const handleRecenter = () => {
     if (!topics.length || !svgRef.current || !containerRef.current || !zoomRef.current) return;
@@ -782,39 +787,44 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
         ref={containerRef} 
         onMouseMove={handleMouseMove}
         id="knowledge-graph"
-        className="w-full h-full relative overflow-hidden bg-slate-950 cursor-crosshair"
+        className={`w-full h-full relative overflow-hidden transition-colors duration-300 ${theme === 'dark' ? 'bg-slate-950' : 'bg-slate-50'}`}
+        style={{ 
+            cursor: theme === 'light' 
+                ? 'url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' viewBox=\'0 0 16 16\'><line x1=\'8\' y1=\'0\' x2=\'8\' y2=\'16\' stroke=\'black\' stroke-width=\'1.5\'/><line x1=\'0\' y1=\'8\' x2=\'16\' y2=\'8\' stroke=\'black\' stroke-width=\'1.5\'/></svg>") 8 8, crosshair' 
+                : 'crosshair' 
+        }}
     >
       <div className="absolute top-6 md:top-12 left-6 md:left-8 z-10 pointer-events-none">
-        <h2 className="text-sm md:text-xl font-mono font-bold text-slate-200 tracking-tight flex items-center gap-2">
+        <h2 className={`text-sm md:text-xl font-mono font-bold tracking-tight flex items-center gap-2 ${theme === 'dark' ? 'text-slate-200' : 'text-slate-900'}`}>
            <span className="w-1.5 h-1.5 md:w-2 md:h-2 bg-green-500 rounded-full animate-pulse"></span>
            {graphTitle || 'CURRICULUM_MAP_V2.3'}
         </h2>
-        <p className="text-slate-500 text-[8px] md:text-xs font-mono mt-0.5 md:mt-1">
+        <p className={`text-[8px] md:text-xs font-mono mt-0.5 md:mt-1 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>
             {graphSubtitle || 'INTERACTIVE_LEARNING_PATH'}
         </p>
         
         {/* Desktop Progress Info Lines */}
-        <div id="progress-info" className="hidden md:block mt-4 pt-4 border-t border-slate-800/50 space-y-3">
+        <div id="progress-info" className={`hidden md:block mt-4 pt-4 border-t space-y-3 ${theme === 'dark' ? 'border-slate-800/50' : 'border-slate-200'}`}>
              <div className="flex flex-col gap-1">
-                 <span className="text-[10px] text-slate-500 font-mono uppercase">Modules Completed</span>
-                 <span className="text-xl font-mono text-blue-400 font-medium">
-                     {overallStats.completed} <span className="text-slate-600 text-sm">/ {overallStats.total}</span>
+                 <span className={`text-[10px] font-mono uppercase ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Modules Completed</span>
+                 <span className={`text-xl font-mono font-medium ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>
+                     {overallStats.completed} <span className={theme === 'dark' ? 'text-slate-600' : 'text-slate-300'}>/ {overallStats.total}</span>
                  </span>
              </div>
              <div className="flex flex-col gap-1">
-                 <span className="text-[10px] text-slate-500 font-mono uppercase">Global Progress</span>
+                 <span className={`text-[10px] font-mono uppercase ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Global Progress</span>
                  <div className="flex items-center gap-3">
-                      <span className="text-xl font-mono text-green-400 font-medium">{overallStats.percent}%</span>
-                      <div className="w-24 h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700/50">
-                          <div className="h-full bg-green-500 transition-all duration-1000 ease-out" style={{ width: `${overallStats.percent}%` }} />
-                      </div>
+                       <span className={`text-xl font-mono font-medium ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`}>{overallStats.percent}%</span>
+                       <div className={`w-24 h-1.5 rounded-full overflow-hidden border ${theme === 'dark' ? 'bg-slate-800 border-slate-700/50' : 'bg-slate-200 border-slate-300'}`}>
+                           <div className="h-full bg-green-500 transition-all duration-1000 ease-out" style={{ width: `${overallStats.percent}%` }} />
+                       </div>
                  </div>
              </div>
         </div>
 
         {/* Desktop Teacher Toggle Legend */}
-        <div className="hidden md:block mt-6 pt-4 border-t border-slate-800/50 pointer-events-auto">
-            <span className="text-[10px] text-slate-500 font-mono uppercase block mb-2">Filter by Instructor</span>
+        <div className={`hidden md:block mt-6 pt-4 border-t pointer-events-auto ${theme === 'dark' ? 'border-slate-800/50' : 'border-slate-200'}`}>
+            <span className={`text-[10px] font-mono uppercase block mb-2 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Filter by Instructor</span>
             <div className="space-y-2">
                 {uniqueTeachers.map(t => (
                     <div 
@@ -825,7 +835,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
                         <div className={`w-3 h-3 rounded-sm border flex items-center justify-center ${hiddenTeacherEmails.has(t.email) ? 'bg-transparent border-slate-600' : 'bg-blue-500 border-blue-500'}`}>
                            {!hiddenTeacherEmails.has(t.email) && <Check size={10} className="text-white" />}
                         </div>
-                        <span className="text-xs text-slate-300 font-mono">{t.name}</span>
+                        <span className={`text-xs font-mono ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>{t.name}</span>
                     </div>
                 ))}
             </div>
@@ -833,29 +843,29 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
       </div>
 
       {/* Mobile Bottom Info Bar */}
-      <div className="md:hidden absolute bottom-0 left-0 w-full bg-slate-950/90 backdrop-blur border-t border-slate-800 px-4 py-3 z-30 flex items-center justify-between">
+      <div className={`md:hidden absolute bottom-0 left-0 w-full backdrop-blur border-t px-4 py-3 z-30 flex items-center justify-between ${theme === 'dark' ? 'bg-slate-950/90 border-slate-800' : 'bg-white/90 border-slate-200'}`}>
           <div className="flex items-center gap-4 text-[10px] font-mono">
               <div className="flex flex-col">
-                  <span className="text-slate-500 uppercase leading-none mb-1">Modules</span>
-                  <span className="text-blue-400 font-bold">{overallStats.completed}/{overallStats.total}</span>
+                  <span className={`uppercase leading-none mb-1 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Modules</span>
+                  <span className={`font-bold ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>{overallStats.completed}/{overallStats.total}</span>
               </div>
               <div className="flex flex-col">
-                  <span className="text-slate-500 uppercase leading-none mb-1">Progress</span>
-                  <span className="text-green-400 font-bold">{overallStats.percent}%</span>
+                  <span className={`uppercase leading-none mb-1 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Progress</span>
+                  <span className={`font-bold ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`}>{overallStats.percent}%</span>
               </div>
           </div>
 
           <div className="relative">
               <button 
                   onClick={() => setIsInstructorMenuOpen(!isInstructorMenuOpen)}
-                  className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded text-[10px] text-slate-300 font-mono"
+                  className={`flex items-center gap-2 border px-3 py-1.5 rounded text-[10px] font-mono ${theme === 'dark' ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-600'}`}
               >
                   Instructors
                   <Check size={10} className={isInstructorMenuOpen ? "rotate-180 transition-transform" : "transition-transform"} />
               </button>
 
               {isInstructorMenuOpen && (
-                  <div className="absolute bottom-full right-0 mb-2 w-48 bg-slate-900 border border-slate-800 rounded-lg shadow-2xl p-2 space-y-1">
+                  <div className={`absolute bottom-full right-0 mb-2 w-48 border rounded-lg shadow-2xl p-2 space-y-1 ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
                       {uniqueTeachers.map(t => (
                           <div 
                               key={t.email} 
@@ -863,12 +873,12 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
                                   toggleTeacher(t.email);
                                   // Keep menu open for multiple selections
                               }}
-                              className={`flex items-center gap-2 p-2 hover:bg-slate-800 rounded cursor-pointer transition-opacity ${hiddenTeacherEmails.has(t.email) ? 'opacity-50' : 'opacity-100'}`}
+                              className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-opacity ${hiddenTeacherEmails.has(t.email) ? 'opacity-50' : 'opacity-100'} ${theme === 'dark' ? 'hover:bg-slate-800' : 'hover:bg-slate-50'}`}
                           >
                               <div className={`w-3 h-3 rounded-sm border flex items-center justify-center ${hiddenTeacherEmails.has(t.email) ? 'bg-transparent border-slate-600' : 'bg-blue-500 border-blue-500'}`}>
                                  {!hiddenTeacherEmails.has(t.email) && <Check size={10} className="text-white" />}
                               </div>
-                              <span className="text-[10px] text-slate-300 font-mono">{t.name}</span>
+                              <span className={`text-[10px] font-mono ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>{t.name}</span>
                           </div>
                       ))}
                   </div>
@@ -876,7 +886,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
           </div>
       </div>
       
-      <div className="absolute top-0 left-0 w-full h-8 border-b border-slate-800 bg-slate-950/80 backdrop-blur pointer-events-none"></div>
+      <div className={`absolute top-0 left-0 w-full h-8 border-b backdrop-blur pointer-events-none ${theme === 'dark' ? 'border-slate-800 bg-slate-950/80' : 'border-slate-200 bg-white/80'}`}></div>
       
       {/* Zoom Controls */}
       <div className="absolute bottom-12 md:bottom-20 right-6 md:right-8 z-30 flex flex-col gap-2 ml-0 pt-0 pb-0 pl-0 mb-[42px]">
@@ -884,7 +894,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
             <button 
                 onClick={onStartTour}
                 id="restart-tour-button"
-                className="w-10 h-10 bg-slate-900 border border-slate-800 rounded-lg flex items-center justify-center text-slate-400 hover:text-blue-400 hover:bg-slate-800 transition-all shadow-xl"
+                className={`w-10 h-10 border rounded-lg flex items-center justify-center transition-all shadow-xl ${theme === 'dark' ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-blue-400 hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-400 hover:text-blue-500 hover:bg-slate-50'}`}
                 title="Re-watch Tutorial"
             >
                 <HelpCircle size={18} />
@@ -893,15 +903,15 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
           <button 
               onClick={handleRecenter}
               id="recenter-button"
-              className="w-10 h-10 bg-slate-900 border border-slate-800 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all shadow-xl ml-0 pt-0"
+              className={`w-10 h-10 border rounded-lg flex items-center justify-center transition-all shadow-xl ml-0 pt-0 ${theme === 'dark' ? 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800' : 'bg-white border-slate-200 text-slate-400 hover:text-slate-900 hover:bg-slate-50'}`}
               title="Recenter Graph"
           >
               <Maximize size={18} />
           </button>
       </div>
 
-      <div className="absolute bottom-12 md:bottom-0 right-0 w-32 md:w-48 h-8 md:h-12 border-t border-l border-slate-800 bg-slate-950/90 backdrop-blur pointer-events-none flex items-center justify-center">
-         <div className="font-mono text-[8px] md:text-xs text-blue-400">
+      <div className={`absolute bottom-12 md:bottom-0 right-0 w-32 md:w-48 h-8 md:h-12 border-t border-l backdrop-blur pointer-events-none flex items-center justify-center ${theme === 'dark' ? 'border-slate-800 bg-slate-950/90' : 'border-slate-200 bg-white/90'}`}>
+         <div className={`font-mono text-[8px] md:text-xs ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>
             X:{coords.x.toFixed(1).padStart(7, ' ')} Y:{coords.y.toFixed(1).padStart(7, ' ')}
          </div>
       </div>

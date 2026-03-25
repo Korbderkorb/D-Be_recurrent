@@ -115,10 +115,17 @@ service cloud.firestore {
     }
 
     function isValidNotification(data) {
-      return data.keys().hasAll(['id', 'userId', 'userName', 'topicId', 'subTopicId', 'topicTitle', 'subTopicTitle', 'submissionId', 'timestamp', 'read', 'type', 'files']) &&
-             data.userId == request.auth.uid &&
-             data.read == false &&
-             data.type == 'EXERCISE_SUBMISSION';
+      return data.keys().hasAll(['id', 'userId', 'userName', 'topicId', 'subTopicId', 'topicTitle', 'subTopicTitle', 'timestamp', 'read', 'type']) &&
+             data.id is string &&
+             data.userId is string &&
+             data.userName is string &&
+             data.topicId is string &&
+             data.subTopicId is string &&
+             data.topicTitle is string &&
+             data.subTopicTitle is string &&
+             data.timestamp is string &&
+             data.read is bool &&
+             data.type in ['EXERCISE_SUBMISSION', 'SUBMISSION_COMMENT', 'DEADLINE_WARNING'];
     }
 
     // ===============================================================
@@ -191,6 +198,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    match /tags/{tagId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
     match /config/landing {
       allow read: if true;
       allow write: if isAdmin();
@@ -204,9 +216,9 @@ service cloud.firestore {
     }
 
     match /notifications/{notificationId} {
-      allow read: if isAdmin();
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isAuthenticated() && isValidNotification(request.resource.data);
-      allow update: if isAdmin();
+      allow update: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
       allow delete: if isAdmin();
     }
   }

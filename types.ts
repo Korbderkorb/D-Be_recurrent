@@ -12,7 +12,7 @@ export interface Comment {
   avatar: string;
   text: string;
   timestamp: string;
-  reactions: Record<string, number>; // emoji -> count
+  reactions: Record<string, string[]>; // emoji -> userIds[]
   replies: Comment[];
 }
 
@@ -53,6 +53,7 @@ export interface ExerciseSubmission {
   userId: string;
   userName: string;
   subTopicId: string;
+  subTopicTitle?: string;
   topicId: string;
   files: {
     name: string;
@@ -133,6 +134,8 @@ export interface LandingConfig {
   description: string;
   tag: string;
   heroImage: string;
+  heroImageLight?: string;
+  heroImageDark?: string;
   quote: string;
 
   // Welcome Overlay
@@ -145,10 +148,14 @@ export interface LandingConfig {
   graphTitle?: string;
   graphSubtitle?: string;
   appLogoUrl?: string;
+  appLogoUrlLight?: string;
+  appLogoUrlDark?: string;
 
   // Browser Browser Metadata
   browserTitle?: string;
   faviconUrl?: string;
+  faviconUrlLight?: string;
+  faviconUrlDark?: string;
 
   // Interface Settings
   showTeachersTab?: boolean;
@@ -164,6 +171,9 @@ export interface LandingConfig {
   loginSubtitle?: string;
   firstTimeLoginTitle?: string;
   firstTimeLoginSubtitle?: string;
+  loginImageUrl?: string;
+  loginImageUrlLight?: string;
+  loginImageUrlDark?: string;
 }
 
 export enum ViewState {
@@ -204,6 +214,7 @@ export interface User {
   profileColor?: string;
   hasCompletedTour?: boolean;
   hasCompletedTopicTour?: boolean;
+  theme?: 'light' | 'dark';
 }
 
 export interface Notification {
@@ -226,7 +237,7 @@ export interface Notification {
   hasNewComments?: boolean;
   targetUserId?: string; // 'admin' or a specific student userId
   deadlineNotificationSent?: boolean;
-  type: 'EXERCISE_SUBMISSION' | 'DEADLINE_WARNING' | 'SUBMISSION_COMMENT';
+  type: 'EXERCISE_SUBMISSION' | 'DEADLINE_WARNING' | 'SUBMISSION_COMMENT' | 'EXERCISE_RESUBMISSION';
   files: {
     name: string;
     url: string;

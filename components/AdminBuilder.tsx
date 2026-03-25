@@ -20,7 +20,7 @@ import {
   useSortable
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Download, Plus, Trash2, Edit2, GripVertical, ChevronRight, Video, Upload, HelpCircle, UploadCloud, RefreshCw, Copy, AlertCircle, Info, Settings, Save, CheckSquare, Square, X, Users, GraduationCap, Layers, UserPlus, Key, Eye, Shield, BarChart3, Search, Lock as LockIcon, Sparkles, CheckCircle2, Clock, History, XCircle, ChevronDown, ChevronUp, FileText, Printer, FileCode, FileUp, ExternalLink, Award, BellOff, AlertTriangle, MessageSquare, Send } from 'lucide-react';
+import { Download, Plus, Trash2, Edit2, GripVertical, ChevronRight, Video, Upload, HelpCircle, UploadCloud, RefreshCw, Copy, AlertCircle, Info, Settings, Save, CheckSquare, Square, X, Users, GraduationCap, Layers, UserPlus, Key, Eye, Shield, BarChart3, Search, Lock as LockIcon, Sparkles, CheckCircle2, Clock, History, XCircle, ChevronDown, ChevronUp, FileText, Printer, FileCode, FileUp, ExternalLink, Award, BellOff, AlertTriangle, MessageSquare, Send, Calendar, User as UserIcon } from 'lucide-react';
 import { ref, getBlob } from 'firebase/storage';
 import { storage } from '../firebase';
 import { 
@@ -48,7 +48,7 @@ import {
   Label,
   LabelList
 } from 'recharts';
-import { Topic, SubTopic, Teacher, SubTopicType, QuizQuestion, User, LandingConfig, QuizAttempt, Tag, Notification as AppNotification } from '../types';
+import { Topic, SubTopic, Teacher, SubTopicType, QuizQuestion, User, LandingConfig, QuizAttempt, Tag, Notification as AppNotification, ExerciseSubmission } from '../types';
 import { MEDIA_ROOT, getPlaceholderPath } from '../constants';
 const MODULE_TYPES: SubTopicType[] = ['VIDEO', 'EXERCISE_UPLOAD', 'EXERCISE_QUIZ'];
 
@@ -85,7 +85,7 @@ const getTopicThumbPath = (topicId: string) => getPlaceholderPath('thumb');
 
 // --- COMPONENTS ---
 
-const PathDisplay = ({ label, path, description }: { label: string, path: string, description?: string }) => {
+const PathDisplay = ({ label, path, description, theme = 'dark' }: { label: string, path: string, description?: string, theme?: 'light' | 'dark' }) => {
     const [copied, setCopied] = useState(false);
     
     const handleCopy = () => {
@@ -112,11 +112,11 @@ const PathDisplay = ({ label, path, description }: { label: string, path: string
             </div>
             <div 
                 onClick={handleCopy}
-                className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded p-2 cursor-pointer transition-colors group"
+                className={`flex items-center gap-2 border rounded p-2 cursor-pointer transition-colors group ${theme === 'dark' ? 'bg-slate-900 hover:bg-slate-800 border-slate-800' : 'bg-slate-50 hover:bg-slate-100 border-slate-200'}`}
                 title="Click to copy path"
             >
-                <code className="text-xs font-mono text-slate-300 break-all flex-1">{path}</code>
-                <Copy size={12} className="text-slate-600 group-hover:text-blue-400" />
+                <code className={`text-xs font-mono break-all flex-1 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>{path}</code>
+                <Copy size={12} className={`transition-colors ${theme === 'dark' ? 'text-slate-600 group-hover:text-blue-400' : 'text-slate-400 group-hover:text-blue-600'}`} />
             </div>
         </div>
     );
@@ -129,9 +129,10 @@ interface ModuleEditorProps {
   existingSubIds: (string | undefined)[];
   onUpdate: (m: SubTopic) => void;
   onDelete: () => void;
+  theme?: 'light' | 'dark';
 }
 
-const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSubIds, onUpdate, onDelete }) => {
+const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSubIds, onUpdate, onDelete, theme = 'dark' }) => {
   const [expanded, setExpanded] = useState(false);
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
   const [newUploadReq, setNewUploadReq] = useState('');
@@ -156,41 +157,41 @@ const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSu
   };
 
   return (
-    <div className={`bg-slate-900 border rounded-lg transition-all ${expanded ? 'shadow-md border-blue-500/50 ring-1 ring-blue-500/20' : 'border-slate-800 hover:border-slate-700'}`}>
+    <div className={`border rounded-lg transition-all ${expanded ? 'shadow-md border-blue-500/50 ring-1 ring-blue-500/20' : (theme === 'dark' ? 'border-slate-800 hover:border-slate-700' : 'border-slate-200 hover:border-slate-300')} ${theme === 'dark' ? 'bg-slate-900' : 'bg-white'}`}>
         <div 
             className="flex items-center p-4 cursor-pointer"
             onClick={() => setExpanded(!expanded)}
         >
-            <div className="mr-3 text-slate-600 cursor-grab active:cursor-grabbing"><GripVertical size={16} /></div>
-            <div className="mr-3 p-2 bg-slate-800 rounded-md border border-slate-700">{
+            <div className={`mr-3 cursor-grab active:cursor-grabbing ${theme === 'dark' ? 'text-slate-600' : 'text-slate-400'}`}><GripVertical size={16} /></div>
+            <div className={`mr-3 p-2 rounded-md border ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-slate-100 border-slate-200'}`}>{
                 module.type === 'VIDEO' ? <Video size={18} className="text-blue-400" /> :
                 module.type === 'EXERCISE_UPLOAD' ? <Upload size={18} className="text-purple-400" /> :
                 <HelpCircle size={18} className="text-orange-400" />
             }</div>
             <div className="flex-1">
                 <div className="flex items-center gap-2">
-                    <span className="font-semibold text-slate-200 text-sm">{module.title || 'Untitled Module'}</span>
-                    <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${subIdConflict ? 'bg-red-900/30 text-red-400' : 'bg-slate-800 text-slate-500'}`}>
+                    <span className={`font-semibold text-sm ${theme === 'dark' ? 'text-slate-200' : 'text-slate-900'}`}>{module.title || 'Untitled Module'}</span>
+                    <span className={`text-xs font-mono px-1.5 py-0.5 rounded ${subIdConflict ? 'bg-red-900/30 text-red-400' : (theme === 'dark' ? 'bg-slate-800 text-slate-500' : 'bg-slate-100 text-slate-500')}`}>
                         {module._subId || 'no-id'}
                     </span>
                     {subIdConflict && <AlertCircle size={14} className="text-red-500" />}
                 </div>
-                <div className="text-xs text-slate-500 mt-0.5 truncate">{module.description || 'No description'}</div>
+                <div className={`text-xs mt-0.5 truncate ${theme === 'dark' ? 'text-slate-500' : 'text-slate-500'}`}>{module.description || 'No description'}</div>
             </div>
-            <div className="text-xs font-mono text-slate-500 mr-4">{module.duration}</div>
-            <div className={`transform transition-transform text-slate-500 ${expanded ? 'rotate-90' : ''}`}><ChevronRight size={18} /></div>
+            <div className={`text-xs font-mono mr-4 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>{module.duration}</div>
+            <div className={`transform transition-transform ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'} ${expanded ? 'rotate-90' : ''}`}><ChevronRight size={18} /></div>
         </div>
 
         {expanded && (
-            <div className="p-4 border-t border-slate-800 bg-slate-900/50">
+            <div className={`p-4 border-t ${theme === 'dark' ? 'border-slate-800 bg-slate-900/50' : 'border-slate-200 bg-slate-50/50'}`}>
                 <div className="grid grid-cols-12 gap-4">
                     <div className="col-span-12 md:col-span-8">
                         <label className="block text-xs font-medium text-slate-500 mb-1">Title</label>
-                        <input type="text" value={module.title} onChange={e => handleTitleChange(e.target.value)} className="w-full p-2 text-sm border border-slate-700 rounded focus:border-blue-500 outline-none bg-slate-800 text-white font-medium" />
+                        <input type="text" value={module.title} onChange={e => handleTitleChange(e.target.value)} className={`w-full p-2 text-sm border rounded focus:border-blue-500 outline-none font-medium ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`} />
                     </div>
                     <div className="col-span-12 md:col-span-4">
                         <label className="block text-xs font-medium text-slate-500 mb-1">Type</label>
-                        <select value={module.type} onChange={e => onUpdate({...module, type: e.target.value as SubTopicType})} className="w-full p-2 text-sm border border-slate-700 rounded focus:border-blue-500 outline-none bg-slate-800 text-white">
+                        <select value={module.type} onChange={e => onUpdate({...module, type: e.target.value as SubTopicType})} className={`w-full p-2 text-sm border rounded focus:border-blue-500 outline-none ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}>
                             {MODULE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
                     </div>
@@ -203,7 +204,7 @@ const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSu
                                     type="checkbox" 
                                     checked={!!module._isManualId} 
                                     onChange={e => onUpdate({ ...module, _isManualId: e.target.checked })}
-                                    className="w-3 h-3 rounded border-slate-600 bg-slate-700 text-blue-600 focus:ring-blue-500"
+                                    className={`w-3 h-3 rounded border-slate-600 focus:ring-blue-500 ${theme === 'dark' ? 'bg-slate-700 text-blue-600' : 'bg-white text-blue-600'}`}
                                 />
                                 Manual Edit
                             </label>
@@ -213,22 +214,22 @@ const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSu
                             value={module._subId || ''} 
                             onChange={e => handleIdChange(e.target.value)}
                             disabled={!module._isManualId}
-                            className={`w-full p-2 text-xs font-mono border rounded outline-none transition-colors ${module._isManualId ? 'bg-slate-800 border-blue-500/50 text-blue-400' : 'bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed'}`} 
+                            className={`w-full p-2 text-xs font-mono border rounded outline-none transition-colors ${module._isManualId ? (theme === 'dark' ? 'bg-slate-800 border-blue-500/50 text-blue-400' : 'bg-white border-blue-500 text-blue-600') : (theme === 'dark' ? 'bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed' : 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed')}`} 
                         />
                         {subIdConflict && <p className="text-[10px] text-red-500 mt-1 flex items-center gap-1"><AlertCircle size={10} /> This ID is already used by another module in this topic.</p>}
                     </div>
                     <div className="col-span-8">
                          <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
-                         <input type="text" value={module.description} onChange={e => onUpdate({...module, description: e.target.value})} className="w-full p-2 text-sm border border-slate-700 rounded focus:border-blue-500 outline-none bg-slate-800 text-white" />
+                         <input type="text" value={module.description} onChange={e => onUpdate({...module, description: e.target.value})} className={`w-full p-2 text-sm border rounded focus:border-blue-500 outline-none ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`} />
                     </div>
                      <div className="col-span-4">
                         <label className="block text-xs font-medium text-slate-500 mb-1">Duration</label>
-                         <input type="text" value={module.duration} onChange={e => onUpdate({...module, duration: e.target.value})} placeholder="MM:SS" className="w-full p-2 text-sm border border-slate-700 rounded focus:border-blue-500 outline-none bg-slate-800 text-white" />
+                         <input type="text" value={module.duration} onChange={e => onUpdate({...module, duration: e.target.value})} placeholder="MM:SS" className={`w-full p-2 text-sm border rounded focus:border-blue-500 outline-none ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`} />
                     </div>
                     
                     {/* VIDEO SPECIFIC */}
                     {module.type === 'VIDEO' && (
-                         <div className="col-span-12 space-y-3 pb-2 border-b border-slate-800 mb-2">
+                         <div className={`col-span-12 space-y-3 pb-2 border-b mb-2 ${theme === 'dark' ? 'border-slate-800' : 'border-slate-200'}`}>
                              <div>
                                  <label className="block text-xs font-medium text-slate-500 mb-1">Embed Link (Vimeo/YouTube)</label>
                                  <input 
@@ -236,7 +237,7 @@ const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSu
                                      value={module.videoUrl || ''} 
                                      onChange={e => onUpdate({ ...module, videoUrl: e.target.value })} 
                                      placeholder="https://player.vimeo.com/video/..."
-                                     className="w-full p-2 text-sm border border-slate-700 rounded focus:border-blue-500 outline-none bg-slate-800 font-mono text-slate-400" 
+                                     className={`w-full p-2 text-sm border rounded focus:border-blue-500 outline-none font-mono ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-400' : 'bg-white border-slate-200 text-slate-600'}`} 
                                  />
                              </div>
                              
@@ -247,16 +248,16 @@ const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSu
                                      value={module.posterUrl || ''} 
                                      onChange={e => onUpdate({ ...module, posterUrl: e.target.value })} 
                                      placeholder={getGeneratedPath(topicId, module._subId, 'thumb')}
-                                     className="w-full p-2 text-sm border border-slate-700 rounded focus:border-blue-500 outline-none bg-slate-800 font-mono text-slate-400" 
+                                     className={`w-full p-2 text-sm border rounded focus:border-blue-500 outline-none font-mono ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-400' : 'bg-white border-slate-200 text-slate-600'}`} 
                                  />
                              </div>
                              
-                             <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-300 select-none font-bold mt-2">
+                             <label className={`flex items-center gap-2 cursor-pointer text-sm select-none font-bold mt-2 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>
                                 <input 
                                     type="checkbox" 
                                     checked={module.hasResources !== false} 
                                     onChange={e => onUpdate({...module, hasResources: e.target.checked})} 
-                                    className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-blue-600 focus:ring-blue-500" 
+                                    className={`w-4 h-4 rounded border-slate-600 focus:ring-blue-500 ${theme === 'dark' ? 'bg-slate-700 text-blue-600' : 'bg-white text-blue-600'}`} 
                                 /> 
                                 Has Resources (Notes/Zip)
                              </label>
@@ -273,7 +274,7 @@ const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSu
                                                 resources: { ...module.resources, notesUrl: e.target.value }
                                             })} 
                                             placeholder={getGeneratedPath(topicId, module._subId, 'pdf')}
-                                            className="w-full p-2 text-sm border border-slate-700 rounded focus:border-blue-500 outline-none bg-slate-800 font-mono text-slate-400" 
+                                            className={`w-full p-2 text-sm border rounded focus:border-blue-500 outline-none font-mono ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-400' : 'bg-white border-slate-200 text-slate-600'}`} 
                                          />
                                      </div>
                                      <div>
@@ -286,7 +287,7 @@ const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSu
                                                 resources: { ...module.resources, sourceUrl: e.target.value }
                                             })} 
                                             placeholder={getGeneratedPath(topicId, module._subId, 'zip')}
-                                            className="w-full p-2 text-sm border border-slate-700 rounded focus:border-blue-500 outline-none bg-slate-800 font-mono text-slate-400" 
+                                            className={`w-full p-2 text-sm border rounded focus:border-blue-500 outline-none font-mono ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-400' : 'bg-white border-slate-200 text-slate-600'}`} 
                                          />
                                      </div>
                                  </div>
@@ -296,13 +297,13 @@ const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSu
 
                     {/* UPLOAD EXERCISE SPECIFIC */}
                     {module.type === 'EXERCISE_UPLOAD' && (
-                        <div className="col-span-12 bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-4">
+                        <div className={`col-span-12 p-4 rounded-xl border space-y-4 ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
                              <div>
                                  <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Upload Requirements</label>
                                  <div className="space-y-2 mb-3">
                                      {(module.uploadRequirements || []).map((req, idx) => (
                                          <div key={idx} className="flex items-center gap-2">
-                                             <span className="text-sm font-medium text-slate-300 bg-slate-900 border border-slate-700 px-3 py-1.5 rounded-lg flex-1">{req}</span>
+                                             <span className={`text-sm font-medium px-3 py-1.5 rounded-lg flex-1 border ${theme === 'dark' ? 'text-slate-300 bg-slate-900 border-slate-700' : 'text-slate-700 bg-white border-slate-200'}`}>{req}</span>
                                              <button 
                                                 onClick={() => onUpdate({ ...module, uploadRequirements: (module.uploadRequirements || []).filter((_, i) => i !== idx) })}
                                                 className="text-slate-500 hover:text-red-500 transition-colors"
@@ -321,7 +322,7 @@ const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSu
                                         value={newUploadReq}
                                         onChange={(e) => setNewUploadReq(e.target.value)}
                                         placeholder="E.g. Rhino Model, Render Image..."
-                                        className="flex-1 p-2 text-sm border border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-900 text-white transition-all"
+                                        className={`flex-1 p-2 text-sm rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all border ${theme === 'dark' ? 'bg-slate-900 text-white border-slate-700' : 'bg-white text-slate-900 border-slate-200'}`}
                                         onKeyDown={(e) => {
                                             if (e.key === 'Enter' && newUploadReq.trim()) {
                                                 const current = module.uploadRequirements || [];
@@ -353,7 +354,7 @@ const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSu
                                  </div>
                              </div>
 
-                             <div className="pt-4 border-t border-slate-700">
+                             <div className={`pt-4 border-t ${theme === 'dark' ? 'border-slate-700' : 'border-slate-200'}`}>
                                  <label className="block text-xs font-bold text-slate-500 uppercase mb-3">Upload Constraints</label>
                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                      <div className="space-y-1.5">
@@ -372,7 +373,7 @@ const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSu
                                                 });
                                             }}
                                             placeholder=".pdf, .zip, .jpg"
-                                            className="w-full p-2 text-xs border border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-900 text-white font-mono"
+                                            className={`w-full p-2 text-xs border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono ${theme === 'dark' ? 'bg-slate-900 text-white border-slate-700' : 'bg-white text-slate-900 border-slate-200'}`}
                                          />
                                          <p className="text-[9px] text-slate-500">Comma separated, include dot (e.g. .pdf, .zip)</p>
                                      </div>
@@ -390,7 +391,7 @@ const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSu
                                                     maxFiles: parseInt(e.target.value) || 1 
                                                 } 
                                             })}
-                                            className="w-full p-2 text-xs border border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-900 text-white"
+                                            className={`w-full p-2 text-xs border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${theme === 'dark' ? 'bg-slate-900 text-white border-slate-700' : 'bg-white text-slate-900 border-slate-200'}`}
                                          />
                                      </div>
                                      <div className="space-y-1.5">
@@ -407,7 +408,7 @@ const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSu
                                                     maxFileSizeMB: parseInt(e.target.value) || 10 
                                                 } 
                                             })}
-                                            className="w-full p-2 text-xs border border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-slate-900 text-white"
+                                            className={`w-full p-2 text-xs border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${theme === 'dark' ? 'bg-slate-900 text-white border-slate-700' : 'bg-white text-slate-900 border-slate-200'}`}
                                          />
                                      </div>
                                  </div>
@@ -417,17 +418,17 @@ const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSu
 
                     {/* QUIZ SPECIFIC */}
                     {module.type === 'EXERCISE_QUIZ' && (
-                        <div className="col-span-12 mt-2 pt-4 border-t border-slate-800">
+                        <div className={`col-span-12 mt-2 pt-4 border-t ${theme === 'dark' ? 'border-slate-800' : 'border-slate-200'}`}>
                             <div className="flex justify-between items-center mb-2">
                                 <label className="block text-xs font-bold text-slate-400 uppercase">Quiz Questions</label>
                                 <button onClick={() => { const newQ: QuizQuestion = { id: `q${Date.now()}`, question: 'New Question?', options: ['Option 1', 'Option 2'], correctAnswers: [0], multiSelect: false }; onUpdate({...module, quizQuestions: [...(module.quizQuestions || []), newQ]}); }} className="text-xs text-blue-600 hover:text-blue-500 font-medium">+ Add Question</button>
                             </div>
                             <div className="space-y-4">
                                 {module.quizQuestions?.map((q, qIdx) => (
-                                    <div key={q.id} className="p-4 bg-slate-800 border border-slate-700 rounded shadow-sm">
+                                    <div key={q.id} className={`p-4 border rounded shadow-sm ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
                                         <div className="flex gap-2 mb-3">
                                             <span className="text-xs font-mono text-slate-400 pt-2">Q{qIdx+1}</span>
-                                            <input className="flex-1 p-1.5 text-sm border-b border-slate-700 focus:border-blue-400 outline-none bg-slate-900 text-white font-medium" value={q.question} onChange={(e) => { const newQs = [...(module.quizQuestions || [])]; newQs[qIdx] = { ...q, question: e.target.value }; onUpdate({...module, quizQuestions: newQs}); }} placeholder="Enter question..." />
+                                            <input className={`flex-1 p-1.5 text-sm border-b focus:border-blue-400 outline-none font-medium ${theme === 'dark' ? 'bg-slate-900 text-white border-slate-700' : 'bg-white text-slate-900 border-slate-200'}`} value={q.question} onChange={(e) => { const newQs = [...(module.quizQuestions || [])]; newQs[qIdx] = { ...q, question: e.target.value }; onUpdate({...module, quizQuestions: newQs}); }} placeholder="Enter question..." />
                                             <button onClick={() => { const newQs = (module.quizQuestions || []).filter((_, i) => i !== qIdx); onUpdate({...module, quizQuestions: newQs}); }} className="text-slate-400 hover:text-red-400"><Trash2 size={14}/></button>
                                         </div>
                                         
@@ -442,7 +443,7 @@ const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSu
                                                         newQs[qIdx] = { ...q, multiSelect: e.target.checked, correctAnswers: newCorrect };
                                                         onUpdate({...module, quizQuestions: newQs});
                                                     }}
-                                                    className="w-3.5 h-3.5 rounded border-slate-600 bg-slate-700 text-blue-600 focus:ring-blue-500" 
+                                                    className={`w-3.5 h-3.5 rounded border-slate-600 focus:ring-blue-500 ${theme === 'dark' ? 'bg-slate-700 text-blue-600' : 'bg-white text-blue-600'}`} 
                                                 />
                                                 Allow Multiple Answers
                                             </label>
@@ -471,11 +472,11 @@ const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSu
                                                         >
                                                             {q.multiSelect 
                                                                 ? (isCorrect ? <CheckSquare size={16} /> : <Square size={16} />)
-                                                                : (isCorrect ? <div className="w-4 h-4 rounded-full border-4 border-green-500" /> : <div className="w-4 h-4 rounded-full border border-slate-600" />)
+                                                                : (isCorrect ? <div className="w-4 h-4 rounded-full border-4 border-green-500" /> : <div className={`w-4 h-4 rounded-full border ${theme === 'dark' ? 'border-slate-600' : 'border-slate-300'}`} />)
                                                             }
                                                         </div>
                                                         <input 
-                                                            className="flex-1 text-xs p-1.5 bg-slate-900 border border-slate-700 focus:border-blue-400 rounded outline-none transition-colors text-white" 
+                                                            className={`flex-1 text-xs p-1.5 border focus:border-blue-400 rounded outline-none transition-colors ${theme === 'dark' ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`} 
                                                             value={opt} 
                                                             onChange={(e) => { const newQs = [...(module.quizQuestions || [])]; const newOpts = [...q.options]; newOpts[oIdx] = e.target.value; newQs[qIdx] = { ...q, options: newOpts }; onUpdate({...module, quizQuestions: newQs}); }} 
                                                         />
@@ -518,13 +519,13 @@ const ModuleEditor: React.FC<ModuleEditorProps> = ({ topicId, module, existingSu
                      <button onClick={() => setShowAdvancedSettings(!showAdvancedSettings)} className="text-xs flex items-center gap-1 text-slate-400 hover:text-blue-600 transition-colors">
                             <Settings size={12} /> {showAdvancedSettings ? 'Hide' : 'Show'} Advanced ID Settings
                     </button>
-                     <button onClick={() => { if (window.confirm("Are you sure?")) onDelete(); }} className="px-3 py-1.5 text-xs text-red-600 hover:bg-red-900/20 rounded border border-transparent hover:border-red-900/30 transition-colors">Delete Module</button>
+                     <button onClick={() => { onDelete(); }} className="px-3 py-1.5 text-xs text-red-600 hover:bg-red-900/20 rounded border border-transparent hover:border-red-900/30 transition-colors">Delete Module</button>
                 </div>
                 {showAdvancedSettings && (
-                        <div className="mt-4 bg-slate-800 p-3 rounded border border-slate-700">
+                        <div className={`mt-4 p-3 rounded border ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-slate-100 border-slate-200'}`}>
                             <label className="block text-xs font-medium text-slate-500 mb-1">Sub-ID (Manual Override)</label>
                              <div className="flex gap-2">
-                                <input type="text" value={module._subId || ''} onChange={e => { const val = generateSlug(e.target.value); const rootId = module.id.split('-').slice(0, -1).join('-'); onUpdate({...module, _subId: val, id: rootId ? `${rootId}-${val}` : module.id}); }} className={`flex-1 p-2 text-sm border rounded focus:ring-2 outline-none font-mono text-slate-300 bg-slate-900 ${subIdConflict ? 'border-red-300 ring-red-200' : 'border-slate-700 focus:ring-blue-400'}`} />
+                                <input type="text" value={module._subId || ''} onChange={e => { const val = generateSlug(e.target.value); const rootId = module.id.split('-').slice(0, -1).join('-'); onUpdate({...module, _subId: val, id: rootId ? `${rootId}-${val}` : module.id}); }} className={`flex-1 p-2 text-sm border rounded focus:ring-2 outline-none font-mono ${subIdConflict ? 'border-red-300 ring-red-200' : (theme === 'dark' ? 'bg-slate-900 border-slate-700 text-slate-300 focus:ring-blue-400' : 'bg-white border-slate-200 text-slate-700 focus:ring-blue-400')}`} />
                              </div>
                         </div>
                 )}
@@ -541,9 +542,10 @@ interface SortableTopicItemProps {
     isSelected: boolean;
     onSelect: () => void;
     onDelete: () => void;
+    theme: 'light' | 'dark';
 }
 
-const SortableTopicItem = ({ topic, isSelected, onSelect, onDelete }: SortableTopicItemProps) => {
+const SortableTopicItem = ({ topic, isSelected, onSelect, onDelete, theme }: SortableTopicItemProps) => {
     const {
         attributes,
         listeners,
@@ -564,30 +566,42 @@ const SortableTopicItem = ({ topic, isSelected, onSelect, onDelete }: SortableTo
         <div 
             ref={setNodeRef} 
             style={style}
-            className={`flex items-center group transition-colors hover:bg-slate-800 hover:shadow-sm ${isSelected ? 'bg-slate-800 border-r-4 border-blue-500 shadow-sm' : 'border-r-4 border-transparent'} ${isDragging ? 'opacity-50 shadow-lg' : ''}`}
+            className={`flex items-center group transition-colors hover:shadow-sm ${
+              theme === 'dark' ? 'hover:bg-slate-800' : 'hover:bg-slate-100'
+            } ${
+              isSelected 
+                ? (theme === 'dark' ? 'bg-slate-800 border-r-4 border-blue-500 shadow-sm' : 'bg-blue-50 border-r-4 border-blue-500 shadow-sm') 
+                : 'border-r-4 border-transparent'
+            } ${isDragging ? 'opacity-50 shadow-lg' : ''}`}
         >
             <div 
                 {...attributes} 
                 {...listeners} 
-                className="pl-3 text-slate-600 cursor-grab active:cursor-grabbing hover:text-slate-400 flex items-center gap-1"
+                className={`pl-3 cursor-grab active:cursor-grabbing flex items-center gap-1 ${
+                  theme === 'dark' ? 'text-slate-600 hover:text-slate-400' : 'text-slate-400 hover:text-slate-600'
+                }`}
             >
                 <GripVertical size={14} />
                 {topic.level > 1 && (
                     <div className="flex items-center">
                         {[...Array(topic.level - 1)].map((_, i) => (
-                            <div key={i} className="w-2 h-px bg-slate-700" />
+                            <div key={i} className={`w-2 h-px ${theme === 'dark' ? 'bg-slate-700' : 'bg-slate-300'}`} />
                         ))}
                     </div>
                 )}
             </div>
-            <div onClick={onSelect} className={`flex-1 min-w-0 py-3 pl-2 pr-2 cursor-pointer ${isSelected ? 'text-blue-400 font-semibold' : 'text-slate-300 group-hover:text-white'}`}>
+            <div onClick={onSelect} className={`flex-1 min-w-0 py-3 pl-2 pr-2 cursor-pointer ${
+              isSelected 
+                ? 'text-blue-400 font-semibold' 
+                : (theme === 'dark' ? 'text-slate-300 group-hover:text-white' : 'text-slate-600 group-hover:text-slate-900')
+            }`}>
                 <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-mono bg-slate-800 text-slate-500 px-1 rounded">L{topic.level}</span>
+                    <span className={`text-[10px] font-mono px-1 rounded ${theme === 'dark' ? 'bg-slate-800 text-slate-500' : 'bg-slate-200 text-slate-500'}`}>L{topic.level}</span>
                     <div className="truncate text-sm">{topic.title}</div>
                 </div>
             </div>
-            <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-2 mr-2 text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                <Trash2 size={16} />
+            <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className={`p-2 mr-2 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity ${theme === 'dark' ? 'text-slate-600' : 'text-slate-400'}`}>
+                <Trash2 size={14} />
             </button>
         </div>
     );
@@ -602,28 +616,37 @@ interface AdminBuilderProps {
   initialTags: Tag[];
   initialLandingConfig: LandingConfig;
   notifications: AppNotification[];
+  submissions: ExerciseSubmission[];
   initialTab?: 'ANALYTICS' | 'CURRICULUM' | 'TEACHERS' | 'USERS_LIST' | 'TAGS' | 'USER_INTERFACE' | 'NOTIFICATIONS';
   onMarkNotificationRead: (notificationId: string) => Promise<void>;
+  onDeleteNotification: (notificationId: string) => Promise<void>;
   onEvaluateSubmission: (submissionId: string, score: number, feedback: string) => Promise<void>;
-  onPostSubmissionComment?: (submissionId: string, text: string) => Promise<void>;
+  onRequestResubmission: (submissionId: string, feedback: string) => Promise<void>;
+  onPostSubmissionComment?: (id: string, text: string, isSubmission?: boolean) => Promise<void>;
   onDeleteComment?: (id: string, commentId: string, isSubmission: boolean) => Promise<void>;
   onToggleNotificationCompleted?: (id: string, completed: boolean) => Promise<void>;
   onDeleteFile?: (fileUrl: string, submissionId: string, fileName: string) => Promise<void>;
   onApplyChanges: (newTopics: Topic[], newTeachers: Teacher[], newUsers: User[], newLandingConfig: LandingConfig, newTags: Tag[]) => Promise<void>;
   onExit: () => void;
+  theme: 'light' | 'dark';
 }
 
 // --- User Performance View Component ---
-export function AnalyticsView({ users, topics, tags, landingConfig, notifications, onEvaluateSubmission, onPostSubmissionComment, onDeleteComment }: { 
+export function AnalyticsView({ users, topics, tags, landingConfig, notifications, submissions, onEvaluateSubmission, onRequestResubmission, onPostSubmissionComment, onDeleteComment, onDeleteFile, theme = 'dark' }: { 
   users: User[], 
   topics: Topic[], 
   tags: Tag[], 
   landingConfig: LandingConfig, 
   notifications: AppNotification[], 
+  submissions: ExerciseSubmission[],
   onEvaluateSubmission: (submissionId: string, score: number, feedback: string) => Promise<void>,
-  onPostSubmissionComment?: (submissionId: string, text: string) => Promise<void>,
-  onDeleteComment?: (id: string, commentId: string, isSubmission: boolean) => Promise<void>
+  onRequestResubmission: (submissionId: string, feedback: string) => Promise<void>,
+  onPostSubmissionComment?: (id: string, text: string, isSubmission?: boolean) => Promise<void>;
+  onDeleteComment?: (id: string, commentId: string, isSubmission: boolean) => Promise<void>;
+  onDeleteFile?: (fileUrl: string, submissionId: string, fileName: string) => Promise<void>;
+  theme?: 'light' | 'dark';
 }) {
+  const [analyticsTab, setAnalyticsTab] = useState<'STATS' | 'SUBMISSIONS'>('STATS');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [exportFormat, setExportFormat] = useState<'text' | 'csv' | 'print'>('print');
@@ -1110,7 +1133,7 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
       // We want to show the one that is closest to the mouse or just the first one if it's a line
       const data = payload[0].payload;
       return (
-        <div className="bg-slate-900 text-white p-3 rounded-lg shadow-xl border border-slate-700 text-xs">
+        <div className={`p-3 rounded-lg shadow-xl border text-xs ${theme === 'dark' ? 'bg-slate-900 text-white border-slate-700' : 'bg-white text-slate-900 border-slate-200'}`}>
           <div className="font-bold mb-1 text-blue-400">{data.userName}</div>
           <div className="text-slate-400 mb-2">{new Date(data.timestamp).toLocaleString()}</div>
           <div className="space-y-1">
@@ -1301,7 +1324,7 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
   const MetricInfo = ({ title, description }: { title: string, description: string }) => (
     <div className="group relative inline-block ml-1">
       <Info size={12} className="text-slate-400 cursor-help" />
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 bg-slate-800 text-white text-[10px] rounded shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+      <div className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 p-2 text-[10px] rounded shadow-xl opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 ${theme === 'dark' ? 'bg-slate-800 text-white' : 'bg-white text-slate-900 border border-slate-200'}`}>
         <div className="font-bold mb-1">{title}</div>
         {description}
       </div>
@@ -1309,7 +1332,7 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
   );
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 pb-20 print:p-0 print:m-0 print:bg-white">
+    <div className={`max-w-7xl mx-auto space-y-8 pb-20 print:p-0 print:m-0 print:bg-white ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
       <style>{`
         @media print {
           .no-print { display: none !important; }
@@ -1324,16 +1347,44 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
       `}</style>
 
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-6 no-print">
-        <div className="w-full sm:w-auto">
-          <h2 className="text-xl sm:text-3xl font-bold text-white tracking-tight break-words">User Performance Analytics</h2>
-          <p className="text-xs sm:text-slate-400 mt-1">Comprehensive overview of student progress and evaluation.</p>
-          <p className="text-[9px] sm:text-[10px] text-slate-500 mt-1 italic max-w-2xl">
-            * Group Average is based on the currently filtered set of students. If no tags are selected, it represents all accounts.
-          </p>
+        <div className="w-full sm:w-auto space-y-4">
+          <div>
+            <h2 className={`text-xl sm:text-3xl font-bold tracking-tight break-words ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>User Performance Analytics</h2>
+            <p className="text-xs sm:text-slate-400 mt-1">Comprehensive overview of student progress and evaluation.</p>
+            <p className="text-[9px] sm:text-[10px] text-slate-500 mt-1 italic max-w-2xl">
+              * Group Average is based on the currently filtered set of students. If no tags are selected, it represents all accounts.
+            </p>
+          </div>
+
+          {/* Tab Toggle */}
+          <div className={`inline-flex p-1 rounded-xl border ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-slate-100 border-slate-200 shadow-sm'}`}>
+            <button
+              onClick={() => setAnalyticsTab('STATS')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                analyticsTab === 'STATS'
+                  ? theme === 'dark' ? 'bg-slate-800 text-blue-400 shadow-lg' : 'bg-white text-blue-600 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+            >
+              <BarChart3 size={14} />
+              Statistics
+            </button>
+            <button
+              onClick={() => setAnalyticsTab('SUBMISSIONS')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
+                analyticsTab === 'SUBMISSIONS'
+                  ? theme === 'dark' ? 'bg-slate-800 text-blue-400 shadow-lg' : 'bg-white text-blue-600 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+            >
+              <FileText size={14} />
+              Submissions
+            </button>
+          </div>
         </div>
         <div className="flex gap-2 w-full sm:w-auto overflow-x-auto no-scrollbar pb-1 sm:pb-0 shrink-0">
           <select 
-            className="bg-slate-900 border border-slate-800 rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-sm font-medium text-slate-300 shadow-sm outline-none focus:border-blue-500 shrink-0"
+            className={`rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 text-[10px] sm:text-sm font-medium shadow-sm outline-none focus:border-blue-500 shrink-0 ${theme === 'dark' ? 'bg-slate-900 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-700'}`}
             value={exportFormat}
             onChange={(e) => setExportFormat(e.target.value as any)}
           >
@@ -1350,11 +1401,14 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="bg-slate-900 p-4 sm:p-6 rounded-2xl border border-slate-800 shadow-sm no-print">
+      {/* Main Content */}
+      {analyticsTab === 'STATS' && (
+        <>
+          {/* Filters */}
+          <div className={`p-4 sm:p-6 rounded-2xl no-print border ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
         <div className="flex items-center gap-3 mb-4">
-          <Search size={16} className="text-slate-500" />
-          <h3 className="text-xs sm:text-sm font-bold text-slate-400 uppercase tracking-wider">Filter by Tags</h3>
+          <Search size={16} className={theme === 'dark' ? 'text-slate-500' : 'text-slate-400'} />
+          <h3 className={`text-xs sm:text-sm font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Filter by Tags</h3>
         </div>
         <div className="flex flex-wrap gap-2">
           {allTags.length > 0 ? allTags.map(tag => (
@@ -1364,7 +1418,7 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
               className={`px-4 py-2 rounded-full text-xs font-bold transition-all border ${
                 selectedTags.includes(tag) 
                 ? 'shadow-md shadow-blue-900/20 text-white' 
-                : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700'
+                : theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700' : 'bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200'
               }`}
               style={{ 
                 backgroundColor: selectedTags.includes(tag) ? (tagColors[tag] || '#3b82f6') : undefined,
@@ -1391,38 +1445,36 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
       <div className={`grid grid-cols-1 lg:grid-cols-3 gap-8 ${isPrinting ? 'no-print' : ''}`}>
         {/* Left: Group Overview */}
         <div className="lg:col-span-2 space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 print-break-inside-avoid">
-            <div className="bg-slate-900 p-4 sm:p-6 rounded-2xl border border-slate-800 shadow-sm">
-              <div className="text-slate-500 text-[10px] sm:text-xs font-bold uppercase tracking-widest mb-1">Avg. Group Progress</div>
-              <div className="text-2xl sm:text-4xl font-bold text-white">{avgGroupProgress}%</div>
-              <div className="mt-4 h-2 bg-slate-800 rounded-full overflow-hidden">
-                <div className="h-full bg-blue-500 rounded-full" style={{ width: `${avgGroupProgress}%` }}></div>
-              </div>
+          <div className={`p-4 sm:p-6 rounded-2xl border ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'} print-break-inside-avoid`}>
+            <div className={`text-[10px] sm:text-xs font-bold uppercase tracking-widest mb-1 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Avg. Group Progress</div>
+            <div className={`text-2xl sm:text-4xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{avgGroupProgress}%</div>
+            <div className={`mt-4 h-2 rounded-full overflow-hidden ${theme === 'dark' ? 'bg-slate-800' : 'bg-slate-100'}`}>
+              <div className="h-full bg-blue-500 rounded-full" style={{ width: `${avgGroupProgress}%` }}></div>
             </div>
-            <div className="bg-slate-900 p-4 sm:p-6 rounded-2xl border border-slate-800 shadow-sm">
-              <div className="text-slate-500 text-[10px] sm:text-xs font-bold uppercase tracking-widest mb-1">Avg. Quiz Score</div>
-              <div className="text-2xl sm:text-4xl font-bold text-white">{avgGroupScore}%</div>
-              <div className="mt-4 h-2 bg-slate-800 rounded-full overflow-hidden">
-                <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${avgGroupScore}%` }}></div>
-              </div>
+          </div>
+          <div className={`p-4 sm:p-6 rounded-2xl border ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'} print-break-inside-avoid`}>
+            <div className={`text-[10px] sm:text-xs font-bold uppercase tracking-widest mb-1 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Avg. Quiz Score</div>
+            <div className={`text-2xl sm:text-4xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{avgGroupScore}%</div>
+            <div className={`mt-4 h-2 rounded-full overflow-hidden ${theme === 'dark' ? 'bg-slate-800' : 'bg-slate-100'}`}>
+              <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${avgGroupScore}%` }}></div>
             </div>
           </div>
 
-          <div className="bg-slate-900 p-4 sm:p-8 rounded-2xl border border-slate-800 shadow-sm print-break-inside-avoid overflow-hidden">
+          <div className={`p-4 sm:p-8 rounded-2xl print-break-inside-avoid overflow-hidden border ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
               <div className="flex items-center gap-2">
-                <h3 className="text-xs sm:text-sm font-bold text-slate-400 uppercase tracking-wider">Performance Comparison</h3>
+                <h3 className={`text-xs sm:text-sm font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Performance Comparison</h3>
                   <div className="flex gap-1 no-print">
                     <button 
                       onClick={() => downloadDataAsCSV(groupPerformance, 'group_performance')}
-                      className="p-1.5 text-slate-500 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition-all"
+                      className={`p-1.5 rounded-lg transition-all ${theme === 'dark' ? 'text-slate-500 hover:text-blue-400 hover:bg-slate-800' : 'text-slate-400 hover:text-blue-600 hover:bg-slate-100'}`}
                       title="Export Graph Data as CSV"
                     >
                       <Download size={12} className="sm:w-[14px] sm:h-[14px]" />
                     </button>
                     <button 
                       onClick={() => downloadChartAsSVG('group-performance-chart', 'group_performance')}
-                      className="p-1.5 text-slate-500 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition-all"
+                      className={`p-1.5 rounded-lg transition-all ${theme === 'dark' ? 'text-slate-500 hover:text-blue-400 hover:bg-slate-800' : 'text-slate-400 hover:text-blue-600 hover:bg-slate-100'}`}
                       title="Export Graph as SVG"
                     >
                       <FileCode size={12} className="sm:w-[14px] sm:h-[14px]" />
@@ -1431,7 +1483,7 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
               </div>
               <div className="flex gap-2 w-full sm:w-auto overflow-x-auto no-scrollbar pb-1 sm:pb-0">
                 <select 
-                  className="text-[9px] sm:text-[10px] font-bold bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-300 outline-none focus:border-blue-500 shrink-0"
+                  className={`text-[9px] sm:text-[10px] font-bold border rounded px-2 py-1 outline-none focus:border-blue-500 shrink-0 ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-white border-slate-200 text-slate-700'}`}
                   value={graphType}
                   onChange={(e) => setGraphType(e.target.value as any)}
                 >
@@ -1440,7 +1492,7 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
                   <option value="area">Area Chart</option>
                 </select>
                 <select 
-                  className="text-[9px] sm:text-[10px] font-bold bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-300 outline-none focus:border-blue-500 shrink-0"
+                  className={`text-[9px] sm:text-[10px] font-bold border rounded px-2 py-1 outline-none focus:border-blue-500 shrink-0 ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-white border-slate-200 text-slate-700'}`}
                   value={graphMetric}
                   onChange={(e) => setGraphMetric(e.target.value as any)}
                 >
@@ -1456,22 +1508,22 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
                 <ResponsiveContainer width="100%" height="100%">
                   {graphType === 'bar' ? (
                     <BarChart data={groupPerformance} margin={{ top: 10, right: 10, left: 0, bottom: 40 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'dark' ? '#1e293b' : '#e2e8f0'} />
                       <XAxis 
                         dataKey="name" 
                         axisLine={false} 
                         tickLine={false} 
-                        tick={{ fontSize: 8, fill: '#64748b' }} 
+                        tick={{ fontSize: 8, fill: theme === 'dark' ? '#64748b' : '#94a3b8' }} 
                         angle={-45}
                         textAnchor="end"
                         interval="preserveStartEnd"
                       />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: '#64748b' }} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: theme === 'dark' ? '#64748b' : '#94a3b8' }} />
                       <Tooltip 
-                        contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', color: '#fff', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }}
-                        itemStyle={{ fontSize: '10px', color: '#fff', padding: '2px 0' }}
+                        contentStyle={{ backgroundColor: theme === 'dark' ? '#0f172a' : '#ffffff', border: `1px solid ${theme === 'dark' ? '#1e293b' : '#e2e8f0'}`, borderRadius: '12px', color: theme === 'dark' ? '#fff' : '#0f172a', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }}
+                        itemStyle={{ fontSize: '10px', color: theme === 'dark' ? '#fff' : '#0f172a', padding: '2px 0' }}
                         labelStyle={{ color: '#94a3b8', fontWeight: 'bold', marginBottom: '4px', fontSize: '11px' }}
-                        cursor={{ fill: 'rgba(255, 255, 255, 0.03)', radius: 8 }}
+                        cursor={{ fill: theme === 'dark' ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', radius: 8 }}
                         wrapperStyle={{ outline: 'none' }}
                       />
                       {graphMetric !== 'both' && <Legend iconType="circle" wrapperStyle={{ paddingTop: '20px', fontSize: '10px' }} />}
@@ -1548,12 +1600,12 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
                     </BarChart>
                   ) : graphType === 'line' ? (
                     <LineChart data={groupPerformance}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
-                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#64748b' }} />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'dark' ? '#1e293b' : '#e2e8f0'} />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: theme === 'dark' ? '#64748b' : '#94a3b8' }} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: theme === 'dark' ? '#64748b' : '#94a3b8' }} />
                       <Tooltip 
-                        contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', color: '#fff', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }}
-                        itemStyle={{ fontSize: '12px', color: '#fff', padding: '2px 0' }}
+                        contentStyle={{ backgroundColor: theme === 'dark' ? '#0f172a' : '#ffffff', border: `1px solid ${theme === 'dark' ? '#1e293b' : '#e2e8f0'}`, borderRadius: '12px', color: theme === 'dark' ? '#fff' : '#0f172a', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }}
+                        itemStyle={{ fontSize: '12px', color: theme === 'dark' ? '#fff' : '#0f172a', padding: '2px 0' }}
                         labelStyle={{ color: '#94a3b8', fontWeight: 'bold', marginBottom: '4px' }}
                         wrapperStyle={{ outline: 'none' }}
                       />
@@ -1583,20 +1635,20 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
                     </LineChart>
                   ) : (
                     <AreaChart data={groupPerformance} margin={{ top: 10, right: 10, left: 0, bottom: 40 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'dark' ? '#1e293b' : '#e2e8f0'} />
                       <XAxis 
                         dataKey="name" 
                         axisLine={false} 
                         tickLine={false} 
-                        tick={{ fontSize: 8, fill: '#64748b' }} 
+                        tick={{ fontSize: 8, fill: theme === 'dark' ? '#64748b' : '#94a3b8' }} 
                         angle={-45}
                         textAnchor="end"
                         interval="preserveStartEnd"
                       />
-                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: '#64748b' }} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: theme === 'dark' ? '#64748b' : '#94a3b8' }} />
                       <Tooltip 
-                        contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', color: '#fff', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }}
-                        itemStyle={{ fontSize: '12px', color: '#fff', padding: '2px 0' }}
+                        contentStyle={{ backgroundColor: theme === 'dark' ? '#0f172a' : '#ffffff', border: `1px solid ${theme === 'dark' ? '#1e293b' : '#e2e8f0'}`, borderRadius: '12px', color: theme === 'dark' ? '#fff' : '#0f172a', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }}
+                        itemStyle={{ fontSize: '12px', color: theme === 'dark' ? '#fff' : '#0f172a', padding: '2px 0' }}
                         labelStyle={{ color: '#94a3b8', fontWeight: 'bold', marginBottom: '4px' }}
                         wrapperStyle={{ outline: 'none' }}
                       />
@@ -1634,21 +1686,21 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
             )}
           </div>
 
-          <div className="bg-slate-900 p-4 sm:p-8 rounded-2xl border border-slate-800 shadow-sm print-break-inside-avoid overflow-hidden">
+          <div className={`p-4 sm:p-8 rounded-2xl border shadow-sm print-break-inside-avoid overflow-hidden ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
               <div className="flex items-center gap-2">
-                <h3 className="text-xs sm:text-sm font-bold text-slate-400 uppercase tracking-wider">Learning Timeline</h3>
+                <h3 className={`text-xs sm:text-sm font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Learning Timeline</h3>
                 <div className="flex gap-1 no-print">
                   <button 
                     onClick={() => downloadDataAsCSV(timelineData[0]?.dataPoints || [], 'group_timeline')}
-                    className="p-1.5 text-slate-500 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition-all no-print"
+                    className={`p-1.5 rounded-lg transition-all no-print ${theme === 'dark' ? 'text-slate-500 hover:text-blue-400 hover:bg-slate-800' : 'text-slate-400 hover:text-blue-600 hover:bg-slate-100'}`}
                     title="Export Graph Data as CSV"
                   >
                     <Download size={12} className="sm:w-[14px] sm:h-[14px]" />
                   </button>
                     <button 
                       onClick={() => downloadChartAsSVG('group-timeline-chart', 'group_timeline')}
-                      className="p-1.5 text-slate-500 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition-all no-print"
+                      className={`p-1.5 rounded-lg transition-all no-print ${theme === 'dark' ? 'text-slate-500 hover:text-blue-400 hover:bg-slate-800' : 'text-slate-400 hover:text-blue-600 hover:bg-slate-100'}`}
                       title="Export Graph as SVG"
                     >
                       <FileCode size={12} className="sm:w-[14px] sm:h-[14px]" />
@@ -1657,7 +1709,7 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
               </div>
               <div className="flex gap-2 w-full sm:w-auto overflow-x-auto no-scrollbar pb-1 sm:pb-0">
                 <select 
-                  className="text-[9px] sm:text-[10px] font-bold bg-slate-800 border border-slate-700 rounded px-2 py-1 text-slate-300 outline-none focus:border-blue-500 shrink-0"
+                  className={`text-[9px] sm:text-[10px] font-bold border rounded px-2 py-1 outline-none focus:border-blue-500 shrink-0 ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-white border-slate-200 text-slate-700'}`}
                   value={timelineMetric}
                   onChange={(e) => setTimelineMetric(e.target.value as any)}
                 >
@@ -1671,7 +1723,7 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
               <div className="h-[250px] sm:h-[350px]" id="group-timeline-chart">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart margin={{ top: 20, right: 10, left: -20, bottom: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'dark' ? '#1e293b' : '#e2e8f0'} />
                     <XAxis 
                       type="number" 
                       dataKey="timestamp" 
@@ -1679,12 +1731,12 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
                       tickFormatter={(t) => new Date(t).toLocaleDateString(undefined, { month: 'numeric', day: 'numeric' })}
                       axisLine={false} 
                       tickLine={false} 
-                      tick={{ fontSize: 8, fill: '#64748b' }}
+                      tick={{ fontSize: 8, fill: theme === 'dark' ? '#64748b' : '#94a3b8' }}
                       angle={-45}
                       textAnchor="end"
                       height={50}
                     />
-                    <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: '#64748b' }} />
+                    <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: theme === 'dark' ? '#64748b' : '#94a3b8' }} />
                     <Tooltip 
                       content={<CustomTimelineTooltip />} 
                       shared={false}
@@ -1734,10 +1786,10 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
           </div>
 
           {/* Quiz Performance Overview Graph */}
-          <div className="bg-slate-900 p-4 sm:p-8 rounded-2xl border border-slate-800 shadow-sm print-break-inside-avoid overflow-hidden">
+          <div className={`p-4 sm:p-8 rounded-2xl border shadow-sm print-break-inside-avoid overflow-hidden ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
               <div className="flex items-center gap-2">
-                <h3 className="text-xs sm:text-sm font-bold text-slate-400 uppercase tracking-wider">Quiz Performance Overview</h3>
+                <h3 className={`text-xs sm:text-sm font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Quiz Performance Overview</h3>
                 <div className="flex gap-1 no-print">
                   <button 
                     onClick={() => {
@@ -1749,14 +1801,14 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
                       }));
                       downloadDataAsCSV(csvData, 'quiz_performance');
                     }}
-                    className="p-1.5 text-slate-500 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition-all no-print"
+                    className={`p-1.5 rounded-lg transition-all no-print ${theme === 'dark' ? 'text-slate-500 hover:text-blue-400 hover:bg-slate-800' : 'text-slate-400 hover:text-blue-600 hover:bg-slate-100'}`}
                     title="Export Graph Data as CSV"
                   >
                     <Download size={12} className="sm:w-[14px] sm:h-[14px]" />
                   </button>
                     <button 
                       onClick={() => downloadChartAsSVG('quiz-performance-chart', 'quiz_performance')}
-                      className="p-1.5 text-slate-500 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition-all no-print"
+                      className={`p-1.5 rounded-lg transition-all no-print ${theme === 'dark' ? 'text-slate-500 hover:text-blue-400 hover:bg-slate-800' : 'text-slate-400 hover:text-blue-600 hover:bg-slate-100'}`}
                       title="Export Graph as SVG"
                     >
                       <FileCode size={12} className="sm:w-[14px] sm:h-[14px]" />
@@ -1772,12 +1824,12 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
               <div className="h-[250px] sm:h-[350px]" id="quiz-performance-chart">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={quizPerformanceOverview} margin={{ top: 10, right: 10, left: -20, bottom: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'dark' ? '#1e293b' : '#e2e8f0'} />
                     <XAxis 
                       dataKey="name" 
                       axisLine={false} 
                       tickLine={false} 
-                      tick={{ fontSize: 8, fill: '#64748b' }} 
+                      tick={{ fontSize: 8, fill: theme === 'dark' ? '#64748b' : '#94a3b8' }} 
                       angle={-45}
                       textAnchor="end"
                       height={60}
@@ -1786,12 +1838,12 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
                     <YAxis 
                       axisLine={false} 
                       tickLine={false} 
-                      tick={{ fontSize: 8, fill: '#64748b' }}
+                      tick={{ fontSize: 8, fill: theme === 'dark' ? '#64748b' : '#94a3b8' }}
                     />
                     <Tooltip 
-                      cursor={{ fill: 'rgba(255, 255, 255, 0.03)', radius: 8 }}
-                      contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', color: '#fff', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }}
-                      itemStyle={{ fontSize: '10px', color: '#fff', padding: '2px 0' }}
+                      cursor={{ fill: theme === 'dark' ? 'rgba(255, 255, 255, 0.03)' : 'rgba(0, 0, 0, 0.03)', radius: 8 }}
+                      contentStyle={{ backgroundColor: theme === 'dark' ? '#0f172a' : '#ffffff', border: `1px solid ${theme === 'dark' ? '#1e293b' : '#e2e8f0'}`, borderRadius: '12px', color: theme === 'dark' ? '#fff' : '#0f172a', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }}
+                      itemStyle={{ fontSize: '10px', color: theme === 'dark' ? '#fff' : '#0f172a', padding: '2px 0' }}
                       labelStyle={{ color: '#94a3b8', fontWeight: 'bold', marginBottom: '4px', fontSize: '11px' }}
                       formatter={(value: any) => [`${value}%`, 'Avg Score']}
                       wrapperStyle={{ outline: 'none' }}
@@ -1830,10 +1882,10 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
 
         {/* Right: Individual Evaluation */}
         <div className={`space-y-8 ${isPrinting ? 'no-print' : ''}`}>
-          <div className="bg-slate-900 rounded-2xl border border-slate-800 shadow-sm overflow-hidden print-break-inside-avoid">
-            <div className="p-6 border-b border-slate-800 flex justify-between items-center">
+          <div className={`rounded-2xl border shadow-sm overflow-hidden print-break-inside-avoid ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+            <div className={`p-6 border-b flex justify-between items-center ${theme === 'dark' ? 'border-slate-800' : 'border-slate-100'}`}>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Student List ({filteredUsers.length})</h3>
+                <h3 className={`text-sm font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Student List ({filteredUsers.length})</h3>
                 <button 
                   onClick={() => {
                     const csvData = filteredUsers.map(u => {
@@ -1848,14 +1900,14 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
                     });
                     downloadDataAsCSV(csvData, 'student_list');
                   }}
-                  className="p-1.5 text-slate-500 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition-all no-print"
+                  className={`p-1.5 rounded-lg transition-all no-print ${theme === 'dark' ? 'text-slate-500 hover:text-blue-400 hover:bg-slate-800' : 'text-slate-400 hover:text-blue-600 hover:bg-slate-100'}`}
                   title="Export Table as CSV"
                 >
                   <Download size={14} />
                 </button>
                 <button 
                   onClick={() => downloadTableAsSVG('main-student-table', 'student_list')}
-                  className="p-1.5 text-slate-500 hover:text-blue-400 hover:bg-slate-800 rounded-lg transition-all no-print"
+                  className={`p-1.5 rounded-lg transition-all no-print ${theme === 'dark' ? 'text-slate-500 hover:text-blue-400 hover:bg-slate-800' : 'text-slate-400 hover:text-blue-600 hover:bg-slate-100'}`}
                   title="Export Table as SVG"
                 >
                   <FileCode size={14} />
@@ -1873,17 +1925,17 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
             <div className="overflow-x-auto">
               <table className="w-full text-left" id="main-student-table">
                 <thead>
-                  <tr className="bg-slate-950 text-[10px] uppercase font-bold text-slate-500 tracking-widest">
+                  <tr className={`text-[10px] uppercase font-bold tracking-widest ${theme === 'dark' ? 'bg-slate-950 text-slate-500' : 'bg-slate-50 text-slate-400'}`}>
                     <th className="px-6 py-4">Student</th>
                     <th className="px-6 py-4">Progress</th>
                     <th className="px-6 py-4">Avg Score</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800">
+                <tbody className={`divide-y ${theme === 'dark' ? 'divide-slate-800' : 'divide-slate-100'}`}>
                   {filteredUsers.map(u => {
                     const data = getPerformanceData(u);
                     return (
-                      <tr key={u.id} className={`hover:bg-slate-800/50 transition-colors cursor-pointer ${selectedUserId === u.id ? 'bg-blue-900/20' : ''}`} onClick={() => setSelectedUserId(u.id)}>
+                      <tr key={u.id} className={`transition-colors cursor-pointer ${selectedUserId === u.id ? (theme === 'dark' ? 'bg-blue-900/20' : 'bg-blue-50') : (theme === 'dark' ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50')}`} onClick={() => setSelectedUserId(u.id)}>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
                             <div 
@@ -1893,13 +1945,13 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
                               {u.name[0]}
                             </div>
                             <div className="min-w-0">
-                              <div className="text-sm font-bold text-white truncate">{u.name}</div>
+                              <div className={`text-sm font-bold truncate ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{u.name}</div>
                               <div className="text-[10px] text-slate-500 truncate">{u.email}</div>
                             </div>
                           </div>
                         </td>
                         <td className="px-6 py-4">
-                          <span className="text-xs font-bold text-slate-300">{data.progress}%</span>
+                          <span className={`text-xs font-bold ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>{data.progress}%</span>
                         </td>
                         <td className="px-6 py-4">
                           <span className={`text-xs font-bold ${data.avgScore >= 80 ? 'text-emerald-400' : data.avgScore >= 50 ? 'text-amber-400' : 'text-red-400'}`}>
@@ -1916,9 +1968,9 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
 
 
           {selectedUser ? (
-            <div className="bg-slate-900 rounded-2xl border border-slate-800 shadow-sm overflow-hidden sticky top-8 print-break-inside-avoid">
-              <div className="p-6 border-b border-slate-800 bg-slate-950/50 flex justify-between items-center">
-                <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider">Student Evaluation</h3>
+            <div className={`rounded-2xl border shadow-sm overflow-hidden sticky top-8 print-break-inside-avoid ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+              <div className={`p-6 border-b flex justify-between items-center ${theme === 'dark' ? 'border-slate-800 bg-slate-950/50' : 'border-slate-100 bg-slate-50/50'}`}>
+                <h3 className={`text-sm font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Student Evaluation</h3>
                 <div className="flex gap-2 no-print">
                   <button onClick={() => handleIndividualExport(selectedUser, 'text')} className="p-1.5 text-slate-500 hover:text-blue-400 transition-colors no-print" title="Download Text Evaluation"><FileText size={16}/></button>
                   <button onClick={() => handleIndividualExport(selectedUser, 'csv')} className="p-1.5 text-slate-500 hover:text-emerald-400 transition-colors no-print" title="Download CSV Evaluation"><Download size={16}/></button>
@@ -1934,7 +1986,7 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
                   >
                     {selectedUser.name[0]}
                   </div>
-                  <h4 className="text-xl font-bold text-white">{selectedUser.name}</h4>
+                  <h4 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{selectedUser.name}</h4>
                   <p className="text-slate-500 text-sm">{selectedUser.email}</p>
                   <div className="flex flex-wrap justify-center gap-1 mt-3">
                     {(selectedUser.tags || []).map(t => (
@@ -1944,17 +1996,17 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800">
+                  <div className={`p-4 rounded-xl border ${theme === 'dark' ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50/50 border-slate-100'}`}>
                     <div className="text-[10px] font-bold text-slate-500 uppercase mb-1 flex items-center">
                       Progress <MetricInfo title="Progress" description="Formula: (Completed Modules / Total Modules) * 100. Represents the percentage of the curriculum finished." />
                     </div>
-                    <div className="text-2xl font-bold text-white">{getPerformanceData(selectedUser).progress}%</div>
+                    <div className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{getPerformanceData(selectedUser).progress}%</div>
                   </div>
-                  <div className="bg-slate-950/50 p-4 rounded-xl border border-slate-800">
+                  <div className={`p-4 rounded-xl border ${theme === 'dark' ? 'bg-slate-950/50 border-slate-800' : 'bg-white border-slate-100'}`}>
                     <div className="text-[10px] font-bold text-slate-500 uppercase mb-1 flex items-center">
                       Accuracy <MetricInfo title="Accuracy" description="Formula: (Total Correct Answers / Total Questions) * 100 across all quiz attempts. Measures technical precision." />
                     </div>
-                    <div className="text-2xl font-bold text-white">{getPerformanceData(selectedUser).avgScore}%</div>
+                    <div className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{getPerformanceData(selectedUser).avgScore}%</div>
                   </div>
                 </div>
 
@@ -1965,37 +2017,37 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
                     <div className="flex gap-1 no-print">
                       <button 
                         onClick={() => downloadDataAsCSV(getTimelineData([selectedUser])[0].dataPoints, `${selectedUser.name}_timeline`)}
-                        className="p-1 text-slate-500 hover:text-blue-400 hover:bg-slate-800 rounded transition-all no-print"
+                        className={`p-1 rounded transition-all no-print ${theme === 'dark' ? 'text-slate-500 hover:text-blue-400 hover:bg-slate-800' : 'text-slate-400 hover:text-blue-600 hover:bg-slate-100'}`}
                         title="Export Graph Data as CSV"
                       >
                         <Download size={12} />
                       </button>
                       <button 
                         onClick={() => downloadChartAsSVG('individual-timeline-chart', `${selectedUser.name}_timeline`)}
-                        className="p-1 text-slate-500 hover:text-blue-400 hover:bg-slate-800 rounded transition-all no-print"
+                        className={`p-1 rounded transition-all no-print ${theme === 'dark' ? 'text-slate-500 hover:text-blue-400 hover:bg-slate-800' : 'text-slate-400 hover:text-blue-600 hover:bg-slate-100'}`}
                         title="Export Graph as SVG"
                       >
                         <FileCode size={12} />
                       </button>
                     </div>
                   </div>
-                  <div className="h-[150px] w-full bg-slate-950/50 rounded-xl p-2 border border-slate-800" id="individual-timeline-chart">
+                  <div className={`h-[150px] w-full rounded-xl p-2 border ${theme === 'dark' ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-100'}`} id="individual-timeline-chart">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={getTimelineData([selectedUser])[0].dataPoints}>
-                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#1e293b" />
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={theme === 'dark' ? '#1e293b' : '#e2e8f0'} />
                         <XAxis 
                           type="number" 
                           dataKey="timestamp" 
                           domain={['auto', 'auto']} 
                           tickFormatter={(t) => new Date(t).toLocaleDateString()}
-                          tick={{ fontSize: 8, fill: '#64748b' }}
+                          tick={{ fontSize: 8, fill: theme === 'dark' ? '#64748b' : '#94a3b8' }}
                           minTickGap={20}
                         />
                         <YAxis domain={[0, 100]} hide={true} />
                       <Tooltip 
                         labelFormatter={(t) => new Date(t).toLocaleString()}
-                        contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', color: '#fff', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }}
-                        itemStyle={{ fontSize: '10px', color: '#fff' }}
+                        contentStyle={{ backgroundColor: theme === 'dark' ? '#0f172a' : '#ffffff', border: `1px solid ${theme === 'dark' ? '#1e293b' : '#e2e8f0'}`, borderRadius: '12px', color: theme === 'dark' ? '#fff' : '#0f172a', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }}
+                        itemStyle={{ fontSize: '10px', color: theme === 'dark' ? '#fff' : '#0f172a' }}
                         wrapperStyle={{ outline: 'none' }}
                         cursor={{ stroke: '#3b82f6', strokeWidth: 1, strokeDasharray: '4 4' }}
                       />
@@ -2006,7 +2058,7 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
                           strokeWidth={2} 
                           dot={(props: any) => {
                             const { cx, cy, payload } = props;
-                            if (payload.type === 'module') return <circle cx={cx} cy={cy} r={3} fill="#0f172a" stroke="#3b82f6" strokeWidth={1} />;
+                            if (payload.type === 'module') return <circle cx={cx} cy={cy} r={3} fill={theme === 'dark' ? '#0f172a' : '#ffffff'} stroke="#3b82f6" strokeWidth={1} />;
                             if (payload.type === 'quiz') return <circle cx={cx} cy={cy} r={3} fill={payload.passed ? '#10b981' : '#ef4444'} />;
                             return null;
                           }}
@@ -2015,16 +2067,16 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
                     </ResponsiveContainer>
                   </div>
                   <div className="flex justify-center gap-4 text-[9px] text-slate-500 font-bold uppercase">
-                    <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full border border-blue-400 bg-slate-900"></div> Module</div>
+                    <div className="flex items-center gap-1"><div className={`w-2 h-2 rounded-full border border-blue-400 ${theme === 'dark' ? 'bg-slate-900' : 'bg-white'}`}></div> Module</div>
                     <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> Passed</div>
                     <div className="flex items-center gap-1"><div className="w-2 h-2 rounded-full bg-red-500"></div> Failed</div>
                   </div>
                 </div>
 
-                {(selectedUser.quizAttempts || []).length > 0 ? (
-                  <div>
-                    <div className="flex justify-between items-center mb-4">
-                      <h5 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Skill Radar (vs Group Avg)</h5>
+                {selectedUser ? (
+                  <div className="space-y-8">
+                    <div className="flex justify-between items-center">
+                      <h5 className={`text-[10px] font-bold uppercase tracking-widest ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Skill Radar (vs Group Avg)</h5>
                       <div className="flex gap-1 no-print">
                         <button 
                           onClick={() => {
@@ -2037,71 +2089,73 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
                             ];
                             downloadDataAsCSV(radarData, `${selectedUser.name}_radar`);
                           }}
-                          className="p-1 text-slate-500 hover:text-blue-400 hover:bg-slate-800 rounded transition-all no-print"
+                          className={`p-1 rounded transition-all no-print ${theme === 'dark' ? 'text-slate-500 hover:text-blue-400 hover:bg-slate-800' : 'text-slate-400 hover:text-blue-600 hover:bg-slate-100'}`}
                           title="Export Graph Data as CSV"
                         >
                           <Download size={12} />
                         </button>
                         <button 
                           onClick={() => downloadChartAsSVG('individual-radar-chart', `${selectedUser.name}_radar`)}
-                          className="p-1 text-slate-500 hover:text-blue-400 hover:bg-slate-800 rounded transition-all no-print"
+                          className={`p-1 rounded transition-all no-print ${theme === 'dark' ? 'text-slate-500 hover:text-blue-400 hover:bg-slate-800' : 'text-slate-400 hover:text-blue-600 hover:bg-slate-100'}`}
                           title="Export Graph as SVG"
                         >
                           <FileCode size={12} />
                         </button>
                       </div>
                     </div>
-                    <div className="h-[200px] w-full" id="individual-radar-chart">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <RadarChart cx="50%" cy="50%" outerRadius="65%" data={[
-                          { subject: 'Progress', A: getPerformanceData(selectedUser).progress, B: avgGroupProgress, fullMark: 100 },
-                          { subject: 'Accuracy', A: getPerformanceData(selectedUser).avgScore, B: avgGroupScore, fullMark: 100 },
-                          { subject: 'Engagement', A: Math.round(getPerformanceData(selectedUser).engagement), B: Math.min(100, (groupPerformance.reduce((acc, p) => acc + p.quizzes, 0) / (groupPerformance.length || 1)) * 10), fullMark: 100 },
-                          { subject: 'Consistency', A: Math.round(getPerformanceData(selectedUser).consistency), B: 80, fullMark: 100 },
-                          { subject: 'Speed', A: Math.round(getPerformanceData(selectedUser).speed), B: 75, fullMark: 100 },
-                        ]}>
-                          <PolarGrid stroke="#1e293b" />
-                          <PolarAngleAxis dataKey="subject" tick={{ fontSize: 8, fill: '#64748b' }} />
-                          <Tooltip 
-                            contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px', color: '#fff', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }}
-                            itemStyle={{ fontSize: '10px', color: '#fff', padding: '2px 0' }}
-                            labelStyle={{ color: '#94a3b8', fontWeight: 'bold', marginBottom: '4px', fontSize: '11px' }}
-                            wrapperStyle={{ outline: 'none' }}
-                          />
-                          <Radar name={selectedUser.name} dataKey="A" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} />
-                          <Radar name="Group Avg" dataKey="B" stroke="#64748b" fill="#64748b" fillOpacity={0.3} />
-                          <Legend iconType="circle" wrapperStyle={{ fontSize: '9px', color: '#64748b', paddingTop: '10px' }} />
-                        </RadarChart>
-                      </ResponsiveContainer>
-                    </div>
+                    {(selectedUser.quizAttempts || []).length > 0 ? (
+                      <div className="h-[200px] w-full" id="individual-radar-chart">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <RadarChart cx="50%" cy="50%" outerRadius="65%" data={[
+                            { subject: 'Progress', A: getPerformanceData(selectedUser).progress, B: avgGroupProgress, fullMark: 100 },
+                            { subject: 'Accuracy', A: getPerformanceData(selectedUser).avgScore, B: avgGroupScore, fullMark: 100 },
+                            { subject: 'Engagement', A: Math.round(getPerformanceData(selectedUser).engagement), B: Math.min(100, (groupPerformance.reduce((acc, p) => acc + p.quizzes, 0) / (groupPerformance.length || 1)) * 10), fullMark: 100 },
+                            { subject: 'Consistency', A: Math.round(getPerformanceData(selectedUser).consistency), B: 80, fullMark: 100 },
+                            { subject: 'Speed', A: Math.round(getPerformanceData(selectedUser).speed), B: 75, fullMark: 100 },
+                          ]}>
+                            <PolarGrid stroke={theme === 'dark' ? '#1e293b' : '#e2e8f0'} />
+                            <PolarAngleAxis dataKey="subject" tick={{ fontSize: 8, fill: theme === 'dark' ? '#64748b' : '#94a3b8' }} />
+                            <Tooltip 
+                              contentStyle={{ backgroundColor: theme === 'dark' ? '#0f172a' : '#ffffff', border: `1px solid ${theme === 'dark' ? '#1e293b' : '#e2e8f0'}`, borderRadius: '12px', color: theme === 'dark' ? '#fff' : '#0f172a', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)' }}
+                              itemStyle={{ fontSize: '10px', color: theme === 'dark' ? '#fff' : '#0f172a', padding: '2px 0' }}
+                              labelStyle={{ color: theme === 'dark' ? '#94a3b8' : '#64748b', fontWeight: 'bold', marginBottom: '4px', fontSize: '11px' }}
+                              wrapperStyle={{ outline: 'none' }}
+                            />
+                            <Radar name={selectedUser.name} dataKey="A" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} />
+                            <Radar name="Group Avg" dataKey="B" stroke="#64748b" fill="#64748b" fillOpacity={0.3} />
+                            <Legend iconType="circle" wrapperStyle={{ fontSize: '9px', color: theme === 'dark' ? '#64748b' : '#94a3b8', paddingTop: '10px' }} />
+                          </RadarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    ) : (
+                      <div className={`h-[200px] flex flex-col items-center justify-center rounded-xl border border-dashed ${theme === 'dark' ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                        <BarChart3 size={24} className={theme === 'dark' ? 'text-slate-700' : 'text-slate-300'} />
+                        <p className="text-[10px] text-slate-500 italic">No quiz data to generate radar chart.</p>
+                      </div>
+                    )}
                   </div>
-                ) : (
-                  <div className="h-[200px] flex flex-col items-center justify-center bg-slate-950/50 rounded-xl border border-dashed border-slate-800">
-                    <BarChart3 size={24} className="text-slate-700 mb-2" />
-                    <p className="text-[10px] text-slate-500 italic">No quiz data to generate radar chart.</p>
-                  </div>
-                )}
+                ) : null}
 
                 <div className="space-y-4">
-                  <h5 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Performance Metrics</h5>
+                  <h5 className={`text-[10px] font-bold uppercase tracking-widest ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Performance Metrics</h5>
                   <div className="grid grid-cols-1 gap-2">
-                    <div className="flex justify-between items-center p-2 bg-slate-950/50 rounded border border-slate-800">
-                      <span className="text-[10px] font-medium text-slate-400 flex items-center">
+                    <div className={`flex justify-between items-center p-2 rounded border ${theme === 'dark' ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-100'}`}>
+                      <span className={`text-[10px] font-medium flex items-center ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
                         Consistency <MetricInfo title="Consistency" description="Formula: (Unique Active Days in last 7 days / 7) * 100. Measures regularity of engagement." />
                       </span>
-                      <span className="text-xs font-bold text-slate-300">{Math.round(getPerformanceData(selectedUser).consistency)}%</span>
+                      <span className={`text-xs font-bold ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>{Math.round(getPerformanceData(selectedUser).consistency)}%</span>
                     </div>
-                    <div className="flex justify-between items-center p-2 bg-slate-950/50 rounded border border-slate-800">
-                      <span className="text-[10px] font-medium text-slate-400 flex items-center">
+                    <div className={`flex justify-between items-center p-2 rounded border ${theme === 'dark' ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-100'}`}>
+                      <span className={`text-[10px] font-medium flex items-center ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
                         Engagement <MetricInfo title="Engagement" description="Formula: (Total Quiz Attempts / Total Curriculum Modules) * 100. Measures depth of interaction." />
                       </span>
-                      <span className="text-xs font-bold text-slate-300">{Math.round(getPerformanceData(selectedUser).engagement)}%</span>
+                      <span className={`text-xs font-bold ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>{Math.round(getPerformanceData(selectedUser).engagement)}%</span>
                     </div>
-                    <div className="flex justify-between items-center p-2 bg-slate-950/50 rounded border border-slate-800">
-                      <span className="text-[10px] font-medium text-slate-400 flex items-center">
+                    <div className={`flex justify-between items-center p-2 rounded border ${theme === 'dark' ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-100'}`}>
+                      <span className={`text-[10px] font-medium flex items-center ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
                         Speed <MetricInfo title="Speed" description="Formula: 100 - (Avg Time per Quiz / 240 seconds) * 100. Measures efficiency in technical tasks." />
                       </span>
-                      <span className="text-xs font-bold text-slate-300">{Math.round(getPerformanceData(selectedUser).speed)}%</span>
+                      <span className={`text-xs font-bold ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>{Math.round(getPerformanceData(selectedUser).speed)}%</span>
                     </div>
                   </div>
                 </div>
@@ -2109,7 +2163,7 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
                 {/* Module Completion History */}
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
-                    <h5 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
+                    <h5 className={`text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>
                       <Clock size={12} /> Module Completion History
                     </h5>
                     <button 
@@ -2123,21 +2177,21 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
                         });
                         downloadDataAsCSV(historyData, `${selectedUser.name}_history`);
                       }}
-                      className="p-1 text-slate-500 hover:text-blue-400 hover:bg-slate-800 rounded transition-all no-print"
+                      className={`p-1 rounded transition-all no-print ${theme === 'dark' ? 'text-slate-500 hover:text-blue-400 hover:bg-slate-800' : 'text-slate-400 hover:text-blue-600 hover:bg-slate-100'}`}
                       title="Export Table as CSV"
                     >
                       <Download size={12} />
                     </button>
                   </div>
-                  <div className="bg-slate-950/50 rounded-xl border border-slate-800 p-4 max-h-48 overflow-y-auto space-y-2">
+                  <div className={`rounded-xl border p-4 max-h-48 overflow-y-auto space-y-2 ${theme === 'dark' ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-100'}`}>
                     {(selectedUser.completedSubTopics || []).length > 0 ? (
                       [...(selectedUser.completedSubTopics || [])]
                         .sort((a, b) => (b.completedAt || '').localeCompare(a.completedAt || ''))
                         .map(record => {
                           const subTopic = topics.flatMap(t => t.subTopics).find(st => st.id === record.id);
                           return (
-                            <div key={record.id} className="flex justify-between items-center text-[11px] border-b border-slate-800 pb-2 last:border-0 last:pb-0">
-                              <span className="text-slate-300 font-medium truncate max-w-[180px]">{subTopic?.title || 'Unknown Module'}</span>
+                            <div key={record.id} className={`flex justify-between items-center text-[11px] pb-2 last:border-0 last:pb-0 border-b ${theme === 'dark' ? 'border-slate-800' : 'border-slate-200'}`}>
+                              <span className={`font-medium truncate max-w-[180px] ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>{subTopic?.title || 'Unknown Module'}</span>
                               <span className="text-slate-500 font-mono">{record.completedAt ? new Date(record.completedAt).toLocaleDateString() : 'N/A'}</span>
                             </div>
                           );
@@ -2150,7 +2204,7 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
 
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
-                    <h5 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Detailed Activity Log</h5>
+                    <h5 className={`text-[10px] font-bold uppercase tracking-widest ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Detailed Activity Log</h5>
                     <button 
                       onClick={() => {
                         const logData = (selectedUser.quizAttempts || []).map(a => {
@@ -2167,7 +2221,7 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
                         });
                         downloadDataAsCSV(logData, `${selectedUser.name}_activity_log`);
                       }}
-                      className="p-1 text-slate-500 hover:text-blue-400 hover:bg-slate-800 rounded transition-all no-print"
+                      className={`p-1 rounded transition-all no-print ${theme === 'dark' ? 'text-slate-500 hover:text-blue-400 hover:bg-slate-800' : 'text-slate-400 hover:text-blue-600 hover:bg-slate-100'}`}
                       title="Export Table as CSV"
                     >
                       <Download size={12} />
@@ -2183,10 +2237,10 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
                           .filter(n => n.userId === selectedUser.id)
                           .sort((a, b) => b.timestamp.localeCompare(a.timestamp))
                           .map(notif => (
-                            <div key={notif.id} className="bg-slate-950/50 border border-slate-800 rounded-lg p-3 hover:border-blue-500/50 transition-colors">
+                            <div key={notif.id} className={`border rounded-lg p-3 hover:border-blue-500/50 transition-colors ${theme === 'dark' ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-100'}`}>
                               <div className="flex justify-between items-start mb-2">
                                 <div>
-                                  <div className="text-xs font-bold text-white">{notif.subTopicTitle}</div>
+                                  <div className={`text-xs font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{notif.subTopicTitle}</div>
                                   <div className="text-[10px] text-slate-500">{notif.topicTitle}</div>
                                 </div>
                                 <div className="text-[10px] text-slate-500 font-mono">
@@ -2195,19 +2249,19 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
                               </div>
                               
                               {notif.evaluated && (
-                                <div className="mb-3 p-2 bg-emerald-500/5 border border-emerald-500/10 rounded">
+                                <div className={`mb-3 p-2 border rounded ${theme === 'dark' ? 'bg-emerald-500/5 border-emerald-500/10' : 'bg-emerald-50 border-emerald-100'}`}>
                                   <div className="flex justify-between items-center mb-1">
                                     <span className="text-[9px] font-bold text-emerald-400 uppercase">Evaluation Result</span>
                                     <span className="text-xs font-bold text-emerald-400">{notif.grade}/100</span>
                                   </div>
                                   {notif.feedback && (
-                                    <p className="text-[10px] text-slate-400 italic">"{notif.feedback}"</p>
+                                    <p className={`text-[10px] italic ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>"{notif.feedback}"</p>
                                   )}
                                 </div>
                               )}
 
                               {/* Submission Discussion */}
-                              <div className="mt-3 pt-3 border-t border-slate-800">
+                              <div className={`mt-3 pt-3 border-t ${theme === 'dark' ? 'border-slate-800' : 'border-slate-200'}`}>
                                 <div className="flex items-center gap-2 mb-2">
                                   <MessageSquare size={10} className="text-blue-400" />
                                   <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Internal Discussion</span>
@@ -2215,11 +2269,11 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
                                 <div className="space-y-2 max-h-[150px] overflow-y-auto mb-2 pr-1 custom-scrollbar">
                                   {notif.comments && notif.comments.length > 0 ? (
                                     notif.comments.map(comment => (
-                                      <div key={comment.id} className="group relative bg-slate-900/50 rounded p-2 border border-slate-800/50">
+                                      <div key={comment.id} className={`group relative rounded p-2 border ${theme === 'dark' ? 'bg-slate-900/50 border-slate-800/50' : 'bg-white border-slate-100'}`}>
                                         <div className="flex justify-between items-start mb-1">
                                           <div className="flex items-center gap-1.5">
-                                            <img src={comment.avatar} alt={comment.user} className="w-4 h-4 rounded" />
-                                            <span className="text-[9px] font-bold text-white">{comment.user}</span>
+                                            <img src={comment.avatar || undefined} alt={comment.user} className="w-4 h-4 rounded" />
+                                            <span className={`text-[9px] font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{comment.user}</span>
                                           </div>
                                           <div className="flex items-center gap-2">
                                             <span className="text-[8px] text-slate-600">{new Date(comment.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
@@ -2233,7 +2287,7 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
                                             )}
                                           </div>
                                         </div>
-                                        <p className="text-[10px] text-slate-400 leading-relaxed">{comment.text}</p>
+                                        <p className={`text-[10px] leading-relaxed ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>{comment.text}</p>
                                       </div>
                                     ))
                                   ) : (
@@ -2252,7 +2306,7 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
                                       }
                                     }}
                                     placeholder="Reply to student..."
-                                    className="flex-1 bg-slate-950 border border-slate-800 rounded px-2 py-1 text-[10px] text-white outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                                    className={`flex-1 rounded px-2 py-1 text-[10px] outline-none focus:ring-1 focus:ring-blue-500 transition-all ${theme === 'dark' ? 'bg-slate-950 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
                                   />
                                   <button 
                                     onClick={() => {
@@ -2262,7 +2316,7 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
                                       }
                                     }}
                                     disabled={!commentInputs[notif.submissionId]?.trim()}
-                                    className="w-6 h-6 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 text-white rounded flex items-center justify-center transition-all"
+                                    className={`w-6 h-6 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 text-white rounded flex items-center justify-center transition-all`}
                                   >
                                     <Send size={10} />
                                   </button>
@@ -2276,7 +2330,7 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
                                     href={file.url}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="flex items-center gap-1.5 px-2 py-1 bg-slate-900 hover:bg-slate-800 rounded text-[10px] text-blue-300 transition-colors border border-slate-800"
+                                    className={`flex items-center gap-1.5 px-2 py-1 rounded text-[10px] transition-colors border ${theme === 'dark' ? 'bg-slate-900 hover:bg-slate-800 text-blue-300 border-slate-800' : 'bg-white hover:bg-slate-50 text-blue-600 border-slate-200'}`}
                                   >
                                     <Download size={10} /> {file.name}
                                   </a>
@@ -2297,9 +2351,9 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
                           .map((a, i) => {
                             const subTopic = topics.flatMap(t => t.subTopics).find(st => st.id === a.subTopicId);
                             return (
-                              <div key={i} className="p-3 bg-slate-950/50 rounded-lg border border-slate-800">
+                              <div key={i} className={`p-3 rounded-lg border ${theme === 'dark' ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-100'}`}>
                                 <div className="flex items-center justify-between mb-2">
-                                  <div className="text-xs font-bold text-slate-300 truncate">{subTopic?.title || 'Quiz'}</div>
+                                  <div className={`text-xs font-bold truncate ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>{subTopic?.title || 'Quiz'}</div>
                                   <div className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${a.passed ? 'bg-emerald-900/30 text-emerald-400' : 'bg-red-900/30 text-red-400'}`}>
                                     {a.passed ? 'PASSED' : 'FAILED'}
                                   </div>
@@ -2324,11 +2378,11 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
               </div>
             </div>
           ) : (
-            <div className="bg-slate-900 rounded-2xl border border-dashed border-slate-800 p-12 text-center flex flex-col items-center justify-center h-[600px] no-print">
-              <div className="w-16 h-16 bg-slate-950 rounded-full flex items-center justify-center text-slate-700 mb-4">
+            <div className={`rounded-2xl border border-dashed p-12 text-center flex flex-col items-center justify-center h-[600px] no-print ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+              <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 ${theme === 'dark' ? 'bg-slate-950 text-slate-700' : 'bg-slate-50 text-slate-300'}`}>
                 <Users size={32} />
               </div>
-              <h4 className="text-white font-bold">Select a student to show analytics</h4>
+              <h4 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Select a student to show analytics</h4>
               <p className="text-slate-500 text-sm max-w-[200px] mt-2">Select a student from the list to view their detailed performance evaluation.</p>
             </div>
           )}
@@ -2414,7 +2468,7 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
               </div>
               <div className="text-right">
                 {landingConfig.appLogoUrl ? (
-                  <img src={landingConfig.appLogoUrl} alt="Logo" className="h-12 w-auto ml-auto mb-2 object-contain" />
+                  <img src={landingConfig.appLogoUrl || undefined} alt="Logo" className="h-12 w-auto ml-auto mb-2 object-contain" />
                 ) : (
                   <div className="text-2xl font-black text-blue-600 tracking-tighter">Knowledge Graph</div>
                 )}
@@ -3053,11 +3107,26 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
           </motion.div>
         </div>
       )}
+
+        </>
+      )}
+
+      {analyticsTab === 'SUBMISSIONS' && (
+        <AdminSubmissionsList 
+          submissions={submissions}
+          onEvaluate={onEvaluateSubmission}
+          onRequestResubmission={onRequestResubmission}
+          onPostComment={onPostSubmissionComment}
+          onDeleteComment={onDeleteComment}
+          onDeleteFile={onDeleteFile}
+          theme={theme}
+        />
+      )}
     </div>
   );
 }
 
-function TagManagementView({ tags, setTags }: { tags: Tag[], setTags: React.Dispatch<React.SetStateAction<Tag[]>> }) {
+function TagManagementView({ tags, setTags, theme = 'dark' }: { tags: Tag[], setTags: React.Dispatch<React.SetStateAction<Tag[]>>, theme?: 'light' | 'dark' }) {
   const [newTagName, setNewTagName] = useState('');
   const [newTagDesc, setNewTagDesc] = useState('');
   const [newTagColor, setNewTagColor] = useState('#3b82f6');
@@ -3081,17 +3150,17 @@ function TagManagementView({ tags, setTags }: { tags: Tag[], setTags: React.Disp
   };
 
   return (
-    <div className="h-full bg-slate-950 p-8 overflow-y-auto">
+    <div className={`h-full p-8 overflow-y-auto ${theme === 'dark' ? 'bg-slate-950' : 'bg-slate-50'}`}>
       <div className="max-w-4xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h2 className="text-2xl font-bold text-white">Tag Management</h2>
+            <h2 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Tag Management</h2>
             <p className="text-slate-400">Create and manage user groups using tags.</p>
           </div>
         </div>
 
-        <div className="bg-slate-900 rounded-2xl border border-slate-800 shadow-sm p-6 mb-8">
-          <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider mb-4">Create New Tag</h3>
+        <div className={`rounded-2xl border shadow-sm p-6 mb-8 ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+          <h3 className={`text-sm font-bold uppercase tracking-wider mb-4 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>Create New Tag</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div className="space-y-1">
               <label className="text-[10px] font-bold text-slate-500 uppercase">Tag Name</label>
@@ -3099,7 +3168,7 @@ function TagManagementView({ tags, setTags }: { tags: Tag[], setTags: React.Disp
                 type="text" 
                 value={newTagName}
                 onChange={e => setNewTagName(e.target.value)}
-                className="w-full p-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white focus:border-blue-500 outline-none"
+                className={`w-full p-2 border rounded-lg text-sm focus:border-blue-500 outline-none ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
                 placeholder="e.g. Fukuoka"
               />
             </div>
@@ -3109,7 +3178,7 @@ function TagManagementView({ tags, setTags }: { tags: Tag[], setTags: React.Disp
                 type="text" 
                 value={newTagDesc}
                 onChange={e => setNewTagDesc(e.target.value)}
-                className="w-full p-2 bg-slate-800 border border-slate-700 rounded-lg text-sm text-white focus:border-blue-500 outline-none"
+                className={`w-full p-2 border rounded-lg text-sm focus:border-blue-500 outline-none ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
                 placeholder="e.g. Students from Fukuoka"
               />
             </div>
@@ -3120,7 +3189,7 @@ function TagManagementView({ tags, setTags }: { tags: Tag[], setTags: React.Disp
                   type="color" 
                   value={newTagColor}
                   onChange={e => setNewTagColor(e.target.value)}
-                  className="h-9 w-12 p-1 bg-slate-800 border border-slate-700 rounded-lg cursor-pointer"
+                  className={`h-9 w-12 p-1 border rounded-lg cursor-pointer ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}
                 />
                 <button 
                   onClick={handleAddTag}
@@ -3135,11 +3204,11 @@ function TagManagementView({ tags, setTags }: { tags: Tag[], setTags: React.Disp
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {tags.map(tag => (
-            <div key={tag.id} className="bg-slate-900 p-4 rounded-xl border border-slate-800 shadow-sm flex items-center justify-between group hover:border-slate-700 transition-all">
+            <div key={tag.id} className={`p-4 rounded-xl border shadow-sm flex items-center justify-between group transition-all ${theme === 'dark' ? 'bg-slate-900 border-slate-800 hover:border-slate-700' : 'bg-white border-slate-200 hover:border-slate-300'}`}>
               <div className="flex items-center gap-3">
                 <div className="w-4 h-4 rounded-full" style={{ backgroundColor: tag.color }}></div>
                 <div>
-                  <div className="text-sm font-bold text-white">{tag.name}</div>
+                  <div className={`text-sm font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{tag.name}</div>
                   <div className="text-xs text-slate-500">{tag.description}</div>
                 </div>
               </div>
@@ -3152,7 +3221,7 @@ function TagManagementView({ tags, setTags }: { tags: Tag[], setTags: React.Disp
             </div>
           ))}
           {tags.length === 0 && (
-            <div className="col-span-full py-12 text-center bg-slate-900/50 border border-dashed border-slate-800 rounded-2xl">
+            <div className={`col-span-full py-12 text-center border border-dashed rounded-2xl ${theme === 'dark' ? 'bg-slate-900/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
               <Sparkles size={32} className="text-slate-700 mx-auto mb-3" />
               <p className="text-slate-500">No tags created yet. Start by adding one above.</p>
             </div>
@@ -3167,23 +3236,29 @@ function TagManagementView({ tags, setTags }: { tags: Tag[], setTags: React.Disp
 export interface NotificationsViewProps {
   notifications: AppNotification[];
   onMarkRead: (id: string) => void;
+  onDelete: (id: string) => void;
   onEvaluate: (submissionId: string, score: number, feedback: string) => Promise<void>;
   onToggleCompleted?: (id: string, completed: boolean) => Promise<void>;
   onDeleteFile?: (fileUrl: string, submissionId: string, fileName: string) => Promise<void>;
-  onPostSubmissionComment?: (submissionId: string, text: string) => Promise<void>;
-  onDeleteComment?: (submissionId: string, commentId: string, isSubmission: boolean) => Promise<void>;
+  onPostSubmissionComment?: (id: string, text: string, isSubmission?: boolean) => Promise<void>;
+  onNavigateToModule?: (topicId: string, subTopicId: string) => void;
   highlightedId?: string | null;
+  isAdmin?: boolean;
+  theme?: 'light' | 'dark';
 }
 
 export function NotificationsView({ 
   notifications, 
   onMarkRead, 
+  onDelete,
   onEvaluate, 
   onToggleCompleted, 
   onDeleteFile,
   onPostSubmissionComment,
-  onDeleteComment,
-  highlightedId
+  onNavigateToModule,
+  highlightedId,
+  isAdmin = false,
+  theme = 'dark'
 }: NotificationsViewProps) {
   const [evaluatingId, setEvaluatingId] = useState<string | null>(null);
   const [showEvaluationId, setShowEvaluationId] = useState<string | null>(null);
@@ -3192,8 +3267,10 @@ export function NotificationsView({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isTogglingCompleted, setIsTogglingCompleted] = useState<string | null>(null);
+  const [isDeletingNotification, setIsDeletingNotification] = useState<string | null>(null);
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
   const [expandedReadIds, setExpandedReadIds] = useState<string[]>([]);
+  const commentListRefs = useRef<Record<string, HTMLDivElement | null>>({});
   
   // Sorting states
   const [sortBy, setSortBy] = useState<'time' | 'user' | 'module'>('time');
@@ -3229,10 +3306,29 @@ export function NotificationsView({
     }
   }, [highlightedId]);
 
+  // Scroll to bottom when comments change
+  useEffect(() => {
+    notifications.forEach(notif => {
+      if (expandedReadIds.includes(notif.id)) {
+        const ref = commentListRefs.current[notif.id];
+        if (ref) {
+          ref.scrollTop = ref.scrollHeight;
+        }
+      }
+    });
+  }, [notifications, expandedReadIds]);
+
   const toggleExpandRead = (id: string) => {
-    setExpandedReadIds(prev => 
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    );
+    setExpandedReadIds(prev => {
+      const isExpanding = !prev.includes(id);
+      if (isExpanding) {
+        // Mark as read only when expanding
+        onMarkRead(id);
+        return [...prev, id];
+      } else {
+        return prev.filter(i => i !== id);
+      }
+    });
   };
 
   const handleStartEvaluate = (notif: AppNotification) => {
@@ -3281,8 +3377,8 @@ export function NotificationsView({
     }
   };
 
-  const handleDelete = async (fileUrl: string, submissionId: string, fileName: string) => {
-    if (!onDeleteFile) return;
+  const handleDelete = async (fileUrl: string, submissionId: string | undefined, fileName: string) => {
+    if (!onDeleteFile || !submissionId) return;
     if (!confirm(`Are you sure you want to delete "${fileName}" from storage? This cannot be undone.`)) return;
     
     setIsDeleting(fileUrl);
@@ -3308,6 +3404,19 @@ export function NotificationsView({
     }
   };
 
+  const handleDeleteNotification = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (!onDelete) return;
+    setIsDeletingNotification(id);
+    try {
+      await onDelete(id);
+    } catch (error) {
+      console.error("Failed to delete notification:", error);
+    } finally {
+      setIsDeletingNotification(null);
+    }
+  };
+
   const getDaysLeft = (timestamp: string) => {
     const submissionDate = new Date(timestamp);
     const deadlineDate = new Date(submissionDate.getTime() + (28 * 24 * 60 * 60 * 1000)); // 4 weeks
@@ -3317,29 +3426,53 @@ export function NotificationsView({
     return diffDays;
   };
 
+  const handleDownloadDiscussion = (notif: AppNotification) => {
+    if (!notif.comments || notif.comments.length === 0) return;
+    
+    let content = `DISCUSSION: ${notif.subTopicTitle} (${notif.topicTitle})\n`;
+    content += `Student: ${notif.userName}\n`;
+    content += `Date: ${new Date(notif.timestamp).toLocaleString()}\n`;
+    content += `--------------------------------------------------\n\n`;
+    
+    notif.comments.forEach(c => {
+      content += `[${new Date(c.timestamp).toLocaleString()}] ${c.user}:\n`;
+      content += `${c.text}\n\n`;
+    });
+    
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `discussion_${notif.userName.replace(/\s+/g, '_')}_${notif.subTopicTitle.replace(/\s+/g, '_')}_${new Date().getTime()}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
-    <div className="h-full bg-slate-950 p-4 sm:p-8 overflow-y-auto">
+    <div className={`h-full p-4 sm:p-8 overflow-y-auto ${theme === 'dark' ? 'bg-slate-950' : 'bg-slate-50'}`}>
       <div className="max-w-4xl mx-auto">
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-8 bg-slate-900/50 p-4 rounded-2xl border border-slate-800">
+        <div className={`flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-8 p-4 rounded-2xl border ${theme === 'dark' ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
           <div className="flex flex-wrap items-center gap-4 w-full lg:w-auto">
             <div className="flex flex-col">
               <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 ml-1">Sort By</label>
               <div className="flex gap-1 overflow-x-auto no-scrollbar">
                 <button 
                   onClick={() => setSortBy('time')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${sortBy === 'time' ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20' : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'}`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${sortBy === 'time' ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20' : theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600' : 'bg-slate-100 border-slate-200 text-slate-600 hover:border-slate-300'}`}
                 >
                   Time
                 </button>
                 <button 
                   onClick={() => setSortBy('user')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${sortBy === 'user' ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20' : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'}`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${sortBy === 'user' ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20' : theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600' : 'bg-slate-100 border-slate-200 text-slate-600 hover:border-slate-300'}`}
                 >
                   User
                 </button>
                 <button 
                   onClick={() => setSortBy('module')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${sortBy === 'module' ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20' : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600'}`}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${sortBy === 'module' ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-500/20' : theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600' : 'bg-slate-100 border-slate-200 text-slate-600 hover:border-slate-300'}`}
                 >
                   Module
                 </button>
@@ -3349,20 +3482,20 @@ export function NotificationsView({
               <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 ml-1">Order</label>
               <button 
                 onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                className="p-1.5 bg-slate-800 border border-slate-700 rounded-lg text-slate-400 hover:text-white transition-all"
+                className={`p-1.5 border rounded-lg transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white' : 'bg-slate-100 border-slate-200 text-slate-600 hover:text-slate-900'}`}
               >
                 {sortOrder === 'desc' ? <ChevronDown size={18} /> : <ChevronUp size={18} />}
               </button>
             </div>
           </div>
           <div className="flex gap-3">
-            <div className="bg-slate-800/50 px-4 py-2 rounded-xl border border-slate-700/50">
+            <div className={`px-4 py-2 rounded-xl border ${theme === 'dark' ? 'bg-slate-800/50 border-slate-700/50' : 'bg-slate-100 border-slate-200'}`}>
               <span className="text-[10px] text-slate-500 uppercase font-bold mr-2">Unread</span>
               <span className="text-blue-400 font-bold">{notifications.filter(n => !n.read).length}</span>
             </div>
-            <div className="bg-slate-800/50 px-4 py-2 rounded-xl border border-slate-700/50">
+            <div className={`px-4 py-2 rounded-xl border ${theme === 'dark' ? 'bg-slate-800/50 border-slate-700/50' : 'bg-slate-100 border-slate-200'}`}>
               <span className="text-[10px] text-slate-500 uppercase font-bold mr-2">Pending</span>
-              <span className="text-orange-400 font-bold">{notifications.filter(n => !n.evaluated).length}</span>
+              <span className="text-orange-400 font-bold">{notifications.filter(n => (n.type === 'EXERCISE_SUBMISSION' || n.type === 'EXERCISE_RESUBMISSION') && !n.evaluated && !n.completed).length}</span>
             </div>
           </div>
         </div>
@@ -3378,7 +3511,7 @@ export function NotificationsView({
                 return (
                   <div 
                     key={notif.id} 
-                    className="bg-slate-900/40 rounded-xl border border-slate-800/50 opacity-60 hover:opacity-100 transition-all group"
+                    className={`rounded-xl border transition-all group ${theme === 'dark' ? 'bg-slate-900/40 border-slate-800/50 opacity-60 hover:opacity-100' : 'bg-white border-slate-200 opacity-60 hover:opacity-100 shadow-sm'}`}
                   >
                     <div className="px-6 py-3 flex items-center justify-between gap-4">
                       <div className="flex items-center gap-4 flex-1 min-w-0">
@@ -3390,19 +3523,29 @@ export function NotificationsView({
                           {isTogglingCompleted === notif.id ? <RefreshCw size={18} className="animate-spin" /> : <CheckSquare size={18} />}
                         </button>
                         <div className="flex items-center gap-2 truncate">
-                          <span className="font-bold text-slate-300 text-sm truncate">{notif.userName}</span>
+                          <span className={`font-bold text-sm truncate ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>{notif.userName}</span>
                           <span className="text-slate-600 text-[10px]">•</span>
                           <span className="text-slate-500 text-[10px] truncate">{notif.subTopicTitle}</span>
                         </div>
                       </div>
                       <div className="flex items-center gap-4 shrink-0">
                         <span className="text-[10px] text-slate-600 font-mono">{new Date(notif.timestamp).toLocaleDateString()}</span>
-                        <button 
-                          onClick={(e) => handleToggleCompleted(e, notif.id, isCompleted)}
-                          className="text-[10px] font-bold text-emerald-500/50 uppercase tracking-widest hidden group-hover:block"
-                        >
-                          Restore
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button 
+                            onClick={(e) => handleToggleCompleted(e, notif.id, isCompleted)}
+                            className="text-[10px] font-bold text-emerald-500/50 uppercase tracking-widest hidden group-hover:block"
+                          >
+                            Restore
+                          </button>
+                          <button 
+                            onClick={(e) => handleDeleteNotification(e, notif.id)}
+                            disabled={isDeletingNotification === notif.id}
+                            className="p-1 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-500/10 transition-all hidden group-hover:block"
+                            title="Delete notification"
+                          >
+                            {isDeletingNotification === notif.id ? <RefreshCw size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -3413,14 +3556,18 @@ export function NotificationsView({
                 <div 
                   key={notif.id} 
                   id={`notification-${notif.id}`}
-                  className={`bg-slate-900 rounded-xl border transition-all duration-500 ${
+                  className={`rounded-xl border transition-all duration-500 cursor-pointer ${
                     highlightedId === notif.id 
                       ? 'border-blue-500 ring-2 ring-blue-500/50 scale-[1.02] shadow-2xl shadow-blue-500/20 z-10' 
-                      : notif.read 
-                        ? 'border-slate-800 opacity-50 scale-[0.98] grayscale-[0.5]' 
-                        : 'border-blue-500/30 shadow-lg shadow-blue-500/5'
+                      : (notif.read && !expandedReadIds.includes(notif.id))
+                        ? theme === 'dark' ? 'bg-slate-900 border-slate-800 opacity-50 scale-[0.98] grayscale-[0.5]' : 'bg-white border-slate-200 opacity-50 scale-[0.98] grayscale-[0.5]'
+                        : theme === 'dark' ? 'bg-slate-900 border-blue-500/30 shadow-lg shadow-blue-500/5' : 'bg-white border-blue-500/30 shadow-lg shadow-blue-500/5'
                   }`}
-                  onClick={() => !notif.read && onMarkRead(notif.id)}
+                  onClick={() => {
+                    if (!expandedReadIds.includes(notif.id)) {
+                      toggleExpandRead(notif.id);
+                    }
+                  }}
                 >
                   <div className={`p-6 ${notif.read && !expandedReadIds.includes(notif.id) ? 'py-3' : ''}`}>
                     <div className="flex justify-between items-start mb-4">
@@ -3432,40 +3579,49 @@ export function NotificationsView({
                         >
                           {isTogglingCompleted === notif.id ? <RefreshCw size={20} className="animate-spin" /> : <Square size={20} />}
                         </button>
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${notif.type === 'DEADLINE_WARNING' ? 'bg-red-500/20 text-red-400' : notif.evaluated ? 'bg-emerald-500/20 text-emerald-400' : notif.read ? 'bg-slate-800 text-slate-500' : 'bg-blue-500/20 text-blue-400'}`}>
-                          {notif.type === 'DEADLINE_WARNING' ? <AlertTriangle size={20} /> : notif.evaluated ? <CheckCircle2 size={20} /> : <FileUp size={20} />}
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${notif.type === 'DEADLINE_WARNING' ? 'bg-red-500/20 text-red-400' : notif.type === 'SUBMISSION_COMMENT' ? 'bg-blue-500/20 text-blue-400' : notif.type === 'EXERCISE_RESUBMISSION' ? 'bg-orange-500/20 text-orange-400' : notif.evaluated ? 'bg-emerald-500/20 text-emerald-400' : theme === 'dark' ? 'bg-slate-800 text-slate-500' : 'bg-slate-100 text-slate-500'}`}>
+                          {notif.type === 'DEADLINE_WARNING' ? <AlertTriangle size={20} /> : notif.type === 'SUBMISSION_COMMENT' ? <MessageSquare size={20} /> : notif.type === 'EXERCISE_RESUBMISSION' ? <RefreshCw size={20} className="animate-spin-slow" /> : notif.evaluated ? <CheckCircle2 size={20} /> : <FileUp size={20} />}
                         </div>
                         <div>
                           <div className="flex items-center gap-2">
-                            <h3 className="font-bold text-white">{notif.userName}</h3>
+                            <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{notif.userName}</h3>
                             {!notif.read && (
                                 <span className="px-2 py-0.5 bg-emerald-500 text-white text-[10px] font-bold rounded uppercase tracking-wider shadow-[0_0_10px_rgba(16,185,129,0.3)]">New</span>
                             )}
+                            {notif.hasNewComments && notif.read && (
+                                <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[10px] font-bold rounded uppercase tracking-wider border border-blue-500/20 animate-pulse">New Comments</span>
+                            )}
                             {notif.type === 'DEADLINE_WARNING' ? (
                               <span className="px-2 py-0.5 bg-red-500/10 text-red-400 text-[10px] font-bold rounded uppercase tracking-wider border border-red-500/20">Deadline Warning</span>
-                            ) : notif.evaluated ? (
+                            ) : notif.completed ? (
                               <div className="flex gap-2">
-                                <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[10px] font-bold rounded uppercase tracking-wider border border-emerald-500/20">Evaluated</span>
-                                {notif.hasNewComments && (
-                                  <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[10px] font-bold rounded uppercase tracking-wider border border-blue-500/20 animate-pulse">New Comments</span>
-                                )}
+                                <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[10px] font-bold rounded uppercase tracking-wider border border-emerald-500/20">Completed</span>
                               </div>
                             ) : (
                               <div className="flex gap-2">
-                                <span className="px-2 py-0.5 bg-orange-500/10 text-orange-400 text-[10px] font-bold rounded uppercase tracking-wider border border-orange-500/20">Pending Review</span>
-                                {notif.hasNewComments && (
-                                  <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[10px] font-bold rounded uppercase tracking-wider border border-blue-500/20 animate-pulse">New Comments</span>
+                                {notif.type === 'EXERCISE_SUBMISSION' && !notif.evaluated && (
+                                  <span className="px-2 py-0.5 bg-orange-500/10 text-orange-400 text-[10px] font-bold rounded uppercase tracking-wider border border-orange-500/20">Pending</span>
                                 )}
                               </div>
                             )}
                           </div>
                           <p className="text-xs text-slate-500">
-                            Uploaded to <span className="text-slate-300 font-medium">{notif.subTopicTitle}</span> in <span className="text-slate-300 font-medium">{notif.topicTitle}</span>
+                            {notif.type === 'SUBMISSION_COMMENT' ? 'Commented on' : 'Uploaded to'} <span className={`font-medium ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>{notif.subTopicTitle}</span> in <span className={`font-medium ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>{notif.topicTitle}</span>
                           </p>
                         </div>
                       </div>
                       <div className="text-right flex flex-col items-end gap-2">
-                        <div className="text-[10px] text-slate-500 font-mono mb-1">{new Date(notif.timestamp).toLocaleString()}</div>
+                        <div className="flex items-center gap-2">
+                          <div className="text-[10px] text-slate-500 font-mono">{new Date(notif.timestamp).toLocaleString()}</div>
+                          <button 
+                            onClick={(e) => handleDeleteNotification(e, notif.id)}
+                            disabled={isDeletingNotification === notif.id}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-red-500 hover:bg-red-500/10 transition-all"
+                            title="Delete notification"
+                          >
+                            {isDeletingNotification === notif.id ? <RefreshCw size={14} className="animate-spin" /> : <Trash2 size={14} />}
+                          </button>
+                        </div>
                         {notif.read && (
                           <button 
                             onClick={(e) => {
@@ -3481,7 +3637,12 @@ export function NotificationsView({
                             )}
                           </button>
                         )}
-                        {!notif.evaluated && (
+                        {notif.type === 'EXERCISE_RESUBMISSION' && (
+                          <div className="flex items-center gap-2 px-3 py-1 bg-orange-500/10 text-orange-400 rounded-full text-[10px] font-bold uppercase tracking-widest border border-orange-500/20">
+                            <RefreshCw size={10} className="animate-spin-slow" /> Resubmission
+                          </div>
+                        )}
+                        {(notif.type === 'EXERCISE_SUBMISSION' || notif.type === 'EXERCISE_RESUBMISSION') && !notif.evaluated && (
                           <div className={`text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 justify-end ${isUrgent ? 'text-red-400 animate-pulse' : 'text-slate-400'}`}>
                             <Clock size={10} /> {daysLeft > 0 ? `${daysLeft} days left` : 'Deadline passed'}
                           </div>
@@ -3493,118 +3654,143 @@ export function NotificationsView({
                         <>
                     {/* Show Evaluation Details if evaluated and toggled */}
                     {notif.evaluated && showEvaluationId === notif.id && (
-                      <div className="mb-4 p-4 bg-emerald-500/5 border border-emerald-500/10 rounded-xl animate-in fade-in slide-in-from-top-2">
+                      <div className={`mb-4 p-4 border rounded-xl animate-in fade-in slide-in-from-top-2 ${theme === 'dark' ? 'bg-emerald-500/5 border-emerald-500/10' : 'bg-emerald-50 border-emerald-100'}`}>
                         <div className="flex justify-between items-center mb-2">
                           <h4 className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Evaluation Result</h4>
                           <span className="text-sm font-bold text-emerald-400">{notif.grade}/100</span>
                         </div>
                         {notif.feedback && (
-                          <p className="text-sm text-slate-300 italic">"{notif.feedback}"</p>
+                          <p className={`text-sm italic ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>"{notif.feedback}"</p>
                         )}
                       </div>
                     )}
 
-                    <div className="bg-slate-950/50 rounded-lg p-4 border border-slate-800/50 mb-4">
-                      <h4 className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Attached Files</h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        {notif.files.map((file, idx) => (
-                          <div key={idx} className="flex items-center gap-2">
-                            <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDownload(file.url, file.name, notif.userName, notif.timestamp, notif.subTopicTitle);
-                              }}
-                              className="flex-1 flex items-center justify-between p-3 bg-slate-900 border border-slate-800 rounded-lg hover:border-blue-500/50 hover:bg-slate-800 transition-all group"
-                            >
-                              <div className="flex items-center gap-3 truncate">
-                                <div className="p-2 bg-blue-500/10 rounded text-blue-400 group-hover:bg-blue-500/20 transition-colors">
-                                  <Download size={16} />
-                                </div>
-                                <span className="text-sm text-slate-300 truncate">{file.name}</span>
-                              </div>
-                              <ExternalLink size={14} className="text-slate-600 group-hover:text-blue-400" />
-                            </button>
-                            {onDeleteFile && (
+                    {notif.files && notif.files.length > 0 && (
+                      <div className={`rounded-lg p-4 border mb-4 ${theme === 'dark' ? 'bg-slate-950/50 border-slate-800/50' : 'bg-slate-50 border-slate-200'}`}>
+                        <h4 className="text-[10px] font-bold text-slate-500 uppercase mb-3 tracking-widest">Attached Files</h4>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {notif.files.map((file, idx) => (
+                            <div key={idx} className="flex items-center gap-2">
                               <button 
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleDelete(file.url, notif.submissionId, file.name);
+                                  handleDownload(file.url, file.name, notif.userName, notif.timestamp, notif.subTopicTitle);
                                 }}
-                                disabled={isDeleting === file.url}
-                                className="p-3 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-lg border border-red-500/20 transition-all disabled:opacity-50"
-                                title="Delete from Storage"
+                                className={`flex-1 flex items-center justify-between p-3 border rounded-lg transition-all group ${theme === 'dark' ? 'bg-slate-900 border-slate-800 hover:border-blue-500/50 hover:bg-slate-800' : 'bg-white border-slate-200 hover:border-blue-500/50 hover:bg-slate-50'}`}
                               >
-                                {isDeleting === file.url ? <RefreshCw size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                                <div className="flex items-center gap-3 truncate">
+                                  <div className="p-2 bg-blue-500/10 rounded text-blue-400 group-hover:bg-blue-500/20 transition-colors">
+                                    <Download size={16} />
+                                  </div>
+                                  <span className={`text-sm truncate ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>{file.name}</span>
+                                </div>
+                                <ExternalLink size={14} className="text-slate-600 group-hover:text-blue-400" />
                               </button>
-                            )}
-                          </div>
-                        ))}
+                              {onDeleteFile && (
+                                <button 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDelete(file.url, notif.submissionId, file.name);
+                                  }}
+                                  disabled={isDeleting === file.url}
+                                  className="p-3 bg-red-500/10 text-red-400 hover:bg-red-500/20 rounded-lg border border-red-500/20 transition-all disabled:opacity-50"
+                                  title="Delete from Storage"
+                                >
+                                  {isDeleting === file.url ? <RefreshCw size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                                </button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
 
                     {/* Discussion Window */}
-                    <div className="mt-6 pt-6 border-t border-slate-800 mb-6">
-                      <div className="flex items-center gap-2 mb-4">
-                        <MessageSquare size={14} className="text-blue-400" />
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Submission Discussion</span>
+                    <div className={`mt-6 pt-6 border-t mb-6 ${theme === 'dark' ? 'border-slate-800' : 'border-slate-200'}`}>
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          <MessageSquare size={14} className="text-blue-400" />
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">
+                            {notif.submissionId ? 'Submission Discussion' : 'General Comments'}
+                          </span>
+                          {isAdmin && notif.comments && notif.comments.length > 0 && (
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDownloadDiscussion(notif);
+                              }}
+                              className="ml-2 p-1 text-slate-500 hover:text-blue-400 transition-colors"
+                              title="Download Discussion as Text"
+                            >
+                              <Download size={12} />
+                            </button>
+                          )}
+                        </div>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onNavigateToModule && notif.topicId && notif.subTopicId) {
+                                onNavigateToModule(notif.topicId, notif.subTopicId);
+                            }
+                          }}
+                          className="flex items-center gap-1 text-[10px] font-bold text-blue-400 hover:text-blue-300 transition-colors uppercase tracking-widest"
+                        >
+                          <ExternalLink size={12} /> View in Module
+                        </button>
                       </div>
-                      <div className="space-y-3 max-h-[300px] overflow-y-auto mb-4 pr-2 custom-scrollbar">
+                      <div 
+                        ref={el => commentListRefs.current[notif.id] = el}
+                        className="space-y-3 max-h-[300px] overflow-y-auto mb-4 pr-2 custom-scrollbar"
+                      >
                         {notif.comments && notif.comments.length > 0 ? (
                           notif.comments.map(comment => (
-                            <div key={comment.id} className="group relative bg-slate-800/30 rounded-xl p-3 border border-slate-800/50">
+                            <div key={comment.id} className={`group relative rounded-xl p-3 border ${theme === 'dark' ? 'bg-slate-800/30 border-slate-800/50' : 'bg-slate-50 border-slate-200'}`}>
                               <div className="flex justify-between items-start mb-2">
                                 <div className="flex items-center gap-2">
-                                  <img src={comment.avatar} alt={comment.user} className="w-5 h-5 rounded-lg" />
-                                  <span className="text-xs font-bold text-white">{comment.user}</span>
+                                  <img src={comment.avatar || undefined} alt={comment.user} className="w-5 h-5 rounded-lg" />
+                                  <span className={`text-xs font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{comment.user}</span>
                                 </div>
                                 <div className="flex items-center gap-3">
                                   <span className="text-[10px] text-slate-600">{new Date(comment.timestamp).toLocaleString()}</span>
-                                  {onDeleteComment && (
-                                    <button 
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        onDeleteComment(notif.submissionId, comment.id, true);
-                                      }}
-                                      className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-400 transition-all"
-                                    >
-                                      <Trash2 size={12} />
-                                    </button>
-                                  )}
                                 </div>
                               </div>
-                              <p className="text-xs text-slate-400 leading-relaxed">{comment.text}</p>
+                              <p className={`text-xs leading-relaxed ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>{comment.text}</p>
                             </div>
                           ))
                         ) : (
-                          <p className="text-xs text-slate-600 italic text-center py-4">No comments yet. Start the conversation!</p>
+                          <p className={`text-xs italic text-center py-4 ${theme === 'dark' ? 'text-slate-600' : 'text-slate-400'}`}>No comments yet. Start the conversation!</p>
                         )}
                       </div>
                       <div className="flex gap-3">
                         <input 
                           type="text"
-                          value={commentInputs[notif.submissionId] || ''}
-                          onChange={e => setCommentInputs(prev => ({ ...prev, [notif.submissionId]: e.target.value }))}
+                          value={commentInputs[notif.id] || ''}
+                          onChange={e => setCommentInputs(prev => ({ ...prev, [notif.id]: e.target.value }))}
                           onClick={e => e.stopPropagation()}
                           onKeyDown={e => {
-                            if (e.key === 'Enter' && commentInputs[notif.submissionId]?.trim() && onPostSubmissionComment) {
+                            if (e.key === 'Enter' && commentInputs[notif.id]?.trim() && onPostSubmissionComment) {
                               e.stopPropagation();
-                              onPostSubmissionComment(notif.submissionId, commentInputs[notif.submissionId]);
-                              setCommentInputs(prev => ({ ...prev, [notif.submissionId]: '' }));
+                              const id = notif.submissionId || notif.subTopicId;
+                              const isSubmission = !!notif.submissionId;
+                              onPostSubmissionComment(id, commentInputs[notif.id], isSubmission);
+                              setCommentInputs(prev => ({ ...prev, [notif.id]: '' }));
                             }
                           }}
                           placeholder="Type your message..."
-                          className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-xs text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all"
+                          className={`flex-1 border rounded-xl px-4 py-2 text-xs outline-none focus:ring-2 focus:ring-blue-500 transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
                         />
                         <button 
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (commentInputs[notif.submissionId]?.trim() && onPostSubmissionComment) {
-                              onPostSubmissionComment(notif.submissionId, commentInputs[notif.submissionId]);
-                              setCommentInputs(prev => ({ ...prev, [notif.submissionId]: '' }));
+                            if (commentInputs[notif.id]?.trim() && onPostSubmissionComment) {
+                              const id = notif.submissionId || notif.subTopicId;
+                              const isSubmission = !!notif.submissionId;
+                              onPostSubmissionComment(id, commentInputs[notif.id], isSubmission);
+                              setCommentInputs(prev => ({ ...prev, [notif.id]: '' }));
                             }
                           }}
-                          disabled={!commentInputs[notif.submissionId]?.trim()}
-                          className="w-10 h-10 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 text-white rounded-xl flex items-center justify-center transition-all shadow-lg shadow-blue-500/20"
+                          disabled={!commentInputs[notif.id]?.trim()}
+                          className={`w-10 h-10 bg-blue-600 hover:bg-blue-500 text-white rounded-xl flex items-center justify-center transition-all shadow-lg shadow-blue-500/20 disabled:opacity-50 ${theme === 'dark' ? 'disabled:bg-slate-800' : 'disabled:bg-slate-200'}`}
                         >
                           <Send size={16} />
                         </button>
@@ -3618,66 +3804,68 @@ export function NotificationsView({
                             e.stopPropagation();
                             setShowEvaluationId(showEvaluationId === notif.id ? null : notif.id);
                           }}
-                          className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold border border-slate-700 text-slate-400 hover:text-white hover:border-slate-600 transition-all"
+                          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold border transition-all ${theme === 'dark' ? 'border-slate-700 text-slate-400 hover:text-white hover:border-slate-600' : 'border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300'}`}
                         >
                           <Eye size={14} /> {showEvaluationId === notif.id ? 'Hide Evaluation' : 'Show Evaluation'}
                         </button>
                       )}
-                      {evaluatingId === notif.id ? (
-                        <div className="w-full bg-slate-800/50 p-4 rounded-lg border border-blue-500/20 animate-in fade-in slide-in-from-top-2">
-                          <div className="flex justify-between items-center mb-4">
-                            <h4 className="text-sm font-bold text-white">Evaluate Submission</h4>
-                            <button onClick={() => setEvaluatingId(null)} className="text-slate-500 hover:text-white"><X size={16}/></button>
+                      {(notif.type === 'EXERCISE_SUBMISSION' || notif.type === 'EXERCISE_RESUBMISSION') && (
+                        evaluatingId === notif.id ? (
+                          <div className={`w-full p-4 rounded-lg border animate-in fade-in slide-in-from-top-2 ${theme === 'dark' ? 'bg-slate-800/50 border-blue-500/20' : 'bg-slate-50 border-blue-500/20'}`}>
+                            <div className="flex justify-between items-center mb-4">
+                              <h4 className={`text-sm font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Evaluate Submission</h4>
+                              <button onClick={() => setEvaluatingId(null)} className="text-slate-500 hover:text-white"><X size={16}/></button>
+                            </div>
+                            <div className="space-y-4">
+                              <div>
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Score (0-100)</label>
+                                <input 
+                                  type="number" 
+                                  min="0" 
+                                  max="100" 
+                                  value={score}
+                                  onChange={e => setScore(parseInt(e.target.value) || 0)}
+                                  className={`w-full border rounded-lg p-2 outline-none focus:border-blue-500 ${theme === 'dark' ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Feedback (Optional)</label>
+                                <textarea 
+                                  value={feedback}
+                                  onChange={e => setFeedback(e.target.value)}
+                                  rows={3}
+                                  className={`w-full border rounded-lg p-2 outline-none focus:border-blue-500 resize-none ${theme === 'dark' ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                  placeholder="Great work! The implementation is clean..."
+                                />
+                              </div>
+                              <div className="flex justify-end gap-2">
+                                <button 
+                                  onClick={() => setEvaluatingId(null)}
+                                  className="px-4 py-2 text-xs font-bold text-slate-400 hover:text-white transition-colors"
+                                >
+                                  Cancel
+                                </button>
+                                <button 
+                                  onClick={() => handleSubmitEvaluation(notif.submissionId)}
+                                  disabled={isSubmitting}
+                                  className="px-6 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-2"
+                                >
+                                  {isSubmitting ? 'Saving...' : 'Submit Evaluation'}
+                                </button>
+                              </div>
+                            </div>
                           </div>
-                          <div className="space-y-4">
-                            <div>
-                              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Score (0-100)</label>
-                              <input 
-                                type="number" 
-                                min="0" 
-                                max="100" 
-                                value={score}
-                                onChange={e => setScore(parseInt(e.target.value) || 0)}
-                                className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-blue-500"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Feedback (Optional)</label>
-                              <textarea 
-                                value={feedback}
-                                onChange={e => setFeedback(e.target.value)}
-                                rows={3}
-                                className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-white outline-none focus:border-blue-500 resize-none"
-                                placeholder="Great work! The implementation is clean..."
-                              />
-                            </div>
-                            <div className="flex justify-end gap-2">
-                              <button 
-                                onClick={() => setEvaluatingId(null)}
-                                className="px-4 py-2 text-xs font-bold text-slate-400 hover:text-white transition-colors"
-                              >
-                                Cancel
-                              </button>
-                              <button 
-                                onClick={() => handleSubmitEvaluation(notif.submissionId)}
-                                disabled={isSubmitting}
-                                className="px-6 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-2"
-                              >
-                                {isSubmitting ? 'Saving...' : 'Submit Evaluation'}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleStartEvaluate(notif);
-                          }}
-                          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold border transition-all ${notif.evaluated ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20'}`}
-                        >
-                          <Award size={14} /> {notif.evaluated ? 'Update Evaluation' : 'Evaluate Submission'}
-                        </button>
+                        ) : (
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleStartEvaluate(notif);
+                            }}
+                            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold border transition-all ${notif.evaluated ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20'}`}
+                          >
+                            <Award size={14} /> {notif.evaluated ? 'Update Evaluation' : 'Evaluate Submission'}
+                          </button>
+                        )
                       )}
                     </div>
                     </>
@@ -3687,14 +3875,320 @@ export function NotificationsView({
               );
             })
           ) : (
-            <div className="flex flex-col items-center justify-center py-20 bg-slate-900/50 rounded-2xl border border-dashed border-slate-800">
-              <BellOff size={48} className="text-slate-700 mb-4" />
-              <p className="text-slate-500 font-medium">No notifications yet.</p>
-              <p className="text-slate-600 text-sm">When students upload files, they will appear here.</p>
+            <div className={`flex flex-col items-center justify-center py-20 rounded-2xl border border-dashed ${theme === 'dark' ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+              <BellOff size={48} className={`${theme === 'dark' ? 'text-slate-700' : 'text-slate-300'} mb-4`} />
+              <p className={`${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'} font-medium`}>No notifications yet.</p>
+              <p className={`${theme === 'dark' ? 'text-slate-600' : 'text-slate-400'} text-sm`}>When students upload files, they will appear here.</p>
             </div>
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// --- Admin Submissions List Component ---
+function AdminSubmissionsList({ 
+  submissions, 
+  onEvaluate, 
+  onRequestResubmission,
+  onPostComment, 
+  onDeleteComment,
+  onDeleteFile,
+  theme 
+}: { 
+  submissions: ExerciseSubmission[], 
+  onEvaluate: (id: string, score: number, feedback: string) => Promise<void>,
+  onRequestResubmission: (id: string, feedback: string) => Promise<void>,
+  onPostComment?: (id: string, text: string, isSubmission?: boolean) => Promise<void>,
+  onDeleteComment?: (id: string, commentId: string, isSubmission: boolean) => Promise<void>,
+  onDeleteFile?: (fileUrl: string, submissionId: string, fileName: string) => Promise<void>,
+  theme: 'light' | 'dark' 
+}) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [isEvaluating, setIsEvaluating] = useState<string | null>(null);
+  const [grade, setGrade] = useState<number>(0);
+  const [feedback, setFeedback] = useState<string>("");
+  const [commentText, setCommentText] = useState<string>("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const sortedSubmissions = [...submissions].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+
+  const handleEvaluate = async (id: string) => {
+    setIsSubmitting(true);
+    try {
+      await onEvaluate(id, grade, feedback);
+      setIsEvaluating(null);
+      setGrade(0);
+      setFeedback("");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRequestResubmission = async (id: string) => {
+    setIsSubmitting(true);
+    try {
+      await onRequestResubmission(id, feedback);
+      setIsEvaluating(null);
+      setGrade(0);
+      setFeedback("");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {sortedSubmissions.length === 0 ? (
+        <div className={`p-12 text-center rounded-3xl border border-dashed ${theme === 'dark' ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+          <FileText size={48} className={`mx-auto mb-4 ${theme === 'dark' ? 'text-slate-700' : 'text-slate-300'}`} />
+          <p className={theme === 'dark' ? 'text-slate-500' : 'text-slate-600'}>No submissions found.</p>
+        </div>
+      ) : (
+        sortedSubmissions.map((sub) => (
+          <div 
+            key={sub.id}
+            className={`rounded-3xl border transition-all overflow-hidden ${theme === 'dark' ? 'bg-slate-900 border-slate-800 hover:border-slate-700' : 'bg-white border-slate-200 shadow-sm hover:shadow-md'}`}
+          >
+            <div 
+              className="p-6 cursor-pointer"
+              onClick={() => setExpandedId(expandedId === sub.id ? null : sub.id)}
+            >
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${theme === 'dark' ? 'bg-slate-800 text-blue-400' : 'bg-blue-50 text-blue-600'}`}>
+                    <FileText size={24} />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="font-bold text-lg">{sub.subTopicTitle}</h4>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                        sub.status === 'reviewed' ? 'bg-emerald-500/10 text-emerald-400' :
+                        sub.status === 'rejected' ? 'bg-red-500/10 text-red-400' :
+                        'bg-blue-500/10 text-blue-400'
+                      }`}>
+                        {sub.status}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 mt-1 text-sm text-slate-500">
+                      <span className="flex items-center gap-1"><UserIcon size={14} /> {sub.userName}</span>
+                      <span className="flex items-center gap-1"><Calendar size={14} /> {new Date(sub.timestamp).toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  {sub.status === 'reviewed' && (
+                    <div className="text-right">
+                      <div className="text-2xl font-black text-blue-500">{sub.grade}/100</div>
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Grade</div>
+                    </div>
+                  )}
+                  <ChevronDown 
+                    size={20} 
+                    className={`text-slate-500 transition-transform duration-300 ${expandedId === sub.id ? 'rotate-180' : ''}`} 
+                  />
+                </div>
+              </div>
+            </div>
+
+            {expandedId === sub.id && (
+              <div className={`p-6 border-t ${theme === 'dark' ? 'border-slate-800 bg-slate-950/30' : 'border-slate-100 bg-slate-50/50'}`}>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  <div className="space-y-6">
+                    <div>
+                      <h5 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Submitted Files</h5>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {sub.files.map((file, idx) => (
+                          <div key={idx} className="flex items-center gap-2 group/file">
+                            <a 
+                              href={file.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`flex-1 flex items-center gap-3 p-3 rounded-xl border transition-all ${theme === 'dark' ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:border-blue-300 hover:shadow-sm'}`}
+                            >
+                              <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center shrink-0">
+                                <ExternalLink size={14} />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="text-xs font-bold truncate">{file.name}</div>
+                                <div className="text-[10px] text-slate-500 uppercase">View File</div>
+                              </div>
+                            </a>
+                            {onDeleteFile && (
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (window.confirm('Are you sure you want to delete this file? This action cannot be undone.')) {
+                                    onDeleteFile(file.url, sub.id, file.name);
+                                  }
+                                }}
+                                className={`p-3 rounded-xl border transition-all ${theme === 'dark' ? 'bg-slate-900 border-slate-800 hover:bg-red-500/10 hover:border-red-500/30 text-slate-500 hover:text-red-500' : 'bg-white border-slate-200 hover:bg-red-50 hover:border-red-200 text-slate-400 hover:text-red-500'}`}
+                                title="Delete file"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {sub.feedback && (
+                      <div>
+                        <h5 className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Evaluation Feedback</h5>
+                        <div className={`p-4 rounded-2xl border ${theme === 'dark' ? 'bg-slate-900/50 border-slate-800 text-slate-300' : 'bg-white border-slate-200 text-slate-700 shadow-sm'}`}>
+                          {sub.feedback}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="pt-4 flex flex-wrap gap-3">
+                      <button 
+                        onClick={() => {
+                          setIsEvaluating(sub.id);
+                          setGrade(sub.grade || 0);
+                          setFeedback(sub.feedback || "");
+                        }}
+                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${sub.status === 'reviewed' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20' : 'bg-blue-600 text-white shadow-lg shadow-blue-900/20 hover:bg-blue-500'}`}
+                      >
+                        <Award size={16} /> {sub.status === 'reviewed' ? 'Update Evaluation' : 'Evaluate Now'}
+                      </button>
+                      <button 
+                        onClick={() => {
+                          setIsEvaluating(sub.id);
+                          setGrade(0);
+                          setFeedback(sub.feedback || "");
+                        }}
+                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold border transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                      >
+                        <RefreshCw size={16} /> Request Resubmission
+                      </button>
+                    </div>
+
+                    {isEvaluating === sub.id && (
+                      <div className={`p-6 rounded-3xl border animate-in fade-in slide-in-from-top-4 duration-300 ${theme === 'dark' ? 'bg-slate-900 border-blue-500/30' : 'bg-white border-blue-200 shadow-xl'}`}>
+                        <div className="flex items-center justify-between mb-6">
+                          <h4 className="font-bold flex items-center gap-2">
+                            <Award className="text-blue-500" size={20} />
+                            {grade > 0 ? 'Evaluate Submission' : 'Request Resubmission'}
+                          </h4>
+                          <button onClick={() => setIsEvaluating(null)} className="text-slate-500 hover:text-slate-300">
+                            <X size={20} />
+                          </button>
+                        </div>
+                        
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold uppercase tracking-widest text-slate-500">Grade (0-100)</label>
+                            <input 
+                              type="number" 
+                              min="0" 
+                              max="100"
+                              value={grade}
+                              onChange={(e) => setGrade(Number(e.target.value))}
+                              className={`w-full p-3 rounded-xl border outline-none focus:border-blue-500 transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}
+                            />
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <label className="text-xs font-bold uppercase tracking-widest text-slate-500">Feedback / Instructions</label>
+                            <textarea 
+                              rows={4}
+                              value={feedback}
+                              onChange={(e) => setFeedback(e.target.value)}
+                              placeholder="Provide detailed feedback or instructions for resubmission..."
+                              className={`w-full p-3 rounded-xl border outline-none focus:border-blue-500 transition-all resize-none ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}
+                            />
+                          </div>
+
+                          <div className="flex gap-3 pt-2">
+                            <button 
+                              onClick={() => handleEvaluate(sub.id)}
+                              disabled={isSubmitting}
+                              className="flex-1 bg-blue-600 hover:bg-blue-500 text-white py-3 rounded-xl font-bold shadow-lg shadow-blue-900/20 transition-all active:scale-95 disabled:opacity-50"
+                            >
+                              {isSubmitting ? 'Processing...' : 'Submit Evaluation'}
+                            </button>
+                            <button 
+                              onClick={() => handleRequestResubmission(sub.id)}
+                              disabled={isSubmitting}
+                              className={`flex-1 py-3 rounded-xl font-bold border transition-all active:scale-95 disabled:opacity-50 ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                            >
+                              {isSubmitting ? 'Processing...' : 'Request Resubmission'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="space-y-6">
+                    <h5 className="text-xs font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2">
+                      <MessageSquare size={14} /> Discussion
+                    </h5>
+                    
+                    <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 no-scrollbar">
+                      {(sub.comments || []).length === 0 ? (
+                        <p className="text-sm text-slate-500 italic py-4">No comments yet. Start the conversation.</p>
+                      ) : (
+                        sub.comments.map((comment) => (
+                          <div key={comment.id} className="group relative">
+                            <div className={`flex gap-3 p-4 rounded-2xl ${theme === 'dark' ? 'bg-slate-900/50' : 'bg-white border border-slate-100 shadow-sm'}`}>
+                              <img 
+                                src={comment.avatar} 
+                                alt={comment.user} 
+                                className="w-8 h-8 rounded-full shrink-0"
+                                referrerPolicy="no-referrer"
+                              />
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between gap-2 mb-1">
+                                  <span className="text-xs font-bold truncate">{comment.user}</span>
+                                  <span className="text-[10px] text-slate-500 shrink-0">{new Date(comment.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                </div>
+                                <p className="text-sm text-slate-400 leading-relaxed break-words">{comment.text}</p>
+                              </div>
+                              {onDeleteComment && (
+                                <button 
+                                  onClick={() => onDeleteComment(sub.id, comment.id, true)}
+                                  className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                                >
+                                  <X size={12} />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    <div className="relative">
+                      <textarea 
+                        rows={2}
+                        value={commentText}
+                        onChange={(e) => setCommentText(e.target.value)}
+                        placeholder="Add a comment..."
+                        className={`w-full p-4 pr-12 rounded-2xl border outline-none focus:border-blue-500 transition-all resize-none text-sm ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}
+                      />
+                      <button 
+                        onClick={async () => {
+                          if (!commentText.trim() || !onPostComment) return;
+                          await onPostComment(sub.id, commentText, true);
+                          setCommentText("");
+                        }}
+                        disabled={!commentText.trim()}
+                        className="absolute right-3 bottom-3 p-2 rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-900/20 hover:bg-blue-500 transition-all active:scale-95 disabled:opacity-50"
+                      >
+                        <Send size={16} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        ))
+      )}
     </div>
   );
 }
@@ -3706,15 +4200,19 @@ export default function AdminBuilder({
     initialTags, 
     initialLandingConfig, 
     notifications, 
+    submissions,
     initialTab = 'ANALYTICS',
     onMarkNotificationRead,
+    onDeleteNotification,
     onEvaluateSubmission,
+    onRequestResubmission,
     onPostSubmissionComment,
     onDeleteComment,
     onToggleNotificationCompleted,
     onDeleteFile,
     onApplyChanges,
-    onExit
+    onExit,
+    theme
 }: AdminBuilderProps) {
   const [activeTab, setActiveTab] = useState<'ANALYTICS' | 'CURRICULUM' | 'TEACHERS' | 'USERS_LIST' | 'TAGS' | 'USER_INTERFACE' | 'NOTIFICATIONS'>(initialTab);
   const [showUsersDropdown, setShowUsersDropdown] = useState(false);
@@ -3836,7 +4334,6 @@ export default function AdminBuilder({
   };
 
   const handleDeleteTopic = (id: string) => {
-    if (!window.confirm("Delete Topic?")) return;
     const remaining = topics.filter(t => t.id !== id);
     setTopics(remaining);
     if (selectedTopicId === id) setSelectedTopicId(remaining[0]?.id || '');
@@ -3882,7 +4379,6 @@ export default function AdminBuilder({
   };
 
   const handleDeleteTeacher = (id: string) => {
-      if(!window.confirm("Delete teacher? This may break topic associations.")) return;
       setTeachers(prev => prev.filter(t => t.id !== id));
       if (editingTeacherId === id) setEditingTeacherId(null);
   };
@@ -3930,7 +4426,6 @@ export default function AdminBuilder({
   };
 
   const handleDeleteUser = (id: string) => {
-      if(!window.confirm("Delete user account?")) return;
       setUsers(prev => prev.filter(u => u.id !== id));
       if (editingUserId === id) setEditingUserId(null);
   };
@@ -4008,10 +4503,10 @@ export default function AdminBuilder({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] bg-slate-950 text-slate-200 flex flex-col font-sans overflow-hidden">
-      <header className="min-h-[4rem] bg-slate-900 border-b border-slate-800 flex flex-col lg:flex-row items-center justify-between px-4 lg:px-6 py-3 lg:py-0 shrink-0 gap-4 z-50 relative">
+    <div className={`fixed inset-0 z-[100] flex flex-col font-sans overflow-hidden transition-colors duration-300 ${theme === 'dark' ? 'bg-slate-950 text-slate-200' : 'bg-slate-50 text-slate-800'}`}>
+      <header className={`min-h-[4rem] border-b flex flex-col lg:flex-row items-center justify-between px-4 lg:px-6 py-3 lg:py-0 shrink-0 gap-4 z-50 relative transition-colors duration-300 ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
           <div className="flex items-center justify-between w-full lg:w-auto gap-4">
-              <h1 className="text-white font-bold text-base sm:text-lg flex items-center gap-2 truncate">
+              <h1 className={`font-bold text-base sm:text-lg flex items-center gap-2 truncate ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                   <Edit2 size={18} className="text-blue-500 shrink-0" />
                   <span className="truncate">Curriculum Builder</span>
                   <span className="text-[10px] bg-blue-600 px-1.5 py-0.5 rounded text-white shrink-0">ADMIN</span>
@@ -4024,61 +4519,61 @@ export default function AdminBuilder({
                   >
                       {isSaving ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
                   </button>
-                  <button onClick={onExit} className="bg-slate-800 hover:bg-slate-700 text-slate-300 p-2 rounded-lg transition-all">
+                  <button onClick={onExit} className={`p-2 rounded-lg transition-all ${theme === 'dark' ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-200 hover:bg-slate-300 text-slate-600'}`}>
                       <X size={16} />
                   </button>
               </div>
           </div>
 
           <div className="flex items-center gap-2 w-full lg:w-auto pb-1 lg:pb-0">
-              <div className="flex bg-slate-800 p-1 rounded-lg shrink-0">
+              <div className={`flex p-1 rounded-lg shrink-0 transition-colors ${theme === 'dark' ? 'bg-slate-800' : 'bg-slate-200'}`}>
                   <button 
                     onClick={() => setActiveTab('NOTIFICATIONS')}
-                    className={`px-3 py-1.5 rounded text-[10px] sm:text-xs font-bold transition-colors relative whitespace-nowrap ${activeTab === 'NOTIFICATIONS' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
+                    className={`px-3 py-1.5 rounded text-[10px] sm:text-xs font-bold transition-colors relative whitespace-nowrap ${activeTab === 'NOTIFICATIONS' ? (theme === 'dark' ? 'bg-slate-700 text-white' : 'bg-white text-slate-900 shadow-sm') : (theme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900')}`}
                   >
                       Notifications
                       {notifications.filter(n => !n.read).length > 0 && (
-                        <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] flex items-center justify-center rounded-full border border-slate-900">
+                        <span className={`absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] flex items-center justify-center rounded-full border ${theme === 'dark' ? 'border-slate-900' : 'border-white'}`}>
                           {notifications.filter(n => !n.read).length}
                         </span>
                       )}
                   </button>
                   <button 
                     onClick={() => setActiveTab('ANALYTICS')}
-                    className={`px-3 py-1.5 rounded text-[10px] sm:text-xs font-bold transition-colors whitespace-nowrap ${activeTab === 'ANALYTICS' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
+                    className={`px-3 py-1.5 rounded text-[10px] sm:text-xs font-bold transition-colors whitespace-nowrap ${activeTab === 'ANALYTICS' ? (theme === 'dark' ? 'bg-slate-700 text-white' : 'bg-white text-slate-900 shadow-sm') : (theme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900')}`}
                   >
                       Analytics
                   </button>
                   <button 
                     onClick={() => setActiveTab('CURRICULUM')}
-                    className={`px-3 py-1.5 rounded text-[10px] sm:text-xs font-bold transition-colors whitespace-nowrap ${activeTab === 'CURRICULUM' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
+                    className={`px-3 py-1.5 rounded text-[10px] sm:text-xs font-bold transition-colors whitespace-nowrap ${activeTab === 'CURRICULUM' ? (theme === 'dark' ? 'bg-slate-700 text-white' : 'bg-white text-slate-900 shadow-sm') : (theme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900')}`}
                   >
                       Curriculum
                   </button>
                   <button 
                     onClick={() => setActiveTab('TEACHERS')}
-                    className={`px-3 py-1.5 rounded text-[10px] sm:text-xs font-bold transition-colors whitespace-nowrap ${activeTab === 'TEACHERS' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
+                    className={`px-3 py-1.5 rounded text-[10px] sm:text-xs font-bold transition-colors whitespace-nowrap ${activeTab === 'TEACHERS' ? (theme === 'dark' ? 'bg-slate-700 text-white' : 'bg-white text-slate-900 shadow-sm') : (theme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900')}`}
                   >
                       Teachers
                   </button>
                   <div className="relative">
                       <button 
                         onClick={() => setShowUsersDropdown(!showUsersDropdown)}
-                        className={`px-3 py-1.5 rounded text-[10px] sm:text-xs font-bold transition-colors flex items-center gap-1 whitespace-nowrap ${activeTab === 'USERS_LIST' || activeTab === 'TAGS' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
+                        className={`px-3 py-1.5 rounded text-[10px] sm:text-xs font-bold transition-colors flex items-center gap-1 whitespace-nowrap ${activeTab === 'USERS_LIST' || activeTab === 'TAGS' ? (theme === 'dark' ? 'bg-slate-700 text-white' : 'bg-white text-slate-900 shadow-sm') : (theme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900')}`}
                       >
                           Users <ChevronDown size={14} className={`transition-transform ${showUsersDropdown ? 'rotate-180' : ''}`} />
                       </button>
                       {showUsersDropdown && (
-                          <div className="absolute top-full left-0 mt-1 w-40 bg-slate-800 border border-slate-700 rounded-lg shadow-xl z-[110] overflow-hidden">
+                          <div className={`absolute top-full left-0 mt-1 w-40 border rounded-lg shadow-xl z-[110] overflow-hidden ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
                               <button 
                                 onClick={() => { setActiveTab('USERS_LIST'); setShowUsersDropdown(false); }}
-                                className={`w-full text-left px-3 py-2 text-[10px] sm:text-xs font-bold transition-colors hover:bg-slate-700 ${activeTab === 'USERS_LIST' ? 'text-blue-400' : 'text-slate-300'}`}
+                                className={`w-full text-left px-3 py-2 text-[10px] sm:text-xs font-bold transition-colors ${activeTab === 'USERS_LIST' ? 'text-blue-400' : (theme === 'dark' ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-600 hover:bg-slate-100')}`}
                               >
                                   Add/Edit Users
                               </button>
                               <button 
                                 onClick={() => { setActiveTab('TAGS'); setShowUsersDropdown(false); }}
-                                className={`w-full text-left px-3 py-2 text-[10px] sm:text-xs font-bold transition-colors hover:bg-slate-700 ${activeTab === 'TAGS' ? 'text-blue-400' : 'text-slate-300'}`}
+                                className={`w-full text-left px-3 py-2 text-[10px] sm:text-xs font-bold transition-colors ${activeTab === 'TAGS' ? 'text-blue-400' : (theme === 'dark' ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-600 hover:bg-slate-100')}`}
                               >
                                   Add/Edit Tags
                               </button>
@@ -4087,7 +4582,7 @@ export default function AdminBuilder({
                   </div>
                   <button 
                     onClick={() => setActiveTab('USER_INTERFACE')}
-                    className={`px-3 py-1.5 rounded text-[10px] sm:text-xs font-bold transition-colors whitespace-nowrap ${activeTab === 'USER_INTERFACE' ? 'bg-slate-700 text-white' : 'text-slate-400 hover:text-white'}`}
+                    className={`px-3 py-1.5 rounded text-[10px] sm:text-xs font-bold transition-colors whitespace-nowrap ${activeTab === 'USER_INTERFACE' ? (theme === 'dark' ? 'bg-slate-700 text-white' : 'bg-white text-slate-900 shadow-sm') : (theme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900')}`}
                   >
                       UI
                   </button>
@@ -4103,7 +4598,7 @@ export default function AdminBuilder({
                   {isSaving ? <RefreshCw size={16} className="animate-spin" /> : <Save size={16} />}
                   {isSaving ? 'Saving...' : 'Apply Changes'}
               </button>
-              <button onClick={onExit} className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-4 py-2 rounded-lg text-sm font-medium transition-all">
+              <button onClick={onExit} className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${theme === 'dark' ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-200 hover:bg-slate-300 text-slate-600'}`}>
                   Exit
               </button>
           </div>
@@ -4131,7 +4626,7 @@ export default function AdminBuilder({
           {/* CURRICULUM TAB */}
           {activeTab === 'CURRICULUM' && (
               <div className="flex h-full">
-                  <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col shrink-0">
+                  <aside className={`w-64 border-r flex flex-col shrink-0 transition-colors duration-300 ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
                         <div className="flex-1 overflow-y-auto py-2">
                             <DndContext 
                                 sensors={sensors}
@@ -4149,26 +4644,27 @@ export default function AdminBuilder({
                                             isSelected={selectedTopicId === topic.id}
                                             onSelect={() => setSelectedTopicId(topic.id)}
                                             onDelete={() => handleDeleteTopic(topic.id)}
+                                            theme={theme}
                                         />
                                     ))}
                                 </SortableContext>
                             </DndContext>
-                            <button onClick={handleAddTopic} className="w-full px-4 py-3 text-left text-sm text-blue-400 hover:bg-blue-500/10 flex items-center gap-2 transition-colors border-t border-slate-800">
+                            <button onClick={handleAddTopic} className={`w-full px-4 py-3 text-left text-sm text-blue-400 hover:bg-blue-500/10 flex items-center gap-2 transition-colors border-t ${theme === 'dark' ? 'border-slate-800' : 'border-slate-200'}`}>
                                 <Plus size={16} /> Add Topic
                             </button>
                         </div>
                   </aside>
-                  <main className="flex-1 overflow-y-auto bg-slate-950 p-8">
+                  <main className={`flex-1 overflow-y-auto p-8 transition-colors duration-300 ${theme === 'dark' ? 'bg-slate-950' : 'bg-slate-50'}`}>
                      {selectedTopic ? (
                          <div className="max-w-4xl mx-auto space-y-6">
                             {/* Topic Header Editor */}
-                            <div className="bg-slate-900 rounded-xl shadow-sm border border-slate-800 p-6">
-                                <h3 className="text-xs uppercase tracking-wide text-slate-500 font-bold mb-4">Topic Settings</h3>
+                            <div className={`rounded-xl shadow-sm border p-6 transition-colors duration-300 ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+                                <h3 className={`text-xs uppercase tracking-wide font-bold mb-4 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Topic Settings</h3>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="col-span-2">
-                                        <label className="block text-xs font-medium text-slate-500 mb-1">Title</label>
+                                        <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Title</label>
                                         <input 
-                                            className="w-full p-2 border border-slate-700 rounded text-base font-bold text-white bg-slate-800 focus:border-blue-500 outline-none" 
+                                            className={`w-full p-2 border rounded text-base font-bold outline-none transition-colors ${theme === 'dark' ? 'border-slate-700 text-white bg-slate-800 focus:border-blue-500' : 'border-slate-200 text-slate-900 bg-white focus:border-blue-500'}`} 
                                             value={selectedTopic.title} 
                                             onChange={e => {
                                                 const newTitle = e.target.value;
@@ -4184,13 +4680,13 @@ export default function AdminBuilder({
                                     </div>
                                     <div className="col-span-2">
                                         <div className="flex items-center justify-between mb-1">
-                                            <label className="block text-xs font-medium text-slate-500">Topic ID</label>
-                                            <label className="flex items-center gap-1.5 text-[10px] text-slate-400 cursor-pointer select-none">
+                                            <label className={`block text-xs font-medium ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Topic ID</label>
+                                            <label className={`flex items-center gap-1.5 text-[10px] cursor-pointer select-none ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
                                                 <input 
                                                     type="checkbox" 
                                                     checked={!!selectedTopic['_isManualId']} 
                                                     onChange={e => handleUpdateTopic(selectedTopicId, {...selectedTopic, _isManualId: e.target.checked})}
-                                                    className="w-3 h-3 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                                                    className={`w-3 h-3 rounded border-slate-300 text-blue-600 focus:ring-blue-500 ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-300'}`}
                                                 />
                                                 Manual Edit
                                             </label>
@@ -4203,13 +4699,13 @@ export default function AdminBuilder({
                                                 const newId = generateSlug(e.target.value);
                                                 handleUpdateTopic(selectedTopicId, {...selectedTopic, id: newId});
                                             }}
-                                            className={`w-full p-2 text-xs font-mono border rounded outline-none transition-colors ${selectedTopic['_isManualId'] ? 'bg-slate-800 border-blue-500/50 text-blue-400' : 'bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed'}`} 
+                                            className={`w-full p-2 text-xs font-mono border rounded outline-none transition-colors ${selectedTopic['_isManualId'] ? (theme === 'dark' ? 'bg-slate-800 border-blue-500/50 text-blue-400' : 'bg-blue-50 border-blue-500/50 text-blue-600') : (theme === 'dark' ? 'bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed' : 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed')}`} 
                                         />
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-medium text-slate-500 mb-1">Teacher</label>
+                                        <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Teacher</label>
                                         <select 
-                                            className="w-full p-2 border border-slate-700 rounded text-sm bg-slate-800 text-white outline-none focus:border-blue-500"
+                                            className={`w-full p-2 border rounded text-sm outline-none focus:border-blue-500 transition-all ${theme === 'dark' ? 'border-slate-700 bg-slate-800 text-white' : 'border-slate-200 bg-white text-slate-900'}`}
                                             value={selectedTopic.teacherKey}
                                             onChange={e => handleUpdateTopic(selectedTopicId, {...selectedTopic, teacherKey: e.target.value})}
                                         >
@@ -4217,9 +4713,9 @@ export default function AdminBuilder({
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-medium text-slate-500 mb-1">Level</label>
+                                        <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Level</label>
                                         <select 
-                                            className="w-full p-2 border border-slate-700 rounded text-sm bg-slate-800 text-white outline-none focus:border-blue-500"
+                                            className={`w-full p-2 border rounded text-sm outline-none focus:border-blue-500 transition-all ${theme === 'dark' ? 'border-slate-700 bg-slate-800 text-white' : 'border-slate-200 bg-white text-slate-900'}`}
                                             value={selectedTopic.level}
                                             onChange={e => handleUpdateTopic(selectedTopicId, {...selectedTopic, level: parseInt(e.target.value) as any})}
                                         >
@@ -4227,16 +4723,16 @@ export default function AdminBuilder({
                                         </select>
                                     </div>
                                     <div className="col-span-2">
-                                        <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
-                                        <textarea className="w-full p-2 border border-slate-700 rounded text-sm h-20 bg-slate-800 text-white outline-none focus:border-blue-500" value={selectedTopic.shortDescription} onChange={e => handleUpdateTopic(selectedTopicId, {...selectedTopic, shortDescription: e.target.value})} />
+                                        <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Description</label>
+                                        <textarea className={`w-full p-2 border rounded text-sm h-20 outline-none focus:border-blue-500 transition-all ${theme === 'dark' ? 'border-slate-700 bg-slate-800 text-white' : 'border-slate-200 bg-white text-slate-900'}`} value={selectedTopic.shortDescription} onChange={e => handleUpdateTopic(selectedTopicId, {...selectedTopic, shortDescription: e.target.value})} />
                                     </div>
                                     
                                     {/* Prerequisites Selector */}
-                                    <div className="col-span-2 mt-4 pt-4 border-t border-slate-800">
-                                        <h4 className="text-xs font-bold text-slate-500 uppercase mb-2">Prerequisites (Graph Connections)</h4>
-                                        <div className="bg-slate-800 p-3 rounded border border-slate-700 max-h-40 overflow-y-auto grid grid-cols-2 gap-2">
+                                    <div className={`col-span-2 mt-4 pt-4 border-t ${theme === 'dark' ? 'border-slate-800' : 'border-slate-100'}`}>
+                                        <h4 className={`text-xs font-bold uppercase mb-2 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Prerequisites (Graph Connections)</h4>
+                                        <div className={`p-3 rounded border max-h-40 overflow-y-auto grid grid-cols-2 gap-2 ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
                                             {topics.filter(t => t.id !== selectedTopic.id).map(t => (
-                                                <label key={t.id} className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer hover:bg-slate-700 p-1 rounded transition-colors">
+                                                <label key={t.id} className={`flex items-center gap-2 text-sm cursor-pointer p-1 rounded transition-colors ${theme === 'dark' ? 'text-slate-300 hover:bg-slate-700' : 'text-slate-600 hover:bg-slate-100'}`}>
                                                     <input 
                                                         type="checkbox"
                                                         checked={selectedTopic.relatedTopics.includes(t.id)}
@@ -4247,13 +4743,13 @@ export default function AdminBuilder({
                                                                 : current.filter(id => id !== t.id);
                                                             handleUpdateTopic(selectedTopicId, { ...selectedTopic, relatedTopics: updated });
                                                         }}
-                                                        className="rounded border-slate-600 bg-slate-700 text-blue-600 focus:ring-blue-500"
+                                                        className={`rounded border-slate-600 text-blue-600 focus:ring-blue-500 ${theme === 'dark' ? 'bg-slate-700' : 'bg-white border-slate-300'}`}
                                                     />
                                                     <span className="truncate">{t.title}</span>
-                                                    <span className="text-xs text-slate-500 ml-auto">Lvl {t.level}</span>
+                                                    <span className={`text-xs ml-auto ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Lvl {t.level}</span>
                                                 </label>
                                             ))}
-                                            {topics.length <= 1 && <span className="text-xs text-slate-500 italic col-span-2">No other topics available to connect.</span>}
+                                            {topics.length <= 1 && <span className={`text-xs italic col-span-2 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>No other topics available to connect.</span>}
                                         </div>
                                     </div>
 
@@ -4263,11 +4759,12 @@ export default function AdminBuilder({
                                             label="Topic Thumbnail Path" 
                                             path={getTopicThumbPath(selectedTopic.id)} 
                                             description="Save the topic cover image here. Use this path when configuring the Image URL." 
+                                            theme={theme}
                                         />
                                         <div className="mt-2">
-                                            <label className="block text-xs font-medium text-slate-500 mb-1">Image URL</label>
+                                            <label className={`block text-xs font-medium mb-1 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Image URL</label>
                                             <input 
-                                                className="w-full p-2 border border-slate-700 rounded text-sm bg-slate-800 font-mono text-slate-300 outline-none focus:border-blue-500" 
+                                                className={`w-full p-2 border rounded text-sm font-mono outline-none focus:border-blue-500 transition-all ${theme === 'dark' ? 'border-slate-700 bg-slate-800 text-slate-300' : 'border-slate-200 bg-white text-slate-600'}`} 
                                                 value={selectedTopic.imageUrl} 
                                                 onChange={e => handleUpdateTopic(selectedTopicId, {...selectedTopic, imageUrl: e.target.value})} 
                                             />
@@ -4279,14 +4776,20 @@ export default function AdminBuilder({
                             {/* Module List */}
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between">
-                                    <h3 className="text-lg font-bold text-white">Modules ({selectedTopic.subTopics.length})</h3>
-                                    <button onClick={() => handleAddModule(selectedTopicId)} className="flex items-center gap-2 px-3 py-1.5 text-sm bg-blue-500/10 text-blue-400 rounded-lg hover:bg-blue-500/20 font-medium border border-blue-500/20"><Plus size={16}/> Add Module</button>
+                                    <h3 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Modules ({selectedTopic.subTopics.length})</h3>
+                                    <button 
+                                        onClick={() => handleAddModule(selectedTopicId)} 
+                                        className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg font-medium border transition-colors ${theme === 'dark' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20' : 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'}`}
+                                    >
+                                        <Plus size={16}/> Add Module
+                                    </button>
                                 </div>
                                 {selectedTopic.subTopics.map(mod => (
                                     <ModuleEditor 
                                         key={mod._key || mod.id}
                                         topicId={selectedTopicId}
                                         module={mod}
+                                        theme={theme}
                                         existingSubIds={selectedTopic.subTopics.filter(m => m.id !== mod.id).map(m => m._subId)}
                                         onUpdate={(updated) => {
                                             const newSubTopics = selectedTopic.subTopics.map(m => m.id === mod.id ? updated : m);
@@ -4312,11 +4815,11 @@ export default function AdminBuilder({
 
           {/* TEACHERS TAB */}
           {activeTab === 'TEACHERS' && (
-              <div className="h-full bg-slate-950 p-8 overflow-y-auto">
+              <div className={`h-full p-8 overflow-y-auto ${theme === 'dark' ? 'bg-slate-950' : 'bg-slate-50'}`}>
                   <div className="max-w-5xl mx-auto">
                       <div className="flex justify-between items-center mb-8">
                           <div>
-                              <h2 className="text-2xl font-bold text-white">Instructor Management</h2>
+                              <h2 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Instructor Management</h2>
                               <p className="text-slate-400">Manage teacher profiles and assignments.</p>
                           </div>
                           <button onClick={handleAddTeacher} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-lg shadow-blue-900/20">
@@ -4326,33 +4829,33 @@ export default function AdminBuilder({
                       
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                           {teachers.map(teacher => (
-                              <div key={teacher.id} className="bg-slate-900 rounded-xl shadow-sm border border-slate-800 overflow-hidden group">
+                              <div key={teacher.id} className={`rounded-xl shadow-sm overflow-hidden group border ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
                                   {editingTeacherId === teacher.id ? (
                                       <div className="p-6 space-y-4">
                                           <div className="flex justify-between items-center mb-2">
                                               <span className="text-xs font-bold text-blue-400 uppercase">Editing Profile</span>
-                                              <button onClick={() => setEditingTeacherId(null)} className="text-slate-500 hover:text-slate-300"><X size={16}/></button>
+                                              <button onClick={() => setEditingTeacherId(null)} className={`hover:text-blue-400 transition-colors ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}><X size={16}/></button>
                                           </div>
                                           <div className="grid grid-cols-2 gap-4">
                                               <div className="col-span-2">
                                                   <label className="text-xs font-medium text-slate-400">Full Name</label>
-                                                  <input className="w-full p-2 border border-slate-700 rounded bg-slate-800 text-white" value={teacher.name} onChange={e => handleUpdateTeacher({...teacher, name: e.target.value})} />
+                                                  <input className={`w-full p-2 border rounded outline-none focus:border-blue-500 transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`} value={teacher.name} onChange={e => handleUpdateTeacher({...teacher, name: e.target.value})} />
                                               </div>
                                               <div>
                                                   <label className="text-xs font-medium text-slate-400">Role</label>
-                                                  <input className="w-full p-2 border border-slate-700 rounded bg-slate-800 text-white" value={teacher.role} onChange={e => handleUpdateTeacher({...teacher, role: e.target.value})} />
+                                                  <input className={`w-full p-2 border rounded outline-none focus:border-blue-500 transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`} value={teacher.role} onChange={e => handleUpdateTeacher({...teacher, role: e.target.value})} />
                                               </div>
                                               <div>
                                                   <label className="text-xs font-medium text-slate-400">Email</label>
-                                                  <input className="w-full p-2 border border-slate-700 rounded bg-slate-800 text-white" value={teacher.email} onChange={e => handleUpdateTeacher({...teacher, email: e.target.value})} />
+                                                  <input className={`w-full p-2 border rounded outline-none focus:border-blue-500 transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`} value={teacher.email} onChange={e => handleUpdateTeacher({...teacher, email: e.target.value})} />
                                               </div>
                                               <div className="col-span-2">
                                                   <label className="text-xs font-medium text-slate-400">Avatar URL</label>
-                                                  <input className="w-full p-2 border border-slate-700 rounded bg-slate-800 text-white" value={teacher.avatar} onChange={e => handleUpdateTeacher({...teacher, avatar: e.target.value})} />
+                                                  <input className={`w-full p-2 border rounded outline-none focus:border-blue-500 transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`} value={teacher.avatar} onChange={e => handleUpdateTeacher({...teacher, avatar: e.target.value})} />
                                               </div>
                                               <div className="col-span-2">
                                                   <label className="text-xs font-medium text-slate-400">Bio (Short Description)</label>
-                                                  <textarea className="w-full p-2 border border-slate-700 rounded text-sm h-20 bg-slate-800 text-white" value={teacher.bio || ''} onChange={e => handleUpdateTeacher({...teacher, bio: e.target.value})} placeholder="Short biography..." />
+                                                  <textarea className={`w-full p-2 border rounded text-sm h-20 outline-none focus:border-blue-500 transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`} value={teacher.bio || ''} onChange={e => handleUpdateTeacher({...teacher, bio: e.target.value})} placeholder="Short biography..." />
                                               </div>
                                           </div>
                                           <div className="flex justify-end pt-2">
@@ -4361,15 +4864,15 @@ export default function AdminBuilder({
                                       </div>
                                   ) : (
                                       <div className="p-6 flex items-start gap-4">
-                                          <img src={teacher.avatar} alt={teacher.name} className="w-16 h-16 rounded-full object-cover border-2 border-slate-800" />
+                                          <img src={teacher.avatar || undefined} alt={teacher.name} className={`w-16 h-16 rounded-full object-cover border-2 ${theme === 'dark' ? 'border-slate-800' : 'border-slate-100'}`} />
                                           <div className="flex-1">
-                                              <h3 className="font-bold text-white">{teacher.name}</h3>
+                                              <h3 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{teacher.name}</h3>
                                               <p className="text-blue-400 text-sm font-medium">{teacher.role}</p>
                                               <p className="text-slate-500 text-sm mb-3">{teacher.email}</p>
-                                              <p className="text-slate-400 text-sm leading-relaxed mb-4">{teacher.bio || 'No biography added.'}</p>
+                                              <p className={`text-sm leading-relaxed mb-4 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>{teacher.bio || 'No biography added.'}</p>
                                               
                                               <div className="flex items-center gap-2 mt-auto">
-                                                  <button onClick={() => setEditingTeacherId(teacher.id)} className="text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded font-medium text-slate-300 transition-colors">Edit Profile</button>
+                                                  <button onClick={() => setEditingTeacherId(teacher.id)} className={`text-xs px-3 py-1.5 rounded font-medium transition-colors ${theme === 'dark' ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}>Edit Profile</button>
                                               </div>
                                           </div>
                                       </div>
@@ -4383,17 +4886,17 @@ export default function AdminBuilder({
 
           {/* USER INTERFACE TAB */}
           {activeTab === 'USER_INTERFACE' && (
-              <div className="h-full overflow-y-auto p-8 bg-slate-950">
+              <div className={`h-full overflow-y-auto p-8 ${theme === 'dark' ? 'bg-slate-950' : 'bg-slate-50'}`}>
                   <div className="max-w-3xl mx-auto space-y-8">
                       <div>
-                          <h2 className="text-2xl font-bold text-white">User Interface Configuration</h2>
+                          <h2 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>User Interface Configuration</h2>
                           <p className="text-slate-400 text-sm">Manage the visual identity and content of your platform.</p>
                       </div>
 
                       {/* SECTION 1: LANDING PAGE */}
-                      <div className="bg-slate-900 rounded-2xl border border-slate-800 shadow-sm overflow-hidden">
-                          <div className="bg-slate-800/50 px-6 py-3 border-b border-slate-800">
-                              <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">1. Landing Page (Login)</h3>
+                      <div className={`rounded-2xl shadow-sm overflow-hidden border ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+                          <div className={`px-6 py-3 border-b ${theme === 'dark' ? 'bg-slate-800/50 border-slate-800' : 'bg-slate-100 border-slate-200'}`}>
+                              <h3 className={`text-sm font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>1. Landing Page (Login)</h3>
                           </div>
                           <div className="p-6 space-y-6">
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -4403,7 +4906,7 @@ export default function AdminBuilder({
                                           type="text" 
                                           value={landingConfig.title} 
                                           onChange={e => setLandingConfig({...landingConfig, title: e.target.value})}
-                                          className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-white"
+                                          className={`w-full p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
                                           placeholder="e.g. Digital Built Environment"
                                       />
                                   </div>
@@ -4413,7 +4916,7 @@ export default function AdminBuilder({
                                           type="text" 
                                           value={landingConfig.subtitle} 
                                           onChange={e => setLandingConfig({...landingConfig, subtitle: e.target.value})}
-                                          className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-white"
+                                          className={`w-full p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
                                           placeholder="e.g. Recurrent Program"
                                       />
                                   </div>
@@ -4425,26 +4928,65 @@ export default function AdminBuilder({
                                       type="text" 
                                       value={landingConfig.tag} 
                                       onChange={e => setLandingConfig({...landingConfig, tag: e.target.value})}
-                                      className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-white"
+                                      className={`w-full p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
                                       placeholder="e.g. Semester 2025"
                                   />
                               </div>
 
                               <div className="space-y-2">
+                                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Platform Description</label>
+                                  <textarea 
+                                      value={landingConfig.description} 
+                                      onChange={e => setLandingConfig({...landingConfig, description: e.target.value})}
+                                      rows={3}
+                                      className={`w-full p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                      placeholder="Enter platform description..."
+                                  />
+                              </div>
+
+                              <div className="space-y-4">
                                   <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Hero Image URL</label>
-                                  <div className="flex gap-4">
-                                      <div className="flex-1">
-                                          <input 
-                                              type="text" 
-                                              value={landingConfig.heroImage} 
-                                              onChange={e => setLandingConfig({...landingConfig, heroImage: e.target.value})}
-                                              className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-white"
-                                              placeholder="https://images.unsplash.com/..."
-                                          />
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                      <div className="space-y-2">
+                                          <span className="text-[10px] text-slate-400 uppercase font-bold">Light Mode</span>
+                                          <div className="flex gap-2">
+                                              <input 
+                                                  type="text" 
+                                                  value={landingConfig.heroImageLight || ''} 
+                                                  onChange={e => setLandingConfig({...landingConfig, heroImageLight: e.target.value})}
+                                                  className={`flex-1 p-2 border rounded-lg text-sm ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                                  placeholder="Light mode image..."
+                                              />
+                                              <div className={`w-10 h-10 rounded border overflow-hidden shrink-0 ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-slate-100 border-slate-200'}`}>
+                                                  <img src={landingConfig.heroImageLight || undefined} alt="L" className="w-full h-full object-cover" />
+                                              </div>
+                                          </div>
                                       </div>
-                                      <div className="w-24 h-12 rounded-lg border border-slate-700 overflow-hidden bg-slate-800 shrink-0">
-                                          <img src={landingConfig.heroImage} alt="Preview" className="w-full h-full object-cover" />
+                                      <div className="space-y-2">
+                                          <span className="text-[10px] text-slate-400 uppercase font-bold">Dark Mode</span>
+                                          <div className="flex gap-2">
+                                              <input 
+                                                  type="text" 
+                                                  value={landingConfig.heroImageDark || ''} 
+                                                  onChange={e => setLandingConfig({...landingConfig, heroImageDark: e.target.value})}
+                                                  className={`flex-1 p-2 border rounded-lg text-sm ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                                  placeholder="Dark mode image..."
+                                              />
+                                              <div className={`w-10 h-10 rounded border overflow-hidden shrink-0 ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-slate-100 border-slate-200'}`}>
+                                                  <img src={landingConfig.heroImageDark || undefined} alt="D" className="w-full h-full object-cover" />
+                                              </div>
+                                          </div>
                                       </div>
+                                  </div>
+                                  <div className="space-y-2">
+                                      <span className="text-[10px] text-slate-400 uppercase font-bold">Default Fallback</span>
+                                      <input 
+                                          type="text" 
+                                          value={landingConfig.heroImage} 
+                                          onChange={e => setLandingConfig({...landingConfig, heroImage: e.target.value})}
+                                          className={`w-full p-2 border rounded-lg text-sm ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                          placeholder="Default image..."
+                                      />
                                   </div>
                               </div>
 
@@ -4454,12 +4996,12 @@ export default function AdminBuilder({
                                       value={landingConfig.quote} 
                                       onChange={e => setLandingConfig({...landingConfig, quote: e.target.value})}
                                       rows={2}
-                                      className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none text-white"
+                                      className={`w-full p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
                                       placeholder="Enter a quote..."
                                   />
                               </div>
 
-                              <div className="border-t border-slate-800 pt-6 space-y-6">
+                              <div className={`border-t pt-6 space-y-6 ${theme === 'dark' ? 'border-slate-800' : 'border-slate-200'}`}>
                                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Login Page Customization</h4>
                                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                       <div className="space-y-2">
@@ -4468,7 +5010,7 @@ export default function AdminBuilder({
                                               type="text" 
                                               value={landingConfig.loginTitle || ''} 
                                               onChange={e => setLandingConfig({...landingConfig, loginTitle: e.target.value})}
-                                              className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-white"
+                                              className={`w-full p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
                                               placeholder="e.g. Welcome back"
                                           />
                                       </div>
@@ -4478,8 +5020,54 @@ export default function AdminBuilder({
                                               type="text" 
                                               value={landingConfig.loginSubtitle || ''} 
                                               onChange={e => setLandingConfig({...landingConfig, loginSubtitle: e.target.value})}
-                                              className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-white"
+                                              className={`w-full p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
                                               placeholder="e.g. Sign in to access your module tutorials."
+                                          />
+                                      </div>
+                                  </div>
+
+                                  <div className="space-y-4">
+                                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Login Background Image URL</label>
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                          <div className="space-y-2">
+                                              <span className="text-[10px] text-slate-400 uppercase font-bold">Light Mode</span>
+                                              <div className="flex gap-2">
+                                                  <input 
+                                                      type="text" 
+                                                      value={landingConfig.loginImageUrlLight || ''} 
+                                                      onChange={e => setLandingConfig({...landingConfig, loginImageUrlLight: e.target.value})}
+                                                      className={`flex-1 p-2 border rounded-lg text-sm ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                                      placeholder="Light mode login image..."
+                                                  />
+                                                  <div className={`w-10 h-10 rounded border overflow-hidden shrink-0 ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-slate-100 border-slate-200'}`}>
+                                                      <img src={landingConfig.loginImageUrlLight || undefined} alt="L" className="w-full h-full object-cover" />
+                                                  </div>
+                                              </div>
+                                          </div>
+                                          <div className="space-y-2">
+                                              <span className="text-[10px] text-slate-400 uppercase font-bold">Dark Mode</span>
+                                              <div className="flex gap-2">
+                                                  <input 
+                                                      type="text" 
+                                                      value={landingConfig.loginImageUrlDark || ''} 
+                                                      onChange={e => setLandingConfig({...landingConfig, loginImageUrlDark: e.target.value})}
+                                                      className={`flex-1 p-2 border rounded-lg text-sm ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                                      placeholder="Dark mode login image..."
+                                                  />
+                                                  <div className={`w-10 h-10 rounded border overflow-hidden shrink-0 ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-slate-100 border-slate-200'}`}>
+                                                      <img src={landingConfig.loginImageUrlDark || undefined} alt="D" className="w-full h-full object-cover" />
+                                                  </div>
+                                              </div>
+                                          </div>
+                                      </div>
+                                      <div className="space-y-2">
+                                          <span className="text-[10px] text-slate-400 uppercase font-bold">Default Fallback</span>
+                                          <input 
+                                              type="text" 
+                                              value={landingConfig.loginImageUrl || ''} 
+                                              onChange={e => setLandingConfig({...landingConfig, loginImageUrl: e.target.value})}
+                                              className={`w-full p-2 border rounded-lg text-sm ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                              placeholder="Default login image..."
                                           />
                                       </div>
                                   </div>
@@ -4491,7 +5079,7 @@ export default function AdminBuilder({
                                               type="text" 
                                               value={landingConfig.firstTimeLoginTitle || ''} 
                                               onChange={e => setLandingConfig({...landingConfig, firstTimeLoginTitle: e.target.value})}
-                                              className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-white"
+                                              className={`w-full p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
                                               placeholder="e.g. First Time Login"
                                           />
                                       </div>
@@ -4501,7 +5089,7 @@ export default function AdminBuilder({
                                               type="text" 
                                               value={landingConfig.firstTimeLoginSubtitle || ''} 
                                               onChange={e => setLandingConfig({...landingConfig, firstTimeLoginSubtitle: e.target.value})}
-                                              className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-white"
+                                              className={`w-full p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
                                               placeholder="e.g. Enter your invited email to set up your password."
                                           />
                                       </div>
@@ -4511,52 +5099,52 @@ export default function AdminBuilder({
                       </div>
 
                       {/* SECTION 2: WELCOME OVERLAY */}
-                      <div className="bg-slate-900 rounded-2xl border border-slate-800 shadow-sm overflow-hidden">
-                          <div className="bg-slate-800/50 px-6 py-3 border-b border-slate-800">
-                              <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">2. Welcome Overlay</h3>
+                      <div className={`rounded-2xl border shadow-sm overflow-hidden ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+                          <div className={`px-6 py-3 border-b ${theme === 'dark' ? 'bg-slate-800/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                              <h3 className={`text-sm font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>2. Welcome Overlay</h3>
                           </div>
                           <div className="p-6 space-y-6">
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                   <div className="space-y-2">
-                                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Overlay Title</label>
+                                      <label className={`text-xs font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Overlay Title</label>
                                       <input 
                                           type="text" 
                                           value={landingConfig.welcomeTitle || ''} 
                                           onChange={e => setLandingConfig({...landingConfig, welcomeTitle: e.target.value})}
-                                          className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-white"
+                                          className={`w-full p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
                                           placeholder="e.g. Welcome to the Program"
                                       />
                                   </div>
                                   <div className="space-y-2">
-                                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Overlay Subtitle</label>
+                                      <label className={`text-xs font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Overlay Subtitle</label>
                                       <input 
                                           type="text" 
                                           value={landingConfig.welcomeSubtitle || ''} 
                                           onChange={e => setLandingConfig({...landingConfig, welcomeSubtitle: e.target.value})}
-                                          className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-white"
+                                          className={`w-full p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
                                           placeholder="e.g. Let's start your journey"
                                       />
                                   </div>
                               </div>
 
                               <div className="space-y-2">
-                                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Description</label>
+                                  <label className={`text-xs font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Description</label>
                                   <textarea 
                                       value={landingConfig.welcomeDescription || landingConfig.description} 
                                       onChange={e => setLandingConfig({...landingConfig, welcomeDescription: e.target.value})}
                                       rows={4}
-                                      className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none text-white"
+                                      className={`w-full p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
                                       placeholder="Describe the program..."
                                   />
                               </div>
 
                               <div className="space-y-2">
-                                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Button Text</label>
+                                  <label className={`text-xs font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Button Text</label>
                                   <input 
                                       type="text" 
                                       value={landingConfig.welcomeButtonText || ''} 
                                       onChange={e => setLandingConfig({...landingConfig, welcomeButtonText: e.target.value})}
-                                      className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-white"
+                                      className={`w-full p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
                                       placeholder="e.g. Enter Curriculum Map"
                                   />
                               </div>
@@ -4564,107 +5152,157 @@ export default function AdminBuilder({
                       </div>
 
                       {/* SECTION 3: KNOWLEDGE GRAPH INTERFACE */}
-                      <div className="bg-slate-900 rounded-2xl border border-slate-800 shadow-sm overflow-hidden">
-                          <div className="bg-slate-800/50 px-6 py-3 border-b border-slate-800">
-                              <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">3. Knowledge Graph Interface</h3>
+                      <div className={`rounded-2xl border shadow-sm overflow-hidden ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+                          <div className={`px-6 py-3 border-b ${theme === 'dark' ? 'bg-slate-800/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                              <h3 className={`text-sm font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>3. Knowledge Graph Interface</h3>
                           </div>
                           <div className="p-6 space-y-6">
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                   <div className="space-y-2">
-                                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Graph Title</label>
+                                      <label className={`text-xs font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Graph Title</label>
                                       <input 
                                           type="text" 
                                           value={landingConfig.graphTitle || ''} 
                                           onChange={e => setLandingConfig({...landingConfig, graphTitle: e.target.value})}
-                                          className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-white"
+                                          className={`w-full p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
                                           placeholder="e.g. CURRICULUM_MAP_V2.3"
                                       />
                                   </div>
                                   <div className="space-y-2">
-                                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Graph Subtitle</label>
+                                      <label className={`text-xs font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Graph Subtitle</label>
                                       <input 
                                           type="text" 
                                           value={landingConfig.graphSubtitle || ''} 
                                           onChange={e => setLandingConfig({...landingConfig, graphSubtitle: e.target.value})}
-                                          className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-white"
+                                          className={`w-full p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
                                           placeholder="e.g. INTERACTIVE_LEARNING_PATH"
                                       />
                                   </div>
                               </div>
 
-                              <div className="space-y-2">
-                                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">App Logo URL (Top Left)</label>
-                                  <div className="flex gap-4">
-                                      <div className="flex-1">
-                                          <input 
-                                              type="text" 
-                                              value={landingConfig.appLogoUrl || ''} 
-                                              onChange={e => setLandingConfig({...landingConfig, appLogoUrl: e.target.value})}
-                                              className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-white"
-                                              placeholder="https://..."
-                                          />
-                                      </div>
-                                      {landingConfig.appLogoUrl && (
-                                          <div className="w-12 h-12 rounded-lg border border-slate-700 overflow-hidden bg-slate-900 shrink-0 p-1">
-                                              <img src={landingConfig.appLogoUrl} alt="Logo Preview" className="w-full h-full object-contain" />
+                              <div className="space-y-4">
+                                  <label className={`text-xs font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>App Logo URL (Top Left)</label>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                      <div className="space-y-2">
+                                          <span className={`text-[10px] uppercase font-bold ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Light Mode</span>
+                                          <div className="flex gap-2">
+                                              <input 
+                                                  type="text" 
+                                                  value={landingConfig.appLogoUrlLight || ''} 
+                                                  onChange={e => setLandingConfig({...landingConfig, appLogoUrlLight: e.target.value})}
+                                                  className={`flex-1 p-2 border rounded-lg text-sm transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                                  placeholder="Light mode logo..."
+                                              />
+                                              <div className={`w-10 h-10 rounded border overflow-hidden shrink-0 p-1 ${theme === 'dark' ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-slate-50'}`}>
+                                                  <img src={landingConfig.appLogoUrlLight || undefined} alt="L" className="w-full h-full object-contain" />
+                                              </div>
                                           </div>
-                                      )}
+                                      </div>
+                                      <div className="space-y-2">
+                                          <span className={`text-[10px] uppercase font-bold ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Dark Mode</span>
+                                          <div className="flex gap-2">
+                                              <input 
+                                                  type="text" 
+                                                  value={landingConfig.appLogoUrlDark || ''} 
+                                                  onChange={e => setLandingConfig({...landingConfig, appLogoUrlDark: e.target.value})}
+                                                  className={`flex-1 p-2 border rounded-lg text-sm transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                                  placeholder="Dark mode logo..."
+                                              />
+                                              <div className={`w-10 h-10 rounded border overflow-hidden shrink-0 p-1 ${theme === 'dark' ? 'border-slate-700 bg-slate-900' : 'border-slate-200 bg-slate-50'}`}>
+                                                  <img src={landingConfig.appLogoUrlDark || undefined} alt="D" className="w-full h-full object-contain" />
+                                              </div>
+                                          </div>
+                                      </div>
+                                  </div>
+                                  <div className="space-y-2">
+                                      <span className={`text-[10px] uppercase font-bold ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Default Fallback</span>
+                                      <input 
+                                          type="text" 
+                                          value={landingConfig.appLogoUrl || ''} 
+                                          onChange={e => setLandingConfig({...landingConfig, appLogoUrl: e.target.value})}
+                                          className={`w-full p-2 border rounded-lg text-sm transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                          placeholder="Default logo..."
+                                      />
                                   </div>
                               </div>
                           </div>
                       </div>
 
                       {/* SECTION 4: BROWSER METADATA */}
-                      <div className="bg-slate-900 rounded-2xl border border-slate-800 shadow-sm overflow-hidden">
-                          <div className="bg-slate-800/50 px-6 py-3 border-b border-slate-800">
-                              <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">4. Browser Metadata</h3>
+                      <div className={`rounded-2xl border shadow-sm overflow-hidden ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+                          <div className={`px-6 py-3 border-b ${theme === 'dark' ? 'bg-slate-800/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                              <h3 className={`text-sm font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>4. Browser Metadata</h3>
                           </div>
                           <div className="p-6 space-y-6">
                               <div className="space-y-2">
-                                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Browser Tab Title</label>
+                                  <label className={`text-xs font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Browser Tab Title</label>
                                   <input 
                                       type="text" 
                                       value={landingConfig.browserTitle || ''} 
                                       onChange={e => setLandingConfig({...landingConfig, browserTitle: e.target.value})}
-                                      className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-white"
+                                      className={`w-full p-3 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
                                       placeholder="e.g. Digital Built Environment | Learning Platform"
                                   />
-                                  <p className="text-[10px] text-slate-500 font-mono">This text appears in the browser tab.</p>
-                              </div>
-
-                              <div className="space-y-2">
-                                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">Favicon URL (.ico, .png, .svg)</label>
-                                  <div className="flex gap-4">
-                                      <div className="flex-1">
-                                          <input 
-                                              type="text" 
-                                              value={landingConfig.faviconUrl || ''} 
-                                              onChange={e => setLandingConfig({...landingConfig, faviconUrl: e.target.value})}
-                                              className="w-full p-3 bg-slate-800 border border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-white"
-                                              placeholder="https://..."
-                                          />
-                                      </div>
-                                      {landingConfig.faviconUrl && (
-                                          <div className="w-12 h-12 rounded-lg border border-slate-800 overflow-hidden bg-white shrink-0 p-2 flex items-center justify-center">
-                                              <img src={landingConfig.faviconUrl} alt="Favicon Preview" className="w-full h-full object-contain" />
+                                  <p className={`text-[10px] font-mono ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>This text appears in the browser tab.</p>
+                              </div>                              <div className="space-y-4">
+                                  <label className={`text-xs font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Favicon URL (.ico, .png, .svg)</label>
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                      <div className="space-y-2">
+                                          <span className={`text-[10px] uppercase font-bold ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Light Mode</span>
+                                          <div className="flex gap-2">
+                                              <input 
+                                                  type="text" 
+                                                  value={landingConfig.faviconUrlLight || ''} 
+                                                  onChange={e => setLandingConfig({...landingConfig, faviconUrlLight: e.target.value})}
+                                                  className={`flex-1 p-2 border rounded-lg text-sm transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                                  placeholder="Light mode favicon..."
+                                              />
+                                              <div className={`w-10 h-10 rounded border overflow-hidden shrink-0 p-1 flex items-center justify-center ${theme === 'dark' ? 'border-slate-700 bg-white' : 'border-slate-200 bg-slate-50'}`}>
+                                                  <img src={landingConfig.faviconUrlLight || undefined} alt="L" className="w-full h-full object-contain" />
+                                              </div>
                                           </div>
-                                      )}
+                                      </div>
+                                      <div className="space-y-2">
+                                          <span className={`text-[10px] uppercase font-bold ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Dark Mode</span>
+                                          <div className="flex gap-2">
+                                              <input 
+                                                  type="text" 
+                                                  value={landingConfig.faviconUrlDark || ''} 
+                                                  onChange={e => setLandingConfig({...landingConfig, faviconUrlDark: e.target.value})}
+                                                  className={`flex-1 p-2 border rounded-lg text-sm transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                                  placeholder="Dark mode favicon..."
+                                              />
+                                              <div className={`w-10 h-10 rounded border overflow-hidden shrink-0 p-1 flex items-center justify-center ${theme === 'dark' ? 'border-slate-700 bg-white' : 'border-slate-200 bg-slate-50'}`}>
+                                                  <img src={landingConfig.faviconUrlDark || undefined} alt="D" className="w-full h-full object-contain" />
+                                              </div>
+                                          </div>
+                                      </div>
                                   </div>
-                                  <p className="text-[10px] text-slate-500 font-mono">The small icon displayed next to the title in the browser tab.</p>
+                                  <div className="space-y-2">
+                                      <span className={`text-[10px] uppercase font-bold ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Default Fallback</span>
+                                      <input 
+                                          type="text" 
+                                          value={landingConfig.faviconUrl || ''} 
+                                          onChange={e => setLandingConfig({...landingConfig, faviconUrl: e.target.value})}
+                                          className={`w-full p-2 border rounded-lg text-sm transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                          placeholder="Default favicon..."
+                                      />
+                                  </div>
+                                  <p className={`text-[10px] font-mono ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>The small icon displayed next to the title in the browser tab.</p>
                               </div>
                           </div>
                       </div>
 
                       {/* SECTION 5: INTERFACE SETTINGS */}
-                      <div className="bg-slate-900 rounded-2xl border border-slate-800 shadow-sm overflow-hidden">
-                          <div className="bg-slate-800/50 px-6 py-3 border-b border-slate-800">
-                              <h3 className="text-sm font-bold text-slate-300 uppercase tracking-wider">5. Interface Settings</h3>
+                      <div className={`rounded-2xl border shadow-sm overflow-hidden ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+                          <div className={`px-6 py-3 border-b ${theme === 'dark' ? 'bg-slate-800/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                              <h3 className={`text-sm font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>5. Interface Settings</h3>
                           </div>
                           <div className="p-6 space-y-6">
-                              <div className="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl border border-slate-800">
+                              <div className={`flex items-center justify-between p-4 rounded-xl border ${theme === 'dark' ? 'bg-slate-800/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
                                   <div>
-                                      <h4 className="text-sm font-bold text-white">Show Teachers Tab</h4>
-                                      <p className="text-xs text-slate-500">Enable or disable the "Teachers" tab for students.</p>
+                                      <h4 className={`text-sm font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Show Teachers Tab</h4>
+                                      <p className={`text-xs ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Enable or disable the "Teachers" tab for students.</p>
                                   </div>
                                   <button 
                                       onClick={() => setLandingConfig({...landingConfig, showTeachersTab: landingConfig.showTeachersTab === false ? true : false})}
@@ -4674,10 +5312,10 @@ export default function AdminBuilder({
                                   </button>
                               </div>
 
-                              <div className="flex items-center justify-between p-4 bg-slate-800/50 rounded-xl border border-slate-800">
+                              <div className={`flex items-center justify-between p-4 rounded-xl border ${theme === 'dark' ? 'bg-slate-800/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
                                   <div>
-                                      <h4 className="text-sm font-bold text-white">Show Student Analytics</h4>
-                                      <p className="text-xs text-slate-500">Allow students to see their personal progress tab.</p>
+                                      <h4 className={`text-sm font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Show Student Analytics</h4>
+                                      <p className={`text-xs ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Allow students to see their personal progress tab.</p>
                                   </div>
                                   <button 
                                       onClick={() => setLandingConfig({...landingConfig, showStudentAnalytics: !landingConfig.showStudentAnalytics})}
@@ -4688,9 +5326,9 @@ export default function AdminBuilder({
                               </div>
 
                               {landingConfig.showStudentAnalytics && (
-                                  <div className="pl-6 space-y-4 border-l-2 border-slate-800 ml-4">
-                                      <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-lg">
-                                          <div className="text-xs font-medium text-slate-300">Radar Chart (Performance)</div>
+                                  <div className={`pl-6 space-y-4 border-l-2 ml-4 ${theme === 'dark' ? 'border-slate-800' : 'border-slate-200'}`}>
+                                      <div className={`flex items-center justify-between p-3 rounded-lg ${theme === 'dark' ? 'bg-slate-800/30' : 'bg-slate-50'}`}>
+                                          <div className={`text-xs font-medium ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>Radar Chart (Performance)</div>
                                           <button 
                                               onClick={() => setLandingConfig({...landingConfig, showStudentRadar: landingConfig.showStudentRadar === false ? true : false})}
                                               className={`w-10 h-5 rounded-full transition-all relative ${landingConfig.showStudentRadar !== false ? 'bg-blue-500/50' : 'bg-slate-700'}`}
@@ -4698,8 +5336,8 @@ export default function AdminBuilder({
                                               <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${landingConfig.showStudentRadar !== false ? 'left-6' : 'left-1'}`} />
                                           </button>
                                       </div>
-                                      <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-lg">
-                                          <div className="text-xs font-medium text-slate-300">Bar Chart (Module Progress)</div>
+                                      <div className={`flex items-center justify-between p-3 rounded-lg ${theme === 'dark' ? 'bg-slate-800/30' : 'bg-slate-50'}`}>
+                                          <div className={`text-xs font-medium ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>Bar Chart (Module Progress)</div>
                                           <button 
                                               onClick={() => setLandingConfig({...landingConfig, showStudentBar: landingConfig.showStudentBar === false ? true : false})}
                                               className={`w-10 h-5 rounded-full transition-all relative ${landingConfig.showStudentBar !== false ? 'bg-blue-500/50' : 'bg-slate-700'}`}
@@ -4707,8 +5345,8 @@ export default function AdminBuilder({
                                               <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${landingConfig.showStudentBar !== false ? 'left-6' : 'left-1'}`} />
                                           </button>
                                       </div>
-                                      <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-lg">
-                                          <div className="text-xs font-medium text-slate-300">Line Chart (Timeline)</div>
+                                      <div className={`flex items-center justify-between p-3 rounded-lg ${theme === 'dark' ? 'bg-slate-800/30' : 'bg-slate-50'}`}>
+                                          <div className={`text-xs font-medium ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>Line Chart (Timeline)</div>
                                           <button 
                                               onClick={() => setLandingConfig({...landingConfig, showStudentLine: landingConfig.showStudentLine === false ? true : false})}
                                               className={`w-10 h-5 rounded-full transition-all relative ${landingConfig.showStudentLine !== false ? 'bg-blue-500/50' : 'bg-slate-700'}`}
@@ -4716,8 +5354,8 @@ export default function AdminBuilder({
                                               <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${landingConfig.showStudentLine !== false ? 'left-6' : 'left-1'}`} />
                                           </button>
                                       </div>
-                                      <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-lg">
-                                          <div className="text-xs font-medium text-slate-300">Scatter Plot (Quiz Performance)</div>
+                                      <div className={`flex items-center justify-between p-3 rounded-lg ${theme === 'dark' ? 'bg-slate-800/30' : 'bg-slate-50'}`}>
+                                          <div className={`text-xs font-medium ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>Scatter Plot (Quiz Performance)</div>
                                           <button 
                                               onClick={() => setLandingConfig({...landingConfig, showStudentScatter: landingConfig.showStudentScatter === false ? true : false})}
                                               className={`w-10 h-5 rounded-full transition-all relative ${landingConfig.showStudentScatter !== false ? 'bg-blue-500/50' : 'bg-slate-700'}`}
@@ -4725,8 +5363,8 @@ export default function AdminBuilder({
                                               <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${landingConfig.showStudentScatter !== false ? 'left-6' : 'left-1'}`} />
                                           </button>
                                       </div>
-                                      <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-lg">
-                                          <div className="text-xs font-medium text-slate-300">Show Submissions Tab</div>
+                                      <div className={`flex items-center justify-between p-3 rounded-lg ${theme === 'dark' ? 'bg-slate-800/30' : 'bg-slate-50'}`}>
+                                          <div className={`text-xs font-medium ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>Show Submissions Tab</div>
                                           <button 
                                               onClick={() => setLandingConfig({...landingConfig, showStudentSubmissions: landingConfig.showStudentSubmissions === false ? true : false})}
                                               className={`w-10 h-5 rounded-full transition-all relative ${landingConfig.showStudentSubmissions !== false ? 'bg-blue-500/50' : 'bg-slate-700'}`}
@@ -4734,8 +5372,8 @@ export default function AdminBuilder({
                                               <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${landingConfig.showStudentSubmissions !== false ? 'left-6' : 'left-1'}`} />
                                           </button>
                                       </div>
-                                      <div className="flex items-center justify-between p-3 bg-slate-800/30 rounded-lg">
-                                          <div className="text-xs font-medium text-slate-300">Show Submissions Tab</div>
+                                      <div className={`flex items-center justify-between p-3 rounded-lg ${theme === 'dark' ? 'bg-slate-800/30' : 'bg-slate-50'}`}>
+                                          <div className={`text-xs font-medium ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}>Show Submissions Tab</div>
                                           <button 
                                               onClick={() => setLandingConfig({...landingConfig, showStudentSubmissions: landingConfig.showStudentSubmissions === false ? true : false})}
                                               className={`w-10 h-5 rounded-full transition-all relative ${landingConfig.showStudentSubmissions !== false ? 'bg-blue-500/50' : 'bg-slate-700'}`}
@@ -4748,14 +5386,14 @@ export default function AdminBuilder({
                           </div>
                       </div>
 
-                      <div className="p-6 bg-blue-500/10 border border-blue-500/20 rounded-2xl">
+                      <div className={`p-6 border rounded-2xl ${theme === 'dark' ? 'bg-blue-500/10 border-blue-500/20' : 'bg-blue-50 border-blue-100'}`}>
                           <div className="flex gap-4">
-                              <div className="w-10 h-10 bg-blue-500/20 rounded-full flex items-center justify-center shrink-0">
+                              <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${theme === 'dark' ? 'bg-blue-500/20' : 'bg-blue-100'}`}>
                                   <Sparkles className="text-blue-400 w-5 h-5" />
                               </div>
                               <div>
-                                  <h4 className="text-sm font-bold text-blue-100 mb-1">Live Preview</h4>
-                                  <p className="text-xs text-blue-300 leading-relaxed">
+                                  <h4 className={`text-sm font-bold mb-1 ${theme === 'dark' ? 'text-blue-100' : 'text-blue-900'}`}>Live Preview</h4>
+                                  <p className={`text-xs leading-relaxed ${theme === 'dark' ? 'text-blue-300' : 'text-blue-700'}`}>
                                       Changes made here will be reflected across the entire platform's user interface.
                                   </p>
                               </div>
@@ -4766,11 +5404,11 @@ export default function AdminBuilder({
           )}
 
           {activeTab === 'USERS_LIST' && (
-              <div className="h-full bg-slate-950 p-8 overflow-y-auto">
+              <div className={`h-full p-8 overflow-y-auto ${theme === 'dark' ? 'bg-slate-950' : 'bg-slate-50'}`}>
                   <div className="max-w-6xl mx-auto">
                       <div className="flex justify-between items-center mb-8">
                           <div>
-                              <h2 className="text-2xl font-bold text-white">User Access Control</h2>
+                              <h2 className={`text-2xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>User Access Control</h2>
                               <p className="text-slate-400">Create credentials and assign personalized curriculums.</p>
                           </div>
                           <button onClick={handleAddUser} className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 shadow-lg shadow-blue-900/20">
@@ -4780,13 +5418,13 @@ export default function AdminBuilder({
 
                       <div className="space-y-6">
                           {users.map(user => (
-                              <div key={user.id} className="bg-slate-900 rounded-xl shadow-sm border border-slate-800 overflow-hidden">
+                              <div key={user.id} className={`rounded-xl shadow-sm overflow-hidden border ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
                                   {editingUserId === user.id ? (
                                       <div className="p-6">
-                                          <div className="flex justify-between items-center mb-6 border-b border-slate-800 pb-4">
-                                              <h3 className="font-bold text-white flex items-center gap-2"><Settings size={18} className="text-blue-400"/> Editing User: {user.email}</h3>
+                                          <div className={`flex justify-between items-center mb-6 border-b pb-4 ${theme === 'dark' ? 'border-slate-800' : 'border-slate-200'}`}>
+                                              <h3 className={`font-bold flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}><Settings size={18} className="text-blue-400"/> Editing User: {user.email}</h3>
                                               <div className="flex gap-2">
-                                                  <button onClick={() => setEditingUserId(null)} className="px-3 py-1.5 text-sm bg-slate-800 hover:bg-slate-700 rounded text-slate-300">Done</button>
+                                                  <button onClick={() => setEditingUserId(null)} className={`px-3 py-1.5 text-sm rounded transition-colors ${theme === 'dark' ? 'bg-slate-800 hover:bg-slate-700 text-slate-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}>Done</button>
                                                   <button onClick={() => handleDeleteUser(user.id)} className="px-3 py-1.5 text-sm bg-red-900/20 hover:bg-red-900/30 text-red-400 rounded">Delete</button>
                                               </div>
                                           </div>
@@ -4797,18 +5435,18 @@ export default function AdminBuilder({
                                                   <div className="grid grid-cols-2 gap-4">
                                                       <div>
                                                           <label className="text-xs font-medium text-slate-500">Name</label>
-                                                          <input className="w-full p-2 border border-slate-700 rounded text-sm bg-slate-800 text-white outline-none focus:border-blue-500" value={user.name} onChange={e => handleUpdateUser(user.id, {...user, name: e.target.value})} />
+                                                          <input className={`w-full p-2 border rounded text-sm outline-none focus:border-blue-500 transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`} value={user.name} onChange={e => handleUpdateUser(user.id, {...user, name: e.target.value})} />
                                                       </div>
                                                       <div>
                                                           <label className="text-xs font-medium text-slate-500">Role</label>
-                                                          <select className="w-full p-2 border border-slate-700 rounded text-sm bg-slate-800 text-white outline-none focus:border-blue-500" value={user.role} onChange={e => handleUpdateUser(user.id, {...user, role: e.target.value as any})}>
+                                                          <select className={`w-full p-2 border rounded text-sm outline-none focus:border-blue-500 transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`} value={user.role} onChange={e => handleUpdateUser(user.id, {...user, role: e.target.value as any})}>
                                                               <option value="student">Student</option>
                                                               <option value="admin">Admin</option>
                                                           </select>
                                                       </div>
                                                       <div>
                                                           <label className="text-xs font-medium text-slate-500">Email (Login)</label>
-                                                          <input className="w-full p-2 border border-slate-700 rounded text-sm bg-slate-800 text-white outline-none focus:border-blue-500" value={user.email} onChange={e => handleUpdateUser(user.id, {...user, email: e.target.value})} />
+                                                          <input className={`w-full p-2 border rounded text-sm outline-none focus:border-blue-500 transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`} value={user.email} onChange={e => handleUpdateUser(user.id, {...user, email: e.target.value})} />
                                                       </div>
                                                       <div>
                                                           <label className="text-xs font-medium text-slate-500">Tags</label>
@@ -4828,7 +5466,7 @@ export default function AdminBuilder({
                                                                   {(user.tags || []).length === 0 && <span className="text-[10px] text-slate-500 italic">No tags assigned</span>}
                                                               </div>
                                                               <select 
-                                                                className="w-full p-2 border border-slate-700 rounded text-sm bg-slate-800 text-white outline-none focus:border-blue-500"
+                                                                className={`w-full p-2 border rounded text-sm outline-none focus:border-blue-500 transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
                                                                 value=""
                                                                 onChange={e => {
                                                                     const newTag = e.target.value;
@@ -4857,32 +5495,32 @@ export default function AdminBuilder({
                                                               />
                                                               <input 
                                                                   type="text" 
-                                                                  className="flex-1 p-2 border border-slate-700 rounded text-xs font-mono bg-slate-800 text-white outline-none focus:border-blue-500" 
+                                                                  className={`flex-1 p-2 border rounded text-xs font-mono outline-none focus:border-blue-500 transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`} 
                                                                   value={user.profileColor || '#3b82f6'} 
                                                                   onChange={e => handleUpdateUser(user.id, {...user, profileColor: e.target.value})} 
                                                               />
                                                           </div>
                                                       </div>
                                                       <div className="flex items-end">
-                                                          <div className="text-[10px] text-slate-500 italic bg-slate-800/50 p-2 rounded border border-slate-800 w-full">
+                                                          <div className={`text-[10px] italic p-2 rounded border w-full ${theme === 'dark' ? 'text-slate-500 bg-slate-800/50 border-slate-800' : 'text-slate-400 bg-slate-50 border-slate-200'}`}>
                                                               {user.status === 'pending' ? 'User has not activated their account yet.' : 'User is active and linked to Firebase Auth.'}
                                                           </div>
                                                       </div>
                                                   </div>
                                                   
-                                                  <div className="mt-8 pt-4 border-t border-slate-800">
+                                                  <div className={`mt-8 pt-4 border-t ${theme === 'dark' ? 'border-slate-800' : 'border-slate-200'}`}>
                                                       <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">Learning Progress</h4>
                                                       <div className="grid grid-cols-3 gap-4 text-center mb-6">
-                                                          <div className="bg-slate-800/50 p-3 rounded border border-slate-800">
+                                                          <div className={`p-3 rounded border ${theme === 'dark' ? 'bg-slate-800/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
                                                               <div className="text-xl font-bold text-blue-400">{(user.completedSubTopics || []).length}</div>
                                                               <div className="text-[10px] text-slate-500 uppercase">Completed</div>
                                                           </div>
-                                                          <div className="bg-slate-800/50 p-3 rounded border border-slate-800">
+                                                          <div className={`p-3 rounded border ${theme === 'dark' ? 'bg-slate-800/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
                                                               <div className="text-xl font-bold text-green-400">{(user.quizAttempts || []).length}</div>
                                                               <div className="text-[10px] text-slate-500 uppercase">Quizzes Taken</div>
                                                           </div>
-                                                          <div className="bg-slate-800/50 p-3 rounded border border-slate-800">
-                                                              <div className="text-xl font-bold text-slate-300">
+                                                          <div className={`p-3 rounded border ${theme === 'dark' ? 'bg-slate-800/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                                                              <div className={`text-xl font-bold ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>
                                                                   {Math.round(((user.completedSubTopics || []).length / (topics.reduce((acc, t) => acc + t.subTopics.length, 0) || 1)) * 100)}%
                                                               </div>
                                                               <div className="text-[10px] text-slate-500 uppercase">Progress</div>
@@ -4895,13 +5533,13 @@ export default function AdminBuilder({
                                                               <h5 className="text-[10px] font-bold text-slate-500 uppercase mb-2 flex items-center gap-1">
                                                                   <Clock size={12} /> Module Completion History
                                                               </h5>
-                                                              <div className="bg-slate-800/50 rounded-lg border border-slate-800 p-3 max-h-48 overflow-y-auto space-y-2">
+                                                              <div className={`rounded-lg border p-3 max-h-48 overflow-y-auto space-y-2 ${theme === 'dark' ? 'bg-slate-800/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
                                                                   {(user.completedSubTopics || []).length > 0 ? (
                                                                       [...(user.completedSubTopics || [])].sort((a,b) => (b.completedAt || '').localeCompare(a.completedAt || '')).map(record => {
                                                                           const subTopic = topics.flatMap(t => t.subTopics).find(st => st.id === record.id);
                                                                           return (
-                                                                              <div key={record.id} className="flex justify-between items-center text-[11px] border-b border-slate-800 pb-1 last:border-0 last:pb-0">
-                                                                                  <span className="text-slate-300 font-medium truncate max-w-[150px]">{subTopic?.title || 'Unknown Module'}</span>
+                                                                              <div key={record.id} className={`flex justify-between items-center text-[11px] border-b pb-1 last:border-0 last:pb-0 ${theme === 'dark' ? 'border-slate-800' : 'border-slate-200'}`}>
+                                                                                  <span className={`font-medium truncate max-w-[150px] ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>{subTopic?.title || 'Unknown Module'}</span>
                                                                                   <span className="text-slate-500">{record.completedAt ? new Date(record.completedAt).toLocaleString() : 'N/A'}</span>
                                                                               </div>
                                                                           );
@@ -4917,14 +5555,14 @@ export default function AdminBuilder({
                                                               <h5 className="text-[10px] font-bold text-slate-500 uppercase mb-2 flex items-center gap-1">
                                                                   <History size={12} /> Quiz Performance Details
                                                               </h5>
-                                                              <div className="bg-slate-800/50 rounded-lg border border-slate-800 p-3 max-h-64 overflow-y-auto space-y-3">
+                                                              <div className={`rounded-lg border p-3 max-h-64 overflow-y-auto space-y-3 ${theme === 'dark' ? 'bg-slate-800/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
                                                                   {(user.quizAttempts || []).length > 0 ? (
                                                                       [...(user.quizAttempts || [])].sort((a,b) => (b.timestamp || '').localeCompare(a.timestamp || '')).map((attempt, idx) => {
                                                                           const subTopic = topics.flatMap(t => t.subTopics).find(st => st.id === attempt.subTopicId);
                                                                           return (
-                                                                              <div key={idx} className="bg-slate-800 p-2 rounded border border-slate-700 shadow-sm">
+                                                                              <div key={idx} className={`p-2 rounded border shadow-sm ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
                                                                                   <div className="flex justify-between items-start mb-1">
-                                                                                      <div className="text-[11px] font-bold text-slate-200 truncate max-w-[140px]">{subTopic?.title || 'Unknown Quiz'}</div>
+                                                                                      <div className={`text-11px font-bold truncate max-w-[140px] ${theme === 'dark' ? 'text-slate-200' : 'text-slate-800'}`}>{subTopic?.title || 'Unknown Quiz'}</div>
                                                                                       <div className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${attempt.passed ? 'bg-green-900/30 text-green-400' : 'bg-red-900/30 text-red-400'}`}>
                                                                                           {attempt.passed ? 'PASSED' : 'FAILED'}
                                                                                       </div>
@@ -4935,7 +5573,7 @@ export default function AdminBuilder({
                                                                                       <span>{attempt.timestamp}</span>
                                                                                   </div>
                                                                                   {attempt.wrongAnswers && attempt.wrongAnswers.length > 0 && (
-                                                                                      <div className="mt-1 pt-1 border-t border-slate-700">
+                                                                                      <div className={`mt-1 pt-1 border-t ${theme === 'dark' ? 'border-slate-700' : 'border-slate-200'}`}>
                                                                                           <div className="text-[9px] font-bold text-red-500 uppercase mb-1">Wrong Answers:</div>
                                                                                           <ul className="list-disc list-inside text-[9px] text-slate-400 space-y-0.5">
                                                                                               {attempt.wrongAnswers.map((q, i) => (
@@ -4956,20 +5594,20 @@ export default function AdminBuilder({
                                                   </div>
                                               </div>
 
-                                              <div className="bg-slate-800/50 p-5 rounded-xl border border-slate-800">
-                                                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2"><LockIcon size={14}/> Assigned Curriculum Modules</h4>
+                                              <div className={`p-5 rounded-xl border ${theme === 'dark' ? 'bg-slate-800/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+                                                  <h4 className={`text-xs font-bold uppercase tracking-wider mb-4 flex items-center gap-2 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}><LockIcon size={14}/> Assigned Curriculum Modules</h4>
                                                   <p className="text-xs text-slate-500 mb-4">Uncheck modules to lock them for this user. They will appear greyed out in their graph.</p>
                                                   
                                                   <div className="space-y-2 max-h-96 overflow-y-auto pr-2">
                                                       {topics.map(t => {
                                                           const isAllowed = user.allowedTopics ? user.allowedTopics.includes(t.id) : true; // Default true if undefined
                                                           return (
-                                                              <div key={t.id} onClick={() => handleToggleUserTopic(user, t.id)} className={`flex items-center p-3 rounded-lg border cursor-pointer transition-colors ${isAllowed ? 'bg-slate-800 border-green-500/30 shadow-sm' : 'bg-slate-900 border-transparent opacity-40'}`}>
-                                                                  <div className={`w-5 h-5 rounded flex items-center justify-center border mr-3 ${isAllowed ? 'bg-green-500 border-green-600 text-white' : 'bg-slate-800 border-slate-700'}`}>
+                                                              <div key={t.id} onClick={() => handleToggleUserTopic(user, t.id)} className={`flex items-center p-3 rounded-lg border cursor-pointer transition-colors ${isAllowed ? (theme === 'dark' ? 'bg-slate-800 border-green-500/30 shadow-sm' : 'bg-green-50 border-green-200 shadow-sm') : (theme === 'dark' ? 'bg-slate-900 border-transparent opacity-40' : 'bg-slate-100 border-transparent opacity-40')}`}>
+                                                                  <div className={`w-5 h-5 rounded flex items-center justify-center border mr-3 ${isAllowed ? 'bg-green-500 border-green-600 text-white' : (theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-300')}`}>
                                                                       {isAllowed && <CheckSquare size={14} />}
                                                                   </div>
                                                                   <div className="flex-1">
-                                                                      <div className={`text-sm font-bold ${isAllowed ? 'text-white' : 'text-slate-500'}`}>{t.title}</div>
+                                                                      <div className={`text-sm font-bold ${isAllowed ? (theme === 'dark' ? 'text-white' : 'text-slate-900') : 'text-slate-500'}`}>{t.title}</div>
                                                                       <div className="text-xs text-slate-500">Level {t.level} • {t.subTopics.length} Modules</div>
                                                                   </div>
                                                               </div>
@@ -4980,16 +5618,16 @@ export default function AdminBuilder({
                                           </div>
                                       </div>
                                   ) : (
-                                      <div className="p-4 flex items-center justify-between hover:bg-slate-800/50 transition-colors">
+                                      <div className={`p-4 flex items-center justify-between transition-colors ${theme === 'dark' ? 'hover:bg-slate-800/50' : 'hover:bg-slate-50'}`}>
                                           <div className="flex items-center gap-4">
                                               <div 
                                                 className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold overflow-hidden shadow-sm"
                                                 style={{ backgroundColor: user.profileColor || '#475569' }}
                                               >
-                                                  {user.avatar ? <img src={user.avatar} className="w-full h-full object-cover"/> : user.name[0]}
+                                                  {user.avatar ? <img src={user.avatar || undefined} className="w-full h-full object-cover"/> : user.name[0]}
                                               </div>
                                               <div>
-                                                  <h3 className="font-bold text-slate-200">{user.name}</h3>
+                                                  <h3 className={`font-bold ${theme === 'dark' ? 'text-slate-200' : 'text-slate-800'}`}>{user.name}</h3>
                                                   <div className="flex items-center gap-2 text-xs text-slate-500">
                                                       <span className="font-mono">{user.email}</span>
                                                       <span className={`px-1.5 py-0.5 rounded uppercase font-bold text-[10px] ${user.role === 'admin' ? 'bg-purple-900/30 text-purple-400' : 'bg-blue-900/30 text-blue-400'}`}>{user.role || 'student'}</span>
@@ -4999,15 +5637,15 @@ export default function AdminBuilder({
                                           <div className="flex items-center gap-6">
                                               <div className="text-right hidden sm:block">
                                                   <div className="text-xs text-slate-500 uppercase font-bold">Progress</div>
-                                                  <div className="text-sm font-bold text-slate-300">
+                                                  <div className={`text-sm font-bold ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>
                                                       {Math.round(((user.completedSubTopics || []).length / (topics.reduce((acc, t) => acc + t.subTopics.length, 0) || 1)) * 100)}%
                                                   </div>
                                               </div>
                                               <div className="text-right hidden sm:block">
                                                   <div className="text-xs text-slate-500 uppercase font-bold">Access</div>
-                                                  <div className="text-sm font-bold text-slate-300">{(user.allowedTopics || []).length} / {topics.length} Topics</div>
+                                                  <div className={`text-sm font-bold ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>{(user.allowedTopics || []).length} / {topics.length} Topics</div>
                                               </div>
-                                              <button onClick={() => setEditingUserId(user.id)} className="bg-slate-800 border border-slate-700 hover:border-blue-500 text-slate-400 hover:text-blue-400 p-2 rounded-lg transition-colors">
+                                              <button onClick={() => setEditingUserId(user.id)} className={`border hover:border-blue-500 text-slate-400 hover:text-blue-400 p-2 rounded-lg transition-colors ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200 shadow-sm'}`}>
                                                   <Edit2 size={16} />
                                               </button>
                                           </div>
@@ -5024,16 +5662,17 @@ export default function AdminBuilder({
             <NotificationsView 
               notifications={notifications}
               onMarkRead={onMarkNotificationRead}
+              onDelete={onDeleteNotification}
               onEvaluate={onEvaluateSubmission}
               onToggleCompleted={onToggleNotificationCompleted}
               onDeleteFile={onDeleteFile}
               onPostSubmissionComment={onPostSubmissionComment}
-              onDeleteComment={onDeleteComment}
+              theme={theme}
             />
           )}
 
           {activeTab === 'ANALYTICS' && (
-              <div className="h-full bg-slate-950 overflow-y-auto">
+              <div className={`h-full overflow-y-auto transition-colors duration-300 ${theme === 'dark' ? 'bg-slate-950' : 'bg-slate-50'}`}>
                   <div className="p-4 sm:p-8">
                       <AnalyticsView 
                           users={users} 
@@ -5041,20 +5680,24 @@ export default function AdminBuilder({
                           tags={tags}
                           landingConfig={landingConfig}
                           notifications={notifications}
+                          submissions={submissions}
                           onEvaluateSubmission={onEvaluateSubmission}
+                          onRequestResubmission={onRequestResubmission}
                           onPostSubmissionComment={onPostSubmissionComment}
                           onDeleteComment={onDeleteComment}
+                          theme={theme}
                       />
                   </div>
               </div>
           )}
 
           {activeTab === 'TAGS' && (
-              <div className="h-full bg-slate-950 overflow-y-auto">
+              <div className={`h-full overflow-y-auto transition-colors duration-300 ${theme === 'dark' ? 'bg-slate-950' : 'bg-slate-50'}`}>
                   <div className="p-8">
                       <TagManagementView 
                           tags={tags}
                           setTags={setTags}
+                          theme={theme}
                       />
                   </div>
               </div>

@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { auth, db, storage } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, deleteDoc, onSnapshot, getDocFromServer, collection, getDocs, query, writeBatch, where } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc, onSnapshot, getDocFromServer, collection, getDocs, query, writeBatch, where, runTransaction, updateDoc } from 'firebase/firestore';
 import { ref, deleteObject } from 'firebase/storage';
 import { MEDIA_ROOT } from './constants';
 import initialCurriculum from './src/data/curriculum.json';
@@ -14,7 +14,7 @@ import Login from './components/Login';
 import ModuleList from './components/ModuleList';
 import AdminBuilder, { AnalyticsView, NotificationsView } from './components/AdminBuilder';
 import Joyride, { Step, CallBackProps, STATUS } from 'react-joyride';
-import { BookOpen, Layers, Search, LogOut, LayoutGrid, Network, ArrowRight, ArrowLeft, Edit3, Lock, AlertTriangle, GraduationCap, Bell, ChevronDown, User as UserIcon, X, CheckCircle2, History, RotateCcw, FileText, MessageCircle, Download, PlayCircle, Mail, Copy, Check, List, BarChart3, TrendingUp, Target, Award, Clock, MessageSquare, Send } from 'lucide-react';
+import { BookOpen, Layers, Search, LogOut, LayoutGrid, Network, ArrowRight, ArrowLeft, Edit3, Lock, AlertTriangle, GraduationCap, Bell, ChevronDown, User as UserIcon, X, CheckCircle2, History, RotateCcw, FileText, MessageCircle, Download, PlayCircle, Mail, Copy, Check, List, BarChart3, TrendingUp, Target, Award, Clock, MessageSquare, Send, Moon, Sun, Trash2 } from 'lucide-react';
 import { 
   BarChart, Bar, LineChart, Line, RadarChart, Radar, 
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
@@ -107,13 +107,14 @@ const TourTooltip = ({
   primaryProps,
   skipProps,
   isLastStep,
+  theme,
 }: any) => {
   return (
     <motion.div 
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, ease: "easeOut" }}
-      className="bg-slate-900 border border-slate-700 rounded-none p-5 shadow-2xl max-w-[320px] font-mono text-xs relative overflow-hidden group"
+      className={`border rounded-none p-5 shadow-2xl max-w-[320px] font-mono text-xs relative overflow-hidden group transition-colors duration-300 ${theme === 'dark' ? 'bg-slate-900 border-slate-700 text-slate-200' : 'bg-white border-slate-200 text-slate-800'}`}
     >
       {/* Technical background pattern */}
       <div className="absolute inset-0 opacity-[0.03] pointer-events-none" 
@@ -137,12 +138,12 @@ const TourTooltip = ({
         />
       </div>
       
-      <div className="flex justify-between items-center mb-4 border-b border-slate-800 pb-2 mt-2 relative">
+      <div className={`flex justify-between items-center mb-4 border-b pb-2 mt-2 relative ${theme === 'dark' ? 'border-slate-800' : 'border-slate-100'}`}>
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(59,130,246,0.8)]" />
           <span className="text-blue-400 font-bold uppercase tracking-widest text-[10px]">GUIDE_SYS // STEP_{index + 1}</span>
         </div>
-        <button {...skipProps} className="text-slate-500 hover:text-red-400 transition-colors uppercase text-[10px] font-bold tracking-tighter">
+        <button {...skipProps} className={`transition-colors uppercase text-[10px] font-bold tracking-tighter ${theme === 'dark' ? 'text-slate-500 hover:text-red-400' : 'text-slate-400 hover:text-red-500'}`}>
           [ Terminate ]
         </button>
       </div>
@@ -154,7 +155,7 @@ const TourTooltip = ({
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -10 }}
           transition={{ duration: 0.2 }}
-          className="text-slate-300 mb-6 leading-relaxed text-sm relative min-h-[3em]"
+          className={`mb-6 leading-relaxed text-sm relative min-h-[3em] ${theme === 'dark' ? 'text-slate-300' : 'text-slate-600'}`}
         >
           <span className="text-blue-500/50 mr-1 font-bold">{'>'}</span>
           {step.content}
@@ -163,7 +164,7 @@ const TourTooltip = ({
       
       <div className="flex justify-between items-center gap-3 relative">
         {index > 0 && (
-          <button {...backProps} className="px-4 py-2 border border-slate-800 rounded-lg text-slate-500 hover:text-white hover:bg-slate-800 transition-all uppercase font-bold tracking-tighter flex items-center gap-2">
+          <button {...backProps} className={`px-4 py-2 border rounded-lg transition-all uppercase font-bold tracking-tighter flex items-center gap-2 ${theme === 'dark' ? 'border-slate-800 text-slate-500 hover:text-white hover:bg-slate-800' : 'border-slate-200 text-slate-400 hover:text-slate-900 hover:bg-slate-50'}`}>
             <ArrowLeft className="w-3 h-3" /> Prev
           </button>
         )}
@@ -179,13 +180,16 @@ const TourTooltip = ({
 // ===============================================================
 // STUDENT ANALYTICS VIEW
 // ===============================================================
-function StudentAnalyticsView({ user, topics, landingConfig, submissions, onPostSubmissionComment, initialTab = 'OVERVIEW' }: { 
+function StudentAnalyticsView({ user, currentUser, topics, landingConfig, submissions, onPostSubmissionComment, onDeleteComment, initialTab = 'OVERVIEW', theme = 'dark' }: { 
   user: User, 
+  currentUser: User | null,
   topics: Topic[], 
   landingConfig: LandingConfig,
   submissions: ExerciseSubmission[],
-  onPostSubmissionComment: (submissionId: string, text: string) => Promise<void>,
-  initialTab?: 'OVERVIEW' | 'SUBMISSIONS'
+  onPostSubmissionComment: (id: string, text: string, isSubmission?: boolean) => Promise<void>,
+  onDeleteComment?: (submissionId: string, commentId: string, isSubmission: boolean) => Promise<void>,
+  initialTab?: 'OVERVIEW' | 'SUBMISSIONS',
+  theme?: 'light' | 'dark'
 }) {
   const [activeTab, setActiveTab] = useState<'OVERVIEW' | 'SUBMISSIONS'>(initialTab);
   
@@ -282,45 +286,45 @@ function StudentAnalyticsView({ user, topics, landingConfig, submissions, onPost
   }, [user, topics]);
 
   return (
-    <div className="p-4 sm:p-8 max-w-7xl mx-auto space-y-8">
+    <div className={`p-4 sm:p-8 max-w-7xl mx-auto space-y-8 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-white mb-2">Personal Analytics</h2>
-          <p className="text-slate-400">Track your learning journey and performance metrics.</p>
+          <h2 className={`text-3xl font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Personal Analytics</h2>
+          <p className={theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}>Track your learning journey and performance metrics.</p>
         </div>
         <div className="flex gap-4">
           {landingConfig.showStudentSubmissions !== false && (
-            <div className="flex bg-slate-900/50 border border-slate-800 rounded-2xl p-1">
+            <div className={`flex rounded-2xl p-1 border ${theme === 'dark' ? 'bg-slate-900/50 border-slate-800' : 'bg-slate-100 border-slate-200'}`}>
               <button 
                 onClick={() => setActiveTab('OVERVIEW')}
-                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'OVERVIEW' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:text-white'}`}
+                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'OVERVIEW' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : theme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'}`}
               >
                 Overview
               </button>
               <button 
                 onClick={() => setActiveTab('SUBMISSIONS')}
-                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'SUBMISSIONS' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:text-white'}`}
+                className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'SUBMISSIONS' ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : theme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'}`}
               >
                 Submissions
               </button>
             </div>
           )}
-          <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 flex items-center gap-4">
+          <div className={`rounded-2xl p-4 flex items-center gap-4 border ${theme === 'dark' ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
             <div className="w-10 h-10 bg-blue-500/20 rounded-xl flex items-center justify-center text-blue-400">
               <Target className="w-5 h-5" />
             </div>
             <div>
               <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Overall Progress</div>
-              <div className="text-xl font-bold text-white">{performanceData[0].A}%</div>
+              <div className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{performanceData[0].A}%</div>
             </div>
           </div>
-          <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 flex items-center gap-4">
+          <div className={`rounded-2xl p-4 flex items-center gap-4 border ${theme === 'dark' ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
             <div className="w-10 h-10 bg-emerald-500/20 rounded-xl flex items-center justify-center text-emerald-400">
               <Award className="w-5 h-5" />
             </div>
             <div>
               <div className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">Avg Quiz Score</div>
-              <div className="text-xl font-bold text-white">{performanceData[1].A}%</div>
+              <div className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{performanceData[1].A}%</div>
             </div>
           </div>
         </div>
@@ -330,16 +334,16 @@ function StudentAnalyticsView({ user, topics, landingConfig, submissions, onPost
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* RADAR CHART */}
           {landingConfig.showStudentRadar !== false && (
-            <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-6">
-              <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+            <div className={`rounded-3xl p-6 border ${theme === 'dark' ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+              <h3 className={`text-lg font-bold mb-6 flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                 <TrendingUp className="w-5 h-5 text-blue-400" />
                 Performance Profile
               </h3>
               <div className="h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <RadarChart cx="50%" cy="50%" outerRadius="80%" data={performanceData}>
-                    <PolarGrid stroke="#334155" />
-                    <PolarAngleAxis dataKey="subject" tick={{ fill: '#94a3b8', fontSize: 12 }} />
+                    <PolarGrid stroke={theme === 'dark' ? '#334155' : '#e2e8f0'} />
+                    <PolarAngleAxis dataKey="subject" tick={{ fill: theme === 'dark' ? '#94a3b8' : '#64748b', fontSize: 12 }} />
                     <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
                     <Radar
                       name="Performance"
@@ -349,8 +353,13 @@ function StudentAnalyticsView({ user, topics, landingConfig, submissions, onPost
                       fillOpacity={0.5}
                     />
                     <Tooltip 
-                      contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px' }}
-                      itemStyle={{ color: '#fff' }}
+                      contentStyle={{ 
+                        backgroundColor: theme === 'dark' ? '#0f172a' : '#ffffff', 
+                        border: theme === 'dark' ? '1px solid #1e293b' : '1px solid #e2e8f0', 
+                        borderRadius: '12px',
+                        color: theme === 'dark' ? '#fff' : '#000'
+                      }}
+                      itemStyle={{ color: theme === 'dark' ? '#fff' : '#000' }}
                     />
                   </RadarChart>
                 </ResponsiveContainer>
@@ -360,20 +369,24 @@ function StudentAnalyticsView({ user, topics, landingConfig, submissions, onPost
 
           {/* BAR CHART */}
           {landingConfig.showStudentBar !== false && (
-            <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-6">
-              <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+            <div className={`rounded-3xl p-6 border ${theme === 'dark' ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+              <h3 className={`text-lg font-bold mb-6 flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                 <Layers className="w-5 h-5 text-purple-400" />
                 Module Completion
               </h3>
               <div className="h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={moduleProgressData} layout="vertical">
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" horizontal={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#1e293b' : '#e2e8f0'} horizontal={false} />
                     <XAxis type="number" domain={[0, 100]} hide />
-                    <YAxis dataKey="name" type="category" width={100} tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                    <YAxis dataKey="name" type="category" width={100} tick={{ fill: theme === 'dark' ? '#94a3b8' : '#64748b', fontSize: 10 }} />
                     <Tooltip 
-                      cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                      contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px' }}
+                      cursor={{ fill: theme === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.02)' }}
+                      contentStyle={{ 
+                        backgroundColor: theme === 'dark' ? '#0f172a' : '#ffffff', 
+                        border: theme === 'dark' ? '1px solid #1e293b' : '1px solid #e2e8f0', 
+                        borderRadius: '12px' 
+                      }}
                     />
                     <Bar dataKey="percentage" fill="#8b5cf6" radius={[0, 4, 4, 0]} barSize={20} />
                   </BarChart>
@@ -384,8 +397,8 @@ function StudentAnalyticsView({ user, topics, landingConfig, submissions, onPost
 
           {/* LINE CHART */}
           {landingConfig.showStudentLine !== false && (
-            <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-6 lg:col-span-2">
-              <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+            <div className={`rounded-3xl p-6 border lg:col-span-2 ${theme === 'dark' ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+              <h3 className={`text-lg font-bold mb-6 flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                 <TrendingUp className="w-5 h-5 text-emerald-400" />
                 Learning Timeline
               </h3>
@@ -398,11 +411,15 @@ function StudentAnalyticsView({ user, topics, landingConfig, submissions, onPost
                         <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                    <XAxis dataKey="date" tick={{ fill: '#94a3b8', fontSize: 10 }} />
-                    <YAxis tick={{ fill: '#94a3b8', fontSize: 10 }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#1e293b' : '#e2e8f0'} vertical={false} />
+                    <XAxis dataKey="date" tick={{ fill: theme === 'dark' ? '#94a3b8' : '#64748b', fontSize: 10 }} />
+                    <YAxis tick={{ fill: theme === 'dark' ? '#94a3b8' : '#64748b', fontSize: 10 }} />
                     <Tooltip 
-                      contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px' }}
+                      contentStyle={{ 
+                        backgroundColor: theme === 'dark' ? '#0f172a' : '#ffffff', 
+                        border: theme === 'dark' ? '1px solid #1e293b' : '1px solid #e2e8f0', 
+                        borderRadius: '12px' 
+                      }}
                     />
                     <Area type="monotone" dataKey="progress" stroke="#10b981" fillOpacity={1} fill="url(#colorProgress)" strokeWidth={3} />
                     <Line type="monotone" dataKey="score" stroke="#f59e0b" strokeWidth={2} dot={{ r: 4 }} />
@@ -414,19 +431,19 @@ function StudentAnalyticsView({ user, topics, landingConfig, submissions, onPost
 
           {/* SCATTER CHART */}
           {landingConfig.showStudentScatter !== false && (
-            <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-6 lg:col-span-2">
-              <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+            <div className={`rounded-3xl p-6 border lg:col-span-2 ${theme === 'dark' ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+              <h3 className={`text-lg font-bold mb-6 flex items-center gap-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                 <Clock className="w-5 h-5 text-orange-400" />
                 Quiz Performance vs Time
               </h3>
               <div className="h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                    <XAxis type="number" dataKey="time" name="Time" unit="min" tick={{ fill: '#94a3b8', fontSize: 10 }} label={{ value: 'Time (min)', position: 'bottom', fill: '#94a3b8', fontSize: 12 }} />
-                    <YAxis type="number" dataKey="score" name="Score" unit="%" tick={{ fill: '#94a3b8', fontSize: 10 }} label={{ value: 'Score (%)', angle: -90, position: 'left', fill: '#94a3b8', fontSize: 12 }} />
+                    <CartesianGrid strokeDasharray="3 3" stroke={theme === 'dark' ? '#1e293b' : '#e2e8f0'} />
+                    <XAxis type="number" dataKey="time" name="Time" unit="min" tick={{ fill: theme === 'dark' ? '#94a3b8' : '#64748b', fontSize: 10 }} label={{ value: 'Time (min)', position: 'bottom', fill: theme === 'dark' ? '#94a3b8' : '#64748b', fontSize: 12 }} />
+                    <YAxis type="number" dataKey="score" name="Score" unit="%" tick={{ fill: theme === 'dark' ? '#94a3b8' : '#64748b', fontSize: 10 }} label={{ value: 'Score (%)', angle: -90, position: 'left', fill: theme === 'dark' ? '#94a3b8' : '#64748b', fontSize: 12 }} />
                     <ZAxis type="category" dataKey="name" name="Module" />
-                    <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '12px' }} />
+                    <Tooltip cursor={{ strokeDasharray: '3 3' }} contentStyle={{ backgroundColor: theme === 'dark' ? '#0f172a' : '#ffffff', border: theme === 'dark' ? '1px solid #1e293b' : '1px solid #e2e8f0', borderRadius: '12px' }} />
                     <Scatter name="Quizzes" data={scatterData} fill="#f97316">
                       {scatterData.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.score >= 80 ? '#10b981' : entry.score >= 50 ? '#f59e0b' : '#ef4444'} />
@@ -441,11 +458,11 @@ function StudentAnalyticsView({ user, topics, landingConfig, submissions, onPost
       ) : (
         <div className="space-y-6">
           {submissions.length === 0 ? (
-            <div className="bg-slate-900/50 border border-slate-800 rounded-3xl p-12 text-center">
-              <div className="w-16 h-16 bg-slate-800 rounded-full flex items-center justify-center text-slate-600 mx-auto mb-4">
+            <div className={`rounded-3xl p-12 text-center border ${theme === 'dark' ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+              <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 ${theme === 'dark' ? 'bg-slate-800 text-slate-600' : 'bg-slate-100 text-slate-400'}`}>
                 <FileText size={32} />
               </div>
-              <h4 className="text-white font-bold text-lg">No Submissions Yet</h4>
+              <h4 className={`font-bold text-lg ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>No Submissions Yet</h4>
               <p className="text-slate-500 max-w-sm mx-auto mt-2">Complete exercises in your modules to see your submissions and feedback here.</p>
             </div>
           ) : (
@@ -455,15 +472,15 @@ function StudentAnalyticsView({ user, topics, landingConfig, submissions, onPost
                 const topic = topics.find(t => t.id === sub.topicId);
                 
                 return (
-                  <div key={sub.id} className="bg-slate-900/50 border border-slate-800 rounded-3xl overflow-hidden">
-                    <div className="p-6 border-b border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div key={sub.id} className={`rounded-3xl overflow-hidden border ${theme === 'dark' ? 'bg-slate-900/50 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+                    <div className={`p-6 border-b flex flex-col md:flex-row md:items-center justify-between gap-4 ${theme === 'dark' ? 'border-slate-800' : 'border-slate-100'}`}>
                       <div>
                         <div className="flex items-center gap-2 mb-1">
                           <span className={`w-2 h-2 rounded-full ${
                             sub.status === 'reviewed' ? 'bg-emerald-500' : 
                             sub.status === 'rejected' ? 'bg-red-500' : 'bg-blue-500'
                           }`} />
-                          <h4 className="text-white font-bold">{subTopic?.title || 'Exercise Submission'}</h4>
+                          <h4 className={`font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{subTopic?.title || 'Exercise Submission'}</h4>
                         </div>
                         <p className="text-xs text-slate-500">{topic?.title} • {new Date(sub.timestamp).toLocaleString()}</p>
                       </div>
@@ -473,7 +490,7 @@ function StudentAnalyticsView({ user, topics, landingConfig, submissions, onPost
                           sub.status === 'rejected' ? 'bg-red-500/10 text-red-400 border border-red-500/20' : 
                           'bg-blue-500/10 text-blue-400 border border-blue-500/20'
                         }`}>
-                          {sub.status}
+                          {sub.status === 'rejected' ? 'Resubmission Requested' : sub.status}
                         </div>
                         {sub.grade !== undefined && (
                           <div className="px-3 py-1 bg-blue-600 text-white text-[10px] font-bold rounded-full">
@@ -488,8 +505,14 @@ function StudentAnalyticsView({ user, topics, landingConfig, submissions, onPost
                         <div>
                           <h5 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Evaluation & Feedback</h5>
                           {sub.feedback ? (
-                            <div className="p-4 bg-slate-950/50 border border-slate-800 rounded-2xl">
-                              <p className="text-sm text-slate-300 italic leading-relaxed">"{sub.feedback}"</p>
+                            <div className={`p-4 border rounded-2xl ${
+                              sub.status === 'rejected' 
+                                ? 'bg-red-500/5 border-red-500/20' 
+                                : theme === 'dark' ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-100'
+                            }`}>
+                              <p className={`text-sm italic leading-relaxed ${
+                                sub.status === 'rejected' ? 'text-red-400' : theme === 'dark' ? 'text-slate-300' : 'text-slate-600'
+                              }`}>"{sub.feedback}"</p>
                             </div>
                           ) : (
                             <p className="text-sm text-slate-500 italic">No feedback provided yet.</p>
@@ -505,13 +528,13 @@ function StudentAnalyticsView({ user, topics, landingConfig, submissions, onPost
                                 href={file.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex items-center gap-3 p-3 bg-slate-950/50 border border-slate-800 rounded-xl hover:border-blue-500/50 transition-all group"
+                                className={`flex items-center gap-3 p-3 border rounded-xl transition-all group ${theme === 'dark' ? 'bg-slate-950/50 border-slate-800 hover:border-blue-500/50' : 'bg-slate-50 border-slate-100 hover:border-blue-300 hover:bg-white shadow-sm'}`}
                               >
-                                <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-slate-500 group-hover:text-blue-400">
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${theme === 'dark' ? 'bg-slate-900 text-slate-500 group-hover:text-blue-400' : 'bg-white text-slate-400 group-hover:text-blue-500'}`}>
                                   <FileText size={16} />
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <div className="text-xs font-bold text-slate-300 truncate">{file.name}</div>
+                                  <div className={`text-xs font-bold truncate ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>{file.name}</div>
                                   <div className="text-[10px] text-slate-500">{(file.size / 1024 / 1024).toFixed(2)} MB</div>
                                 </div>
                                 <Download size={14} className="text-slate-600 group-hover:text-blue-400" />
@@ -522,25 +545,65 @@ function StudentAnalyticsView({ user, topics, landingConfig, submissions, onPost
                       </div>
                       
                       <div className="space-y-4">
-                        <h5 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-3">Internal Discussion</h5>
-                        <div className="bg-slate-950/50 border border-slate-800 rounded-2xl p-4 flex flex-col h-[300px]">
+                        <div className="flex items-center justify-between mb-3">
+                          <h5 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Internal Discussion</h5>
+                                  {currentUser?.role === 'admin' && sub.comments && sub.comments.length > 0 && (
+                                    <button 
+                                      onClick={() => {
+                                        let content = `DISCUSSION: ${subTopic?.title || 'Unknown'} (${topic?.title || 'Unknown'})\n`;
+                                        content += `Student: ${user.name}\n`;
+                                        content += `Date: ${new Date(sub.timestamp).toLocaleString()}\n`;
+                                        content += `--------------------------------------------------\n\n`;
+                                        
+                                        sub.comments?.forEach(c => {
+                                          content += `[${new Date(c.timestamp).toLocaleString()}] ${c.user}:\n`;
+                                          content += `${c.text}\n\n`;
+                                        });
+                                        
+                                        const blob = new Blob([content], { type: 'text/plain' });
+                                        const url = URL.createObjectURL(blob);
+                                        const link = document.createElement('a');
+                                        link.href = url;
+                                        link.download = `discussion_${user.name.replace(/\s+/g, '_')}_${(subTopic?.title || 'Unknown').replace(/\s+/g, '_')}_${new Date().getTime()}.txt`;
+                                        document.body.appendChild(link);
+                                        link.click();
+                                        document.body.removeChild(link);
+                                        URL.revokeObjectURL(url);
+                                      }}
+                                      className="p-1 text-slate-500 hover:text-blue-400 transition-colors"
+                                      title="Download Discussion as Text"
+                                    >
+                                      <Download size={12} />
+                                    </button>
+                                  )}
+                        </div>
+                        <div className={`border rounded-2xl p-4 flex flex-col h-[300px] ${theme === 'dark' ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-100'}`}>
                           <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-2 custom-scrollbar">
                             {(sub.comments || []).length === 0 ? (
                               <div className="h-full flex flex-col items-center justify-center text-center p-4">
-                                <MessageSquare size={24} className="text-slate-800 mb-2" />
+                                <MessageSquare size={24} className={theme === 'dark' ? 'text-slate-800' : 'text-slate-300'} />
                                 <p className="text-xs text-slate-600">No comments yet. Start a discussion with your teacher about this evaluation.</p>
                               </div>
                             ) : (
                               (sub.comments || []).map(comment => (
                                 <div key={comment.id} className={`flex gap-3 ${comment.user === user.name ? 'flex-row-reverse' : ''}`}>
-                                  <img src={comment.avatar} alt={comment.user} className="w-8 h-8 rounded-lg shrink-0" />
+                                  <img src={comment.avatar || undefined} alt={comment.user} className="w-8 h-8 rounded-lg shrink-0" />
                                   <div className={`flex flex-col ${comment.user === user.name ? 'items-end' : ''}`}>
                                     <div className="flex items-center gap-2 mb-1">
-                                      <span className="text-[10px] font-bold text-white">{comment.user}</span>
+                                      <span className={`text-[10px] font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{comment.user}</span>
                                       <span className="text-[9px] text-slate-600">{new Date(comment.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                      {onDeleteComment && (comment.user === user.name || currentUser?.role === 'admin') && (
+                                        <button 
+                                          onClick={() => onDeleteComment(sub.id, comment.id, true)}
+                                          className="text-red-500 hover:text-red-400 transition-colors"
+                                          title="Delete comment"
+                                        >
+                                          <Trash2 size={10} />
+                                        </button>
+                                      )}
                                     </div>
                                     <div className={`p-3 rounded-2xl text-xs ${
-                                      comment.user === user.name ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-slate-800 text-slate-300 rounded-tl-none'
+                                      comment.user === user.name ? 'bg-blue-600 text-white rounded-tr-none' : theme === 'dark' ? 'bg-slate-800 text-slate-300 rounded-tl-none' : 'bg-white text-slate-700 border border-slate-200 rounded-tl-none shadow-sm'
                                     }`}>
                                       {comment.text}
                                     </div>
@@ -562,7 +625,7 @@ function StudentAnalyticsView({ user, topics, landingConfig, submissions, onPost
                                 }
                               }}
                               placeholder="Type a message..."
-                              className="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-xs text-white outline-none focus:ring-1 focus:ring-blue-500 transition-all"
+                              className={`flex-1 border rounded-xl px-4 py-2 text-xs outline-none focus:ring-1 focus:ring-blue-500 transition-all ${theme === 'dark' ? 'bg-slate-900 border-slate-800 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
                             />
                             <button 
                               onClick={() => {
@@ -873,29 +936,6 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, [selectedSubTopicId, isAuthReady]);
 
-  // Student Submissions Sync
-  useEffect(() => {
-    if (!currentUser || !isAuthReady || currentUser.role === 'admin') {
-      setStudentSubmissions([]);
-      return;
-    }
-
-    const q = query(collection(db, 'submissions'), where('userId', '==', currentUser.id));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const subs: ExerciseSubmission[] = [];
-      snapshot.forEach(doc => {
-        subs.push({ id: doc.id, ...doc.data() } as ExerciseSubmission);
-      });
-      // Sort by timestamp descending
-      subs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-      setStudentSubmissions(subs);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'submissions');
-    });
-
-    return () => unsubscribe();
-  }, [currentUser, isAuthReady]);
-  
   // App Data State (synced from Firestore)
   const [currentTopics, setCurrentTopics] = useState<Topic[]>([]);
   const [currentTeachers, setCurrentTeachers] = useState<Teacher[]>([]);
@@ -907,6 +947,84 @@ const App: React.FC = () => {
   const [isNotificationsLoaded, setIsNotificationsLoaded] = useState(false);
   const [adminInitialTab, setAdminInitialTab] = useState<'ANALYTICS' | 'CURRICULUM' | 'TEACHERS' | 'USERS_LIST' | 'TAGS' | 'USER_INTERFACE' | 'NOTIFICATIONS'>('ANALYTICS');
   const [studentInitialTab, setStudentInitialTab] = useState<'OVERVIEW' | 'SUBMISSIONS'>('OVERVIEW');
+
+  // Student Submissions Sync
+  useEffect(() => {
+    if (!currentUser || !isAuthReady || currentUser.role === 'admin') {
+      setStudentSubmissions([]);
+      return;
+    }
+
+    const q = query(collection(db, 'submissions'), where('userId', '==', currentUser.id));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const subs: ExerciseSubmission[] = [];
+      snapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        let subTopicTitle = "Unknown Exercise";
+        
+        // Find title from currentTopics
+        const topic = currentTopics.find(t => t.id === data.topicId);
+        if (topic) {
+          const subTopic = topic.subTopics.find(st => st.id === data.subTopicId);
+          if (subTopic) {
+            subTopicTitle = subTopic.title;
+          }
+        }
+
+        subs.push({ 
+          id: docSnap.id, 
+          ...data,
+          subTopicTitle 
+        } as ExerciseSubmission);
+      });
+      // Sort by timestamp descending
+      subs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      setStudentSubmissions(subs);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'submissions');
+    });
+
+    return () => unsubscribe();
+  }, [currentUser, isAuthReady, currentTopics]);
+
+  // Admin All Submissions Sync
+  useEffect(() => {
+    if (!currentUser || !isAuthReady || currentUser.role !== 'admin') {
+      setAllSubmissions([]);
+      return;
+    }
+
+    const q = query(collection(db, 'submissions'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const subs: ExerciseSubmission[] = [];
+      snapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        let subTopicTitle = "Unknown Exercise";
+        
+        // Find title from currentTopics
+        const topic = currentTopics.find(t => t.id === data.topicId);
+        if (topic) {
+          const subTopic = topic.subTopics.find(st => st.id === data.subTopicId);
+          if (subTopic) {
+            subTopicTitle = subTopic.title;
+          }
+        }
+
+        subs.push({ 
+          id: docSnap.id, 
+          ...data,
+          subTopicTitle 
+        } as ExerciseSubmission);
+      });
+      // Sort by timestamp descending
+      subs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      setAllSubmissions(subs);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'submissions');
+    });
+
+    return () => unsubscribe();
+  }, [currentUser, isAuthReady, currentTopics]);
 
   // Deadline check effect
   useEffect(() => {
@@ -952,10 +1070,43 @@ const App: React.FC = () => {
     checkDeadlines();
   }, [notifications, currentUser, isNotificationsLoaded]);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [showNotificationsDropdown, setShowNotificationsDropdown] = useState(false);
   const [highlightedNotificationId, setHighlightedNotificationId] = useState<string | null>(null);
   const userDropdownRef = useRef<HTMLDivElement>(null);
   const notificationsDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (currentUser?.theme) {
+      setTheme(currentUser.theme);
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [theme]);
+
+  const toggleTheme = async () => {
+    const newTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(newTheme);
+    if (currentUser) {
+      try {
+        await setDoc(doc(db, 'users', currentUser.id), { theme: newTheme }, { merge: true });
+      } catch (error) {
+        console.error("Error updating theme:", error);
+      }
+    }
+  };
+
+  const getThemeImage = (lightUrl?: string, darkUrl?: string, defaultUrl?: string) => {
+    if (theme === 'light' && lightUrl) return lightUrl;
+    if (theme === 'dark' && darkUrl) return darkUrl;
+    return defaultUrl || '';
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -992,6 +1143,13 @@ const App: React.FC = () => {
       }, 2000);
   };
 
+  const handleNavigateToModule = (topicId: string, subTopicId: string) => {
+    const topic = currentTopics.find(t => t.id === topicId);
+    if (topic) {
+        handleTopicSelect(topic, subTopicId);
+    }
+  };
+
   const pulsingRedStyle = `
     @keyframes pulse-red {
       0% { transform: scale(1); opacity: 1; color: inherit; }
@@ -1023,16 +1181,17 @@ const App: React.FC = () => {
     if (landingConfig.browserTitle) {
       document.title = landingConfig.browserTitle;
     }
-    if (landingConfig.faviconUrl) {
+    const faviconUrl = getThemeImage(landingConfig.faviconUrlLight, landingConfig.faviconUrlDark, landingConfig.faviconUrl);
+    if (faviconUrl) {
       let link: HTMLLinkElement | null = document.querySelector("link[rel~='icon']");
       if (!link) {
         link = document.createElement('link');
         link.rel = 'icon';
         document.getElementsByTagName('head')[0].appendChild(link);
       }
-      link.href = landingConfig.faviconUrl;
+      link.href = faviconUrl;
     }
-  }, [landingConfig.browserTitle, landingConfig.faviconUrl]);
+  }, [landingConfig.browserTitle, landingConfig.faviconUrl, landingConfig.faviconUrlLight, landingConfig.faviconUrlDark, theme]);
 
   // Sync all users and their progress if admin
   useEffect(() => {
@@ -1128,7 +1287,7 @@ const App: React.FC = () => {
 
   // Topics Sync from Firestore
   useEffect(() => {
-    if (!isAuthReady) return;
+    if (!isAuthReady || !currentUser) return;
 
     const unsubscribe = onSnapshot(collection(db, 'topics'), (snapshot) => {
       const topics: Topic[] = [];
@@ -1155,7 +1314,7 @@ const App: React.FC = () => {
 
   // Teachers Sync from Firestore
   useEffect(() => {
-    if (!isAuthReady) return;
+    if (!isAuthReady || !currentUser) return;
 
     const unsubscribe = onSnapshot(collection(db, 'teachers'), (snapshot) => {
       const teachers: Teacher[] = [];
@@ -1176,7 +1335,7 @@ const App: React.FC = () => {
 
   // Tags Sync from Firestore
   useEffect(() => {
-    if (!isAuthReady) return;
+    if (!isAuthReady || !currentUser) return;
 
     const unsubscribe = onSnapshot(collection(db, 'tags'), (snapshot) => {
       const tags: Tag[] = [];
@@ -1239,6 +1398,7 @@ const App: React.FC = () => {
   const [quizProgress, setQuizProgress] = useState<Record<string, QuizAttempt[]>>({});
   const [isProgressLoaded, setIsProgressLoaded] = useState(false);
   const [studentSubmissions, setStudentSubmissions] = useState<ExerciseSubmission[]>([]);
+  const [allSubmissions, setAllSubmissions] = useState<ExerciseSubmission[]>([]);
 
   const userWithProgress = useMemo(() => {
     if (!currentUser) return null;
@@ -1501,14 +1661,18 @@ const App: React.FC = () => {
           }
       } else if (submissionData) {
           try {
+              // Check if this is a resubmission
+              const isResubmission = studentSubmissions.some(s => s.id === submissionData.id && s.status === 'rejected');
+              
               await setDoc(doc(db, 'submissions', submissionData.id), submissionData);
               
               // Create Notification for Admin
               const topic = currentTopics.find(t => t.id === submissionData.topicId);
               const subTopic = topic?.subTopics.find(st => st.id === submissionData.subTopicId);
               
+              const adminNotifId = `notif_${submissionData.id}_admin`;
               const notification: AppNotification = {
-                  id: Date.now().toString(),
+                  id: adminNotifId,
                   userId: submissionData.userId,
                   userName: submissionData.userName,
                   topicId: submissionData.topicId,
@@ -1520,10 +1684,10 @@ const App: React.FC = () => {
                   read: false,
                   evaluated: false,
                   targetUserId: 'admin',
-                  type: 'EXERCISE_SUBMISSION',
+                  type: isResubmission ? 'EXERCISE_RESUBMISSION' : 'EXERCISE_SUBMISSION',
                   files: submissionData.files.map(f => ({ name: f.name, url: f.url }))
               };
-              await setDoc(doc(db, 'notifications', notification.id), notification);
+              await setDoc(doc(db, 'notifications', adminNotifId), notification);
 
               setExerciseRecords(prev => {
                   if (prev.some(r => r.id === subTopicId)) return prev;
@@ -1549,263 +1713,367 @@ const App: React.FC = () => {
   };
 
   const addComment = async (subTopicId: string, text: string) => {
-      if (!currentUser) return;
-      const newComment: Comment = {
-          id: Date.now().toString(),
-          userId: currentUser.id,
-          user: currentUser.name,
-          avatar: currentUser.avatar,
-          text: text,
-          timestamp: new Date().toLocaleString(),
-          reactions: {},
-          replies: []
-      };
-      
-      const updatedComments = [...(topicComments[subTopicId] || []), newComment];
-      
-      setTopicComments(prev => ({
-          ...prev,
-          [subTopicId]: updatedComments
-      }));
+    if (!currentUser) return;
+    const newComment: Comment = {
+      id: Date.now().toString(),
+      userId: currentUser.id,
+      user: currentUser.name,
+      avatar: currentUser.avatar,
+      text: text,
+      timestamp: new Date().toISOString(),
+      reactions: {},
+      replies: []
+    };
+    
+    try {
+      await runTransaction(db, async (transaction) => {
+        const commentDocRef = doc(db, 'comments', subTopicId);
+        const commentDoc = await transaction.get(commentDocRef);
+        
+        let updatedComments: Comment[] = [];
+        if (commentDoc.exists()) {
+          updatedComments = [...(commentDoc.data().comments || []), newComment];
+        } else {
+          updatedComments = [newComment];
+        }
+        
+        transaction.set(commentDocRef, { comments: updatedComments }, { merge: true });
 
-      try {
-          await setDoc(doc(db, 'comments', subTopicId), {
-              comments: updatedComments
-          }, { merge: true });
+        // Notify participants
+        const topic = currentTopics.find(t => t.subTopics.some(st => st.id === subTopicId));
+        const subTopic = topic?.subTopics.find(st => st.id === subTopicId);
+        
+        // Get all unique user IDs who have commented in this thread
+        const participants: string[] = Array.from(new Set(updatedComments.map(c => c.userId))).filter(id => !!id) as string[];
+        // Also include admin
+        if (!participants.includes('admin')) participants.push('admin');
 
-          // Notify the admin if it's a student posting
-          if (currentUser.role !== 'admin') {
-              const topic = currentTopics.find(t => t.subTopics.some(st => st.id === subTopicId));
-              const subTopic = topic?.subTopics.find(st => st.id === subTopicId);
-              
-              const notifId = `comment_${Date.now()}_admin`;
-              const notification: AppNotification = {
-                  id: notifId,
-                  userId: currentUser.id,
-                  userName: currentUser.name,
-                  topicId: topic?.id || '',
-                  subTopicId: subTopicId,
-                  topicTitle: topic?.title || '',
-                  subTopicTitle: subTopic?.title || '',
-                  submissionId: '',
-                  timestamp: new Date().toISOString(),
-                  read: false,
-                  targetUserId: 'admin',
-                  type: 'SUBMISSION_COMMENT',
-                  comments: [newComment],
-                  files: []
-              };
-              await setDoc(doc(db, 'notifications', notifId), notification);
-          }
-      } catch (error) {
-          handleFirestoreError(error, OperationType.WRITE, `comments/${subTopicId}`);
-      }
+        // Notify everyone except the current user
+        for (const targetUserId of participants) {
+          if (targetUserId === currentUser.id) continue;
+
+          const notifId = `notif_${subTopicId}_${targetUserId}`;
+          const notification: AppNotification = {
+            id: notifId,
+            userId: targetUserId,
+            userName: currentUser.name,
+            topicId: topic?.id || '',
+            subTopicId: subTopicId,
+            topicTitle: topic?.title || '',
+            subTopicTitle: subTopic?.title || '',
+            submissionId: '',
+            timestamp: new Date().toISOString(),
+            read: false,
+            hasNewComments: true,
+            lastCommentTimestamp: new Date().toISOString(),
+            targetUserId: targetUserId,
+            type: 'SUBMISSION_COMMENT',
+            comments: updatedComments,
+            files: []
+          };
+          transaction.set(doc(db, 'notifications', notifId), notification, { merge: true });
+        }
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `comments/${subTopicId}`);
+    }
   };
 
   const handleReply = async (subTopicId: string, parentCommentId: string, text: string) => {
-      if (!currentUser) return;
-      const newReply: Comment = {
-          id: Date.now().toString(),
-          userId: currentUser.id,
-          user: currentUser.name,
-          avatar: currentUser.avatar,
-          text: text,
-          timestamp: new Date().toLocaleString(),
-          reactions: {},
-          replies: []
-      };
+    if (!currentUser) return;
+    const newReply: Comment = {
+      id: Date.now().toString(),
+      userId: currentUser.id,
+      user: currentUser.name,
+      avatar: currentUser.avatar,
+      text: text,
+      timestamp: new Date().toISOString(),
+      reactions: {},
+      replies: []
+    };
 
-      const comments = topicComments[subTopicId] || [];
-      let parentCommentAuthorId: string | null = null;
+    try {
+      await runTransaction(db, async (transaction) => {
+        const commentDocRef = doc(db, 'comments', subTopicId);
+        const commentDoc = await transaction.get(commentDocRef);
+        
+        if (!commentDoc.exists()) return;
 
-      const findParentAndAddReply = (c: Comment): Comment => {
+        const comments = commentDoc.data().comments || [];
+        let parentCommentAuthorId: string | null = null;
+
+        const findParentAndAddReply = (c: Comment): Comment => {
           if (c.id === parentCommentId) {
-              parentCommentAuthorId = c.userId;
-              return { ...c, replies: [...c.replies, newReply] };
+            parentCommentAuthorId = c.userId;
+            return { ...c, replies: [...c.replies, newReply] };
           }
           if (c.replies.length > 0) {
-              return { ...c, replies: c.replies.map(findParentAndAddReply) };
+            return { ...c, replies: c.replies.map(findParentAndAddReply) };
           }
           return c;
-      };
-      const updatedComments = comments.map(findParentAndAddReply);
+        };
+        const updatedComments = comments.map(findParentAndAddReply);
 
-      setTopicComments(prev => ({ ...prev, [subTopicId]: updatedComments }));
+        transaction.set(commentDocRef, { comments: updatedComments }, { merge: true });
 
-      try {
-          await setDoc(doc(db, 'comments', subTopicId), {
-              comments: updatedComments
-          }, { merge: true });
+        // Notify participants
+        const topic = currentTopics.find(t => t.subTopics.some(st => st.id === subTopicId));
+        const subTopic = topic?.subTopics.find(st => st.id === subTopicId);
+        
+        // Get all unique user IDs who have commented in this thread
+        const participants: string[] = Array.from(new Set(updatedComments.flatMap(c => {
+          const ids = [c.userId];
+          const getReplyIds = (r: Comment): string[] => [r.userId, ...r.replies.flatMap(getReplyIds)];
+          return [...ids, ...c.replies.flatMap(getReplyIds)];
+        }))).filter(id => !!id) as string[];
+        // Also include admin
+        if (!participants.includes('admin')) participants.push('admin');
 
-          // Notify the parent comment author if it's not the current user
-          if (parentCommentAuthorId && parentCommentAuthorId !== currentUser.id) {
-              const topic = currentTopics.find(t => t.subTopics.some(st => st.id === subTopicId));
-              const subTopic = topic?.subTopics.find(st => st.id === subTopicId);
-              
-              const notifId = `reply_${Date.now()}_${parentCommentAuthorId}`;
-              const notification: AppNotification = {
-                  id: notifId,
-                  userId: currentUser.id,
-                  userName: currentUser.name,
-                  topicId: topic?.id || '',
-                  subTopicId: subTopicId,
-                  topicTitle: topic?.title || '',
-                  subTopicTitle: subTopic?.title || '',
-                  submissionId: '', // Not a submission
-                  timestamp: new Date().toISOString(),
-                  read: false,
-                  targetUserId: parentCommentAuthorId,
-                  type: 'SUBMISSION_COMMENT', // Reusing this type for general comments too
-                  comments: [newReply],
-                  files: []
-              };
-              await setDoc(doc(db, 'notifications', notifId), notification);
-          }
-      } catch (error) {
-          handleFirestoreError(error, OperationType.WRITE, `comments/${subTopicId}`);
-      }
+        // Notify everyone except the current user
+        for (const targetUserId of participants) {
+          if (targetUserId === currentUser.id) continue;
+
+          const notifId = `notif_${subTopicId}_${targetUserId}`;
+          const notification: AppNotification = {
+            id: notifId,
+            userId: targetUserId,
+            userName: currentUser.name,
+            topicId: topic?.id || '',
+            subTopicId: subTopicId,
+            topicTitle: topic?.title || '',
+            subTopicTitle: subTopic?.title || '',
+            submissionId: '', // Not a submission
+            timestamp: new Date().toISOString(),
+            read: false,
+            hasNewComments: true,
+            lastCommentTimestamp: new Date().toISOString(),
+            targetUserId: targetUserId,
+            type: 'SUBMISSION_COMMENT',
+            comments: updatedComments,
+            files: []
+          };
+          transaction.set(doc(db, 'notifications', notifId), notification, { merge: true });
+        }
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `comments/${subTopicId}`);
+    }
   };
 
-  const handlePostSubmissionComment = async (submissionId: string, text: string) => {
-      if (!currentUser) return;
-      
-      const submission = studentSubmissions.find(s => s.id === submissionId) || 
-                          notifications.find(n => n.submissionId === submissionId);
-      if (!submission) return;
+  const handlePostSubmissionComment = async (id: string, text: string, isSubmission: boolean = true) => {
+    if (!currentUser) return;
+    
+    try {
+      const newComment: Comment = {
+        id: `comment_${Date.now()}`,
+        userId: currentUser.id,
+        user: currentUser.name,
+        avatar: currentUser.avatar,
+        text,
+        timestamp: new Date().toISOString(),
+        reactions: {},
+        replies: []
+      };
 
-      try {
-          const newComment: Comment = {
-              id: `comment_${Date.now()}`,
-              userId: currentUser.id,
-              user: currentUser.name,
-              avatar: currentUser.avatar,
-              text,
-              timestamp: new Date().toISOString(),
-              reactions: {},
-              replies: []
+      await runTransaction(db, async (transaction) => {
+        let updatedComments: Comment[] = [];
+        let topicId = '';
+        let subTopicId = '';
+        let topicTitle = '';
+        let subTopicTitle = '';
+        let files: any[] = [];
+
+        if (isSubmission) {
+          const submissionDocRef = doc(db, 'submissions', id);
+          const submissionDoc = await transaction.get(submissionDocRef);
+          
+          if (!submissionDoc.exists()) return;
+          const submissionData = submissionDoc.data();
+
+          updatedComments = [...(submissionData.comments || []), newComment];
+          topicId = submissionData.topicId || '';
+          subTopicId = submissionData.subTopicId || '';
+          topicTitle = submissionData.topicTitle || '';
+          subTopicTitle = submissionData.subTopicTitle || '';
+          files = submissionData.files || [];
+
+          transaction.set(submissionDocRef, { comments: updatedComments }, { merge: true });
+        } else {
+          // Sub-topic comment
+          const commentDocRef = doc(db, 'comments', id);
+          const commentDoc = await transaction.get(commentDocRef);
+          
+          updatedComments = commentDoc.exists() ? [...(commentDoc.data().comments || []), newComment] : [newComment];
+          
+          const topic = currentTopics.find(t => t.subTopics.some(st => st.id === id));
+          const subTopic = topic?.subTopics.find(st => st.id === id);
+          
+          topicId = topic?.id || '';
+          subTopicId = id;
+          topicTitle = topic?.title || '';
+          subTopicTitle = subTopic?.title || '';
+          
+          transaction.set(commentDocRef, { comments: updatedComments }, { merge: true });
+        }
+
+        // Update notifications for participants
+        const participants: string[] = Array.from(new Set(updatedComments.map(c => c.userId))).filter(id => !!id) as string[];
+        if (!participants.includes('admin')) participants.push('admin');
+
+        for (const targetUserId of participants) {
+          const notifId = isSubmission 
+            ? `notif_${id}_${targetUserId}`
+            : `notif_${subTopicId}_${targetUserId}`;
+
+          const isCurrentUser = targetUserId === currentUser.id;
+
+          const notification: any = {
+            id: notifId,
+            userId: targetUserId,
+            userName: currentUser.name,
+            topicId,
+            subTopicId,
+            topicTitle,
+            subTopicTitle,
+            submissionId: isSubmission ? id : '',
+            timestamp: new Date().toISOString(),
+            read: isCurrentUser, // Mark as read for the person who just commented
+            hasNewComments: !isCurrentUser, // Mark as having new comments for everyone else
+            lastCommentTimestamp: new Date().toISOString(),
+            targetUserId: targetUserId,
+            type: isSubmission ? 'EXERCISE_SUBMISSION' : 'SUBMISSION_COMMENT',
+            comments: updatedComments,
+            files
           };
-
-          const currentComments = (submission as any).comments || [];
-          const updatedComments = [...currentComments, newComment];
-
-          // Update the submission document
-          await setDoc(doc(db, 'submissions', submissionId), {
-              comments: updatedComments
-          }, { merge: true });
-
-          // Update ALL notifications associated with this submissionId
-          // This ensures both admin and student views stay in sync
-          const relatedNotifications = notifications.filter(n => n.submissionId === submissionId);
-          
-          if (relatedNotifications.length > 0) {
-              for (const notif of relatedNotifications) {
-                  await setDoc(doc(db, 'notifications', notif.id), {
-                      read: notif.targetUserId === currentUser.id, // Mark as read for the person who posted
-                      hasNewComments: true,
-                      lastCommentTimestamp: new Date().toISOString(),
-                      comments: updatedComments
-                  }, { merge: true });
-              }
-          }
-
-          // If no notification exists for the OTHER party, create one
-          const otherPartyId = currentUser.role === 'admin' 
-              ? ((submission as any).userId || (submission as any).id) // Student ID
-              : 'admin';
-          
-          const hasNotifForOtherParty = relatedNotifications.some(n => n.targetUserId === otherPartyId);
-          
-          if (!hasNotifForOtherParty) {
-              const notifId = `notif_${Date.now()}_${otherPartyId}`;
-              const notification: AppNotification = {
-                  id: notifId,
-                  userId: currentUser.id,
-                  userName: currentUser.name,
-                  topicId: (submission as any).topicId || '',
-                  subTopicId: (submission as any).subTopicId || '',
-                  topicTitle: (submission as any).topicTitle || '',
-                  subTopicTitle: (submission as any).subTopicTitle || '',
-                  submissionId: submissionId,
-                  timestamp: new Date().toISOString(),
-                  read: false,
-                  hasNewComments: true,
-                  lastCommentTimestamp: new Date().toISOString(),
-                  targetUserId: otherPartyId,
-                  type: 'SUBMISSION_COMMENT',
-                  comments: updatedComments,
-                  files: (submission as any).files || []
-              };
-              await setDoc(doc(db, 'notifications', notifId), notification);
-          }
-      } catch (error) {
-          handleFirestoreError(error, OperationType.WRITE, `submissions/${submissionId}`);
-      }
+          transaction.set(doc(db, 'notifications', notifId), notification, { merge: true });
+        }
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, isSubmission ? `submissions/${id}` : `comments/${id}`);
+    }
   };
 
   const handleMarkNotificationRead = async (id: string) => {
-      try {
-          await setDoc(doc(db, 'notifications', id), { read: true }, { merge: true });
-      } catch (error) {
-          handleFirestoreError(error, OperationType.WRITE, `notifications/${id}`);
-      }
+    try {
+      await setDoc(doc(db, 'notifications', id), { 
+        read: true,
+        hasNewComments: false 
+      }, { merge: true });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `notifications/${id}`);
+    }
+  };
+
+  const handleDeleteNotification = async (id: string) => {
+    try {
+      await deleteDoc(doc(db, 'notifications', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `notifications/${id}`);
+    }
+  };
+
+  const handleRequestResubmission = async (submissionId: string, feedback: string) => {
+    if (!currentUser || currentUser.role !== 'admin') return;
+    try {
+        await runTransaction(db, async (transaction) => {
+            const submissionDocRef = doc(db, 'submissions', submissionId);
+            const submissionDoc = await transaction.get(submissionDocRef);
+            if (!submissionDoc.exists()) return;
+
+            const submissionData = submissionDoc.data();
+            const studentId = submissionData.userId;
+
+            // Update submission
+            transaction.set(submissionDocRef, { 
+                feedback, 
+                status: 'rejected' 
+            }, { merge: true });
+
+            // Update admin notification
+            const adminNotifId = `notif_${submissionId}_admin`;
+            transaction.set(doc(db, 'notifications', adminNotifId), { 
+                evaluated: true,
+                feedback,
+                completed: false, // Not completed, needs resubmission
+                read: true
+            }, { merge: true });
+
+            // Update student notification
+            if (studentId) {
+                const studentNotifId = `notif_${submissionId}_${studentId}`;
+                transaction.set(doc(db, 'notifications', studentNotifId), {
+                    read: false,
+                    evaluated: true,
+                    feedback,
+                    timestamp: new Date().toISOString(),
+                    type: 'EXERCISE_SUBMISSION',
+                    topicId: submissionData.topicId || '',
+                    subTopicId: submissionData.subTopicId || '',
+                    topicTitle: submissionData.topicTitle || '',
+                    subTopicTitle: submissionData.subTopicTitle || '',
+                    submissionId: submissionId,
+                    userId: studentId,
+                    userName: submissionData.userName || 'Student',
+                    targetUserId: studentId,
+                    files: submissionData.files || []
+                }, { merge: true });
+            }
+        });
+    } catch (error) {
+        handleFirestoreError(error, OperationType.WRITE, `submissions/${submissionId}`);
+    }
   };
 
   const handleEvaluateSubmission = async (submissionId: string, grade: number, feedback: string) => {
+      if (!currentUser || currentUser.role !== 'admin') return;
       try {
-          await setDoc(doc(db, 'submissions', submissionId), { 
-              grade, 
-              feedback, 
-              status: 'reviewed' 
-          }, { merge: true });
+          await runTransaction(db, async (transaction) => {
+              const submissionDocRef = doc(db, 'submissions', submissionId);
+              const submissionDoc = await transaction.get(submissionDocRef);
+              if (!submissionDoc.exists()) return;
 
-          // Update admin notification
-          const adminNotif = notifications.find(n => n.submissionId === submissionId && n.targetUserId === 'admin');
-          if (adminNotif) {
-              await setDoc(doc(db, 'notifications', adminNotif.id), { 
+              const submissionData = submissionDoc.data();
+              const studentId = submissionData.userId;
+
+              // Update submission
+              transaction.set(submissionDocRef, { 
+                  grade, 
+                  feedback, 
+                  status: 'reviewed' 
+              }, { merge: true });
+
+              // Update admin notification
+              const adminNotifId = `notif_${submissionId}_admin`;
+              transaction.set(doc(db, 'notifications', adminNotifId), { 
                   evaluated: true,
                   grade,
-                  feedback
+                  feedback,
+                  completed: true,
+                  read: true // Admin just evaluated it, so mark as read
               }, { merge: true });
-          }
 
-          // Create/Update student notification
-          const submission = studentSubmissions.find(s => s.id === submissionId) || 
-                           notifications.find(n => n.submissionId === submissionId);
-          const studentId = (submission as any)?.userId || (submission as any)?.id;
-          
-          if (studentId) {
-              const studentNotif = notifications.find(n => n.submissionId === submissionId && n.targetUserId === studentId);
-              if (studentNotif) {
-                  await setDoc(doc(db, 'notifications', studentNotif.id), {
+              // Update student notification
+              if (studentId) {
+                  const studentNotifId = `notif_${submissionId}_${studentId}`;
+                  transaction.set(doc(db, 'notifications', studentNotifId), {
                       read: false,
                       evaluated: true,
                       grade,
                       feedback,
-                      timestamp: new Date().toISOString()
-                  }, { merge: true });
-              } else {
-                  const notifId = `notif_eval_${Date.now()}`;
-                  const notification: AppNotification = {
-                      id: notifId,
-                      userId: currentUser?.id || 'admin',
-                      userName: currentUser?.name || 'Instructor',
-                      topicId: (submission as any)?.topicId || '',
-                      subTopicId: (submission as any)?.subTopicId || '',
-                      topicTitle: (submission as any)?.topicTitle || '',
-                      subTopicTitle: (submission as any)?.subTopicTitle || '',
-                      submissionId: submissionId,
                       timestamp: new Date().toISOString(),
-                      read: false,
-                      evaluated: true,
-                      grade,
-                      feedback,
-                      targetUserId: studentId,
                       type: 'EXERCISE_SUBMISSION',
-                      files: (submission as any)?.files || []
-                  };
-                  await setDoc(doc(db, 'notifications', notifId), notification);
+                      topicId: submissionData.topicId || '',
+                      subTopicId: submissionData.subTopicId || '',
+                      topicTitle: submissionData.topicTitle || '',
+                      subTopicTitle: submissionData.subTopicTitle || '',
+                      submissionId: submissionId,
+                      userId: studentId,
+                      userName: submissionData.userName || 'Student',
+                      targetUserId: studentId,
+                      files: submissionData.files || []
+                  }, { merge: true });
               }
-          }
+          });
       } catch (error) {
           handleFirestoreError(error, OperationType.WRITE, `submissions/${submissionId}`);
       }
@@ -1848,88 +2116,136 @@ const App: React.FC = () => {
   };
 
   const handleDeleteComment = async (id: string, commentId: string, isSubmission: boolean = false) => {
-      if (isSubmission) {
-          const submission = studentSubmissions.find(s => s.id === id) || 
-                             notifications.find(n => n.submissionId === id);
-          if (!submission) return;
+    if (!currentUser) return;
 
-          const comments = (submission as any).comments || [];
-          const deleteComment = (list: Comment[]): Comment[] => {
-              return list
-                  .filter(c => c.id !== commentId) 
-                  .map(c => ({
-                      ...c,
-                      replies: deleteComment(c.replies) 
-                  }));
-          };
-          const updatedComments = deleteComment(comments);
-
-          try {
-              await setDoc(doc(db, 'submissions', id), {
-                  comments: updatedComments
-              }, { merge: true });
-
-              // Also update any related notifications
-              const relatedNotifications = notifications.filter(n => n.submissionId === id);
-              for (const notif of relatedNotifications) {
-                  await setDoc(doc(db, 'notifications', notif.id), {
-                      comments: updatedComments
-                  }, { merge: true });
-              }
-          } catch (error) {
-              handleFirestoreError(error, OperationType.WRITE, `submissions/${id}`);
-          }
-          return;
+    const findComment = (list: Comment[], targetId: string): Comment | null => {
+      for (const c of list) {
+        if (c.id === targetId) return c;
+        const found = findComment(c.replies, targetId);
+        if (found) return found;
       }
+      return null;
+    };
 
-      const comments = topicComments[id] || [];
-      const deleteComment = (list: Comment[]): Comment[] => {
-          return list
-              .filter(c => c.id !== commentId) 
-              .map(c => ({
-                  ...c,
-                  replies: deleteComment(c.replies) 
-              }));
-      };
-      const updatedComments = deleteComment(comments);
+    const deleteComment = (list: Comment[]): Comment[] => {
+      return list
+        .filter(c => c.id !== commentId) 
+        .map(c => ({
+          ...c,
+          replies: deleteComment(c.replies) 
+        }));
+    };
+
+    try {
+      // 1. Get all related notifications first (outside transaction to avoid read-after-write issues)
+      const notifQuery = isSubmission 
+        ? query(collection(db, 'notifications'), where('submissionId', '==', id))
+        : query(collection(db, 'notifications'), where('subTopicId', '==', id), where('type', '==', 'SUBMISSION_COMMENT'));
       
-      setTopicComments(prev => ({ ...prev, [id]: updatedComments }));
+      const notifSnaps = await getDocs(notifQuery);
 
-      try {
-          await setDoc(doc(db, 'comments', id), {
-              comments: updatedComments
-          }, { merge: true });
-      } catch (error) {
-          handleFirestoreError(error, OperationType.WRITE, `comments/${id}`);
-      }
+      await runTransaction(db, async (transaction) => {
+        let updatedComments: Comment[] = [];
+        let originalComments: Comment[] = [];
+        
+        if (isSubmission) {
+          const submissionDocRef = doc(db, 'submissions', id);
+          const submissionDoc = await transaction.get(submissionDocRef);
+          if (!submissionDoc.exists()) return;
+          
+          originalComments = submissionDoc.data().comments || [];
+        } else {
+          const commentDocRef = doc(db, 'comments', id);
+          const commentDoc = await transaction.get(commentDocRef);
+          if (!commentDoc.exists()) return;
+
+          originalComments = commentDoc.data().comments || [];
+        }
+
+        const commentToDelete = findComment(originalComments, commentId);
+        if (!commentToDelete) return;
+
+        // Only allow deleting own comment (admins can delete any for moderation)
+        if (currentUser.role !== 'admin' && commentToDelete.userId !== currentUser.id) {
+          console.error("Unauthorized comment deletion attempt");
+          return;
+        }
+
+        updatedComments = deleteComment(originalComments);
+
+        if (isSubmission) {
+          const submissionDocRef = doc(db, 'submissions', id);
+          transaction.set(submissionDocRef, { comments: updatedComments }, { merge: true });
+        } else {
+          const commentDocRef = doc(db, 'comments', id);
+          transaction.set(commentDocRef, { comments: updatedComments }, { merge: true });
+        }
+
+        // Update ALL related notifications in Firestore
+        notifSnaps.forEach(notifDoc => {
+          const notifData = notifDoc.data() as AppNotification;
+          const updatedNotifComments = deleteComment(notifData.comments || []);
+          
+          if (notifData.type === 'SUBMISSION_COMMENT' && updatedNotifComments.length === 0) {
+            transaction.delete(notifDoc.ref);
+          } else {
+            transaction.set(notifDoc.ref, { comments: updatedNotifComments }, { merge: true });
+          }
+        });
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, isSubmission ? `submissions/${id}` : `comments/${id}`);
+    }
   };
 
-  const handleReaction = async (subTopicId: string, commentId: string, emoji: string) => {
-      const comments = topicComments[subTopicId] || [];
-      const updateReactions = (c: Comment): Comment => {
+  const handleReaction = async (id: string, commentId: string, emoji: string, isSubmission: boolean = false) => {
+    if (!currentUser) return;
+    try {
+      await runTransaction(db, async (transaction) => {
+        const docRef = doc(db, isSubmission ? 'submissions' : 'comments', id);
+        const docSnap = await transaction.get(docRef);
+        
+        if (!docSnap.exists()) return;
+
+        const comments = docSnap.data().comments || [];
+        const updateReactions = (c: Comment): Comment => {
           if (c.id === commentId) {
-              const currentCount = c.reactions[emoji] || 0;
-              return { 
-                  ...c, 
-                  reactions: { ...c.reactions, [emoji]: currentCount + 1 } 
-              };
+            const reactions = { ...c.reactions };
+            
+            // Find if user already has a reaction to this comment
+            let existingEmoji = '';
+            Object.keys(reactions).forEach(e => {
+              const uids = Array.isArray(reactions[e]) ? reactions[e] : [];
+              if (uids.includes(currentUser.id)) {
+                existingEmoji = e;
+              }
+            });
+
+            // Remove user from ALL emojis for this comment (enforce one reaction)
+            Object.keys(reactions).forEach(e => {
+              const uids = Array.isArray(reactions[e]) ? reactions[e] : [];
+              reactions[e] = uids.filter(uid => uid !== currentUser.id);
+              if (reactions[e].length === 0) delete reactions[e];
+            });
+
+            // If clicking a DIFFERENT emoji, add it. If clicking SAME emoji, it stays removed (toggle).
+            if (existingEmoji !== emoji) {
+              reactions[emoji] = [...(reactions[emoji] || []), currentUser.id];
+            }
+
+            return { ...c, reactions };
           }
           if (c.replies.length > 0) {
-              return { ...c, replies: c.replies.map(r => updateReactions(r)) };
+            return { ...c, replies: c.replies.map(r => updateReactions(r)) };
           }
           return c;
-      };
-      const updatedComments = comments.map(updateReactions);
-
-      setTopicComments(prev => ({ ...prev, [subTopicId]: updatedComments }));
-
-      try {
-          await setDoc(doc(db, 'comments', subTopicId), {
-              comments: updatedComments
-          }, { merge: true });
-      } catch (error) {
-          handleFirestoreError(error, OperationType.WRITE, `comments/${subTopicId}`);
-      }
+        };
+        const updatedComments = comments.map(updateReactions);
+        transaction.set(docRef, { comments: updatedComments }, { merge: true });
+      });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, `${isSubmission ? 'submissions' : 'comments'}/${id}`);
+    }
   };
 
   if (viewState === ViewState.LOGIN) {
@@ -1939,6 +2255,7 @@ const App: React.FC = () => {
             validUsers={currentUsers} 
             bootstrapAdminEmail={BOOTSTRAP_ADMIN_EMAIL}
             landingConfig={landingConfig}
+            theme={theme}
         />
       );
   }
@@ -1952,21 +2269,25 @@ const App: React.FC = () => {
             initialTags={currentTags}
             initialLandingConfig={landingConfig}
             notifications={notifications}
+            submissions={allSubmissions}
             initialTab={adminInitialTab}
             onApplyChanges={handleApplyAdminChanges}
             onExit={() => setViewState(ViewState.HOME)}
             onPostSubmissionComment={handlePostSubmissionComment}
             onDeleteComment={handleDeleteComment}
             onMarkNotificationRead={handleMarkNotificationRead}
+            onDeleteNotification={handleDeleteNotification}
             onEvaluateSubmission={handleEvaluateSubmission}
+            onRequestResubmission={handleRequestResubmission}
             onToggleNotificationCompleted={handleToggleNotificationCompleted}
             onDeleteFile={handleDeleteFile}
+            theme={theme}
         />
       );
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-200 selection:bg-blue-500/30 font-sans">
+    <div className={`min-h-screen transition-colors duration-300 selection:bg-blue-500/30 font-sans ${theme === 'dark' ? 'bg-slate-950 text-slate-200' : 'bg-slate-50 text-slate-800'}`}>
       <style>{pulsingRedStyle}</style>
       <Joyride
         steps={tourSteps}
@@ -1975,7 +2296,7 @@ const App: React.FC = () => {
         showProgress={false}
         showSkipButton={true}
         callback={handleTourCallback}
-        tooltipComponent={TourTooltip}
+        tooltipComponent={(props) => <TourTooltip {...props} theme={theme} />}
         scrollDuration={400}
         scrollOffset={150}
         disableScrolling={false}
@@ -2116,29 +2437,29 @@ const App: React.FC = () => {
       )}
 
       {viewState === ViewState.HOME && (
-        <div className="h-screen flex flex-col relative overflow-hidden">
+        <div className={`h-screen flex flex-col relative overflow-hidden transition-colors duration-300 ${theme === 'dark' ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'}`}>
           
           {/* Navigation Bar */}
-          <nav className="h-20 border-b border-slate-800 bg-slate-950/90 backdrop-blur fixed w-full z-40 flex items-center justify-between px-6 lg:px-8">
+          <nav className={`h-20 border-b fixed w-full z-40 flex items-center justify-between px-6 lg:px-8 transition-colors duration-300 ${theme === 'dark' ? 'border-slate-800 bg-slate-950/90 backdrop-blur' : 'border-slate-200 bg-white/90 backdrop-blur'}`}>
             <div className="flex items-center gap-3">
-               {landingConfig.appLogoUrl ? (
-                   <img src={landingConfig.appLogoUrl} alt="Logo" className="h-10 w-auto object-contain" />
+               {getThemeImage(landingConfig.appLogoUrlLight, landingConfig.appLogoUrlDark, landingConfig.appLogoUrl) ? (
+                   <img src={getThemeImage(landingConfig.appLogoUrlLight, landingConfig.appLogoUrlDark, landingConfig.appLogoUrl) || undefined} alt="Logo" className="h-10 w-auto object-contain" />
                ) : (
                    <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-900/20">
                       <Layers className="text-white w-6 h-6" />
                    </div>
                )}
                <div className="hidden lg:block">
-                   <span className="text-xl font-bold block leading-none text-white">{landingConfig.title}</span>
-                   <span className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">{landingConfig.subtitle}</span>
+                   <span className={`text-xl font-bold block leading-none ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{landingConfig.title}</span>
+                   <span className={`text-[10px] font-medium uppercase tracking-widest ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>{landingConfig.subtitle}</span>
                </div>
             </div>
             
-            <div className="flex bg-slate-900 p-1 rounded-lg border border-slate-800">
+            <div className={`flex p-1 rounded-lg border transition-colors ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-slate-200 border-slate-300'}`}>
                 <button 
                     onClick={() => setDashboardMode('GRAPH')}
                     id="tab-graph"
-                    className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-all ${dashboardMode === 'GRAPH' ? 'bg-[#2c5ee8] text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                    className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-all ${dashboardMode === 'GRAPH' ? 'bg-[#2c5ee8] text-white shadow-sm' : (theme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900')}`}
                 >
                     <Network className="w-4 h-4" />
                     <span className="hidden lg:inline">Knowledge Graph</span>
@@ -2146,7 +2467,7 @@ const App: React.FC = () => {
                 <button 
                     onClick={() => setDashboardMode('LIST')}
                     id="tab-list"
-                    className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-all ${dashboardMode === 'LIST' ? 'bg-slate-800 text-white shadow-sm' : 'text-slate-400 hover:text-white'}`}
+                    className={`flex items-center gap-2 px-3 sm:px-4 py-2 rounded-md text-sm font-medium transition-all ${dashboardMode === 'LIST' ? (theme === 'dark' ? 'bg-slate-800 text-white' : 'bg-white text-slate-900 shadow-sm') : (theme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-600 hover:text-slate-900')}`}
                 >
                     <List className="w-4 h-4" />
                     <span className="hidden lg:inline">Modules</span>
@@ -2271,16 +2592,16 @@ const App: React.FC = () => {
                         <div className="relative" ref={userDropdownRef}>
                             <button 
                                 onClick={() => setShowUserDropdown(!showUserDropdown)}
-                                className="flex items-center gap-2 p-1 hover:bg-slate-800 rounded-full transition-colors relative"
+                                className={`flex items-center gap-2 p-1 rounded-full transition-colors relative ${theme === 'dark' ? 'hover:bg-slate-800' : 'hover:bg-slate-200'}`}
                             >
-                                <img src={currentUser.avatar} alt="User" className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700" />
-                                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${showUserDropdown ? 'rotate-180' : ''}`} />
+                                <img src={currentUser.avatar || undefined} alt="User" className={`w-8 h-8 rounded-full border ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-slate-200 border-slate-300'}`} />
+                                <ChevronDown className={`w-4 h-4 transition-transform ${showUserDropdown ? 'rotate-180' : ''} ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`} />
                             </button>
 
                             {showUserDropdown && (
-                                <div className="absolute right-0 mt-2 w-56 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                                    <div className="px-4 py-2 border-b border-slate-800 mb-2">
-                                        <p className="text-sm font-bold text-white truncate">{currentUser.name}</p>
+                                <div className={`absolute right-0 mt-2 w-56 border rounded-xl shadow-2xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200 ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
+                                    <div className={`px-4 py-2 border-b mb-2 ${theme === 'dark' ? 'border-slate-800' : 'border-slate-100'}`}>
+                                        <p className={`text-sm font-bold truncate ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{currentUser.name}</p>
                                         <p className="text-[10px] text-slate-500 uppercase tracking-wider">{currentUser.role}</p>
                                     </div>
                                         
@@ -2289,7 +2610,7 @@ const App: React.FC = () => {
                                                 setDashboardMode('NOTIFICATIONS');
                                                 setShowUserDropdown(false);
                                             }}
-                                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+                                            className={`w-full flex items-center gap-3 px-4 py-2 text-sm transition-colors ${theme === 'dark' ? 'text-slate-300 hover:bg-slate-800 hover:text-white' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
                                         >
                                             <Bell className="w-4 h-4 text-blue-400" />
                                             <span>Notifications</span>
@@ -2297,6 +2618,23 @@ const App: React.FC = () => {
                                                 <span className="ml-auto bg-blue-500/20 text-blue-400 text-[10px] px-1.5 py-0.5 rounded-full font-bold">
                                                     {notifications.filter(n => !n.read).length}
                                                 </span>
+                                            )}
+                                        </button>
+
+                                        <button 
+                                            onClick={toggleTheme}
+                                            className={`w-full flex items-center gap-3 px-4 py-2 text-sm transition-colors ${theme === 'dark' ? 'text-slate-300 hover:bg-slate-800 hover:text-white' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+                                        >
+                                            {theme === 'dark' ? (
+                                                <>
+                                                    <Sun className="w-4 h-4 text-amber-400" />
+                                                    <span>Light Mode</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Moon className="w-4 h-4 text-indigo-400" />
+                                                    <span>Dark Mode</span>
+                                                </>
                                             )}
                                         </button>
 
@@ -2319,8 +2657,8 @@ const App: React.FC = () => {
           <div className="flex-1 pt-20 h-full relative">
             
             {showWelcomeOverlay && (
-                <div className="absolute inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-500 p-4 md:p-6">
-                    <div className="bg-slate-900 border border-slate-800 p-6 md:p-10 rounded-3xl max-w-2xl w-full shadow-2xl relative overflow-hidden">
+                <div className={`absolute inset-0 z-50 flex items-center justify-center backdrop-blur-sm animate-in fade-in duration-500 p-4 md:p-6 ${theme === 'dark' ? 'bg-slate-950/80' : 'bg-slate-50/80'}`}>
+                    <div className={`p-6 md:p-10 rounded-3xl max-w-2xl w-full shadow-2xl relative overflow-hidden border ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200'}`}>
                         <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 pointer-events-none"></div>
                         
                         <div className="relative z-10">
@@ -2328,7 +2666,7 @@ const App: React.FC = () => {
                                 <BookOpen className="w-3 h-3" /> {landingConfig.tag}
                             </div>
                             
-                            <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-6 leading-tight">
+                            <h1 className={`text-4xl md:text-5xl font-extrabold mb-6 leading-tight ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
                                 {landingConfig.welcomeTitle || landingConfig.title}
                             </h1>
                             
@@ -2338,7 +2676,7 @@ const App: React.FC = () => {
                                 </p>
                             )}
                             
-                            <p className="text-slate-400 text-lg mb-8 leading-relaxed">
+                            <p className={`text-lg mb-8 leading-relaxed ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
                                 {landingConfig.welcomeDescription || landingConfig.description}
                             </p>
 
@@ -2356,7 +2694,7 @@ const App: React.FC = () => {
                 </div>
             )}
 
-            <div className="w-full h-full bg-slate-950">
+            <div className={`w-full h-full ${theme === 'dark' ? 'bg-slate-950' : 'bg-slate-50'}`}>
                 {dashboardMode === 'GRAPH' && (
                     <div className="w-full h-full relative">
                         <TopicGraph 
@@ -2368,6 +2706,7 @@ const App: React.FC = () => {
                             graphTitle={landingConfig.graphTitle}
                             graphSubtitle={landingConfig.graphSubtitle}
                             onStartTour={() => setRunTour(true)}
+                            theme={theme}
                         />
                     </div>
                 )}
@@ -2379,33 +2718,34 @@ const App: React.FC = () => {
                         onSelectTopic={handleTopicSelect}
                         lockedTopicIds={lockedTopicIds}
                         prerequisiteLockedIds={prerequisiteLockedIds}
+                        theme={theme}
                     />
                 )}
 
                 {dashboardMode === 'TEACHERS' && (
-                    <div className="w-full h-full bg-[#0f172a] overflow-y-auto">
+                    <div className={`w-full h-full overflow-y-auto ${theme === 'dark' ? 'bg-[#0f172a]' : 'bg-slate-50'}`}>
                         {!selectedTeacherEmail ? (
                             <div className="p-8 max-w-7xl mx-auto">
-                                <h2 className="text-3xl font-bold text-[#ffffff] mb-8">Instructors</h2>
+                                <h2 className={`text-3xl font-bold mb-8 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Instructors</h2>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                                     {uniqueTeachers.map(t => (
                                         <div 
                                             key={t.email} 
                                             onClick={() => setSelectedTeacherEmail(t.email)} 
-                                            className="bg-slate-900 border border-slate-800 rounded-2xl p-6 hover:bg-slate-800 hover:border-slate-700 transition-all cursor-pointer group"
+                                            className={`rounded-2xl border p-6 transition-all cursor-pointer group ${theme === 'dark' ? 'bg-slate-900 border-slate-800 hover:bg-slate-800 hover:border-slate-700' : 'bg-white border-slate-200 hover:bg-slate-50 hover:border-slate-300 shadow-sm'}`}
                                         >
-                                             <div className="flex flex-col items-center text-center bg-slate-950/50 rounded-xl p-4 border border-slate-800/50">
-                                                <img src={t.avatar} alt={t.name} className="w-24 h-24 rounded-full mb-4 object-cover border-4 border-slate-800 group-hover:border-blue-500/50 transition-colors" />
-                                                <h3 className="text-xl font-bold text-white mb-1 group-hover:text-blue-400 transition-colors">{t.name}</h3>
-                                                <p className="text-slate-400 text-sm mb-4">{t.role}</p>
+                                             <div className={`rounded-xl p-4 border ${theme === 'dark' ? 'bg-slate-950/50 border-slate-800/50' : 'bg-slate-50 border-slate-100'} flex flex-col items-center text-center`}>
+                                                <img src={t.avatar || undefined} alt={t.name} className={`w-24 h-24 rounded-full mb-4 object-cover border-4 transition-colors ${theme === 'dark' ? 'border-slate-800 group-hover:border-blue-500/50' : 'border-white group-hover:border-blue-200 shadow-sm'}`} />
+                                                <h3 className={`text-xl font-bold mb-1 transition-colors ${theme === 'dark' ? 'text-white group-hover:text-blue-400' : 'text-slate-900 group-hover:text-blue-600'}`}>{t.name}</h3>
+                                                <p className={theme === 'dark' ? 'text-slate-400 text-sm mb-4' : 'text-slate-500 text-sm mb-4'}>{t.role}</p>
                                                 
                                                 {t.bio && (
-                                                    <p className="text-slate-500 text-xs line-clamp-2 mb-6 h-8">{t.bio}</p>
+                                                    <p className={`text-xs line-clamp-2 mb-6 h-8 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-600'}`}>{t.bio}</p>
                                                 )}
  
-                                                <div className="w-full bg-slate-800/50 rounded-lg p-3 border border-slate-700/50 mb-6">
-                                                    <div className="text-xs text-slate-500 font-mono mb-1 uppercase tracking-wider bg-slate-950/50 p-1 rounded">Modules Taught</div>
-                                                    <div className="text-lg font-bold text-white bg-slate-950/50 p-1 rounded">
+                                                <div className={`w-full rounded-lg p-3 border mb-6 ${theme === 'dark' ? 'bg-slate-800/50 border-slate-700/50' : 'bg-white border-slate-100 shadow-sm'}`}>
+                                                    <div className={`text-xs font-mono mb-1 uppercase tracking-wider p-1 rounded ${theme === 'dark' ? 'text-slate-500 bg-slate-950/50' : 'text-slate-400 bg-slate-50'}`}>Modules Taught</div>
+                                                    <div className={`text-lg font-bold p-1 rounded ${theme === 'dark' ? 'text-white bg-slate-950/50' : 'text-slate-900 bg-slate-50'}`}>
                                                         {currentTopics.filter(top => top.teacher.email === t.email).length}
                                                     </div>
                                                 </div>
@@ -2421,18 +2761,18 @@ const App: React.FC = () => {
                         ) : (
                             <div className="flex flex-col h-full">
                                 <div className="p-6 pb-0 max-w-4xl mx-auto w-full">
-                                    <button onClick={() => setSelectedTeacherEmail(null)} className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors mb-4 group">
+                                    <button onClick={() => setSelectedTeacherEmail(null)} className={`flex items-center gap-2 transition-colors mb-4 group ${theme === 'dark' ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'}`}>
                                         <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> Back to Instructors
                                     </button>
                                     
                                     {(() => {
                                         const teacher = uniqueTeachers.find(t => t.email === selectedTeacherEmail);
                                         return teacher ? (
-                                            <div className="flex items-center gap-4 mb-6 bg-slate-900 border border-slate-800 p-4 rounded-xl">
-                                                <img src={teacher.avatar} alt={teacher.name} className="w-12 h-12 rounded-full border border-slate-700" />
+                                            <div className={`flex items-center gap-4 mb-6 border p-4 rounded-xl ${theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white border-slate-200 shadow-sm'}`}>
+                                                <img src={teacher.avatar || undefined} alt={teacher.name} className={`w-12 h-12 rounded-full border ${theme === 'dark' ? 'border-slate-700' : 'border-slate-100'}`} />
                                                 <div>
-                                                    <h2 className="text-lg font-bold text-white">{teacher.name}</h2>
-                                                    <p className="text-slate-400 text-sm">Instructor Curriculum</p>
+                                                    <h2 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{teacher.name}</h2>
+                                                    <p className={theme === 'dark' ? 'text-slate-400 text-sm' : 'text-slate-500 text-sm'}>Instructor Curriculum</p>
                                                 </div>
                                             </div>
                                         ) : null;
@@ -2445,6 +2785,7 @@ const App: React.FC = () => {
                                         onSelectTopic={handleTopicSelect}
                                         lockedTopicIds={lockedTopicIds}
                                         prerequisiteLockedIds={prerequisiteLockedIds}
+                                        theme={theme}
                                     />
                                 </div>
                             </div>
@@ -2462,84 +2803,64 @@ const App: React.FC = () => {
                                     tags={currentTags}
                                     landingConfig={landingConfig}
                                     notifications={notifications}
+                                    submissions={allSubmissions}
                                     onEvaluateSubmission={handleEvaluateSubmission}
+                                    onRequestResubmission={handleRequestResubmission}
                                     onPostSubmissionComment={handlePostSubmissionComment}
                                     onDeleteComment={handleDeleteComment}
+                                    onDeleteFile={handleDeleteFile}
+                                    theme={theme}
                                 />
                             </div>
                         ) : (
                             <StudentAnalyticsView 
                                 user={userWithProgress} 
+                                currentUser={currentUser}
                                 topics={currentTopics} 
                                 landingConfig={landingConfig} 
                                 submissions={studentSubmissions}
                                 onPostSubmissionComment={handlePostSubmissionComment}
+                                onDeleteComment={handleDeleteComment}
                                 initialTab={studentInitialTab}
+                                theme={theme}
                             />
                         )}
                     </div>
                 )}
 
                 {dashboardMode === 'NOTIFICATIONS' && (
-                    <div className="h-full overflow-y-auto bg-[#0f172a]">
+                    <div className={`h-full overflow-y-auto ${theme === 'dark' ? 'bg-[#0f172a]' : 'bg-slate-50'}`}>
                         {currentUser?.role === 'admin' ? (
                             <div className="p-6 max-w-7xl mx-auto">
                                 <NotificationsView 
                                     notifications={notifications}
                                     highlightedId={highlightedNotificationId}
                                     onMarkRead={handleMarkNotificationRead}
+                                    onDelete={handleDeleteNotification}
                                     onEvaluate={handleEvaluateSubmission}
                                     onPostSubmissionComment={handlePostSubmissionComment}
-                                    onDeleteComment={handleDeleteComment}
                                     onToggleCompleted={handleToggleNotificationCompleted}
                                     onDeleteFile={handleDeleteFile}
+                                    onNavigateToModule={handleNavigateToModule}
+                                    isAdmin={true}
+                                    theme={theme}
                                 />
                             </div>
                         ) : (
-                            <div className="p-6 max-w-4xl mx-auto">
-                                <h2 className="text-2xl font-bold text-white mb-6">Your Notifications</h2>
-                                <div className="space-y-4">
-                                    {notifications.length === 0 ? (
-                                        <div className="bg-slate-900 border border-slate-800 rounded-xl p-8 text-center">
-                                            <Bell className="w-12 h-12 text-slate-700 mx-auto mb-4" />
-                                            <p className="text-slate-400">No notifications yet</p>
-                                        </div>
-                                    ) : (
-                                        notifications.map(notif => (
-                                            <div 
-                                                key={notif.id}
-                                                onClick={() => {
-                                                    handleMarkNotificationRead(notif.id);
-                                                    if (notif.type === 'EXERCISE_SUBMISSION' || notif.type === 'SUBMISSION_COMMENT') {
-                                                        setStudentInitialTab('SUBMISSIONS');
-                                                        setDashboardMode('ANALYTICS');
-                                                    }
-                                                }}
-                                                className={`bg-slate-900 border ${notif.read ? 'border-slate-800' : 'border-blue-500/50 bg-blue-500/5'} rounded-xl p-4 cursor-pointer hover:bg-slate-800 transition-all`}
-                                            >
-                                                <div className="flex items-start gap-4">
-                                                    <div className={`p-2 rounded-lg ${notif.read ? 'bg-slate-800 text-slate-400' : 'bg-blue-500 text-white'}`}>
-                                                        <Bell className="w-5 h-5" />
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        <div className="flex items-center justify-between mb-1">
-                                                            <h3 className="font-bold text-white">{notif.type === 'EXERCISE_SUBMISSION' ? 'Submission Evaluated' : 'New Comment'}</h3>
-                                                            <span className="text-xs text-slate-500">{new Date(notif.timestamp).toLocaleDateString()}</span>
-                                                        </div>
-                                                        <p className="text-sm text-slate-400">
-                                                            {notif.type === 'EXERCISE_SUBMISSION' 
-                                                                ? `Your submission for "${notif.subTopicTitle}" has been evaluated.`
-                                                                : `There is a new comment on your submission for "${notif.subTopicTitle}".`}
-                                                        </p>
-                                                        {!notif.read && (
-                                                            <span className="inline-block mt-2 px-2 py-0.5 bg-blue-500 text-white text-[10px] font-bold rounded uppercase tracking-wider">New</span>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
+                            <div className="p-6 max-w-7xl mx-auto">
+                                <NotificationsView 
+                                    notifications={notifications}
+                                    highlightedId={highlightedNotificationId}
+                                    onMarkRead={handleMarkNotificationRead}
+                                    onDelete={handleDeleteNotification}
+                                    onEvaluate={handleEvaluateSubmission}
+                                    onPostSubmissionComment={handlePostSubmissionComment}
+                                    onToggleCompleted={handleToggleNotificationCompleted}
+                                    onDeleteFile={handleDeleteFile}
+                                    onNavigateToModule={handleNavigateToModule}
+                                    isAdmin={false}
+                                    theme={theme}
+                                />
                             </div>
                         )}
                     </div>
@@ -2560,6 +2881,7 @@ const App: React.FC = () => {
             completedSubTopics={completedSubTopics}
             submittedExercises={submittedExercises}
             quizProgress={quizProgress}
+            submissions={studentSubmissions}
             onToggleComplete={toggleSubTopicCompletion}
             onSubmitExercise={handleExerciseSubmission}
             userComments={topicComments}
@@ -2567,7 +2889,9 @@ const App: React.FC = () => {
             onReply={handleReply}
             onReaction={handleReaction}
             onDeleteComment={handleDeleteComment}
+            onSubTopicChange={(id) => setSelectedSubTopicId(id)}
             onUpdateUser={(user) => setCurrentUser(user)}
+            theme={theme}
         />
       )}
     </div>

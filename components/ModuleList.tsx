@@ -9,6 +9,7 @@ interface ModuleListProps {
   onSelectTopic: (topic: Topic, subTopicId?: string) => void;
   lockedTopicIds?: Set<string>;
   prerequisiteLockedIds?: Set<string>;
+  theme: 'light' | 'dark';
 }
 
 const ModuleList: React.FC<ModuleListProps> = ({ 
@@ -16,7 +17,8 @@ const ModuleList: React.FC<ModuleListProps> = ({
     completedSubTopics, 
     onSelectTopic,
     lockedTopicIds = new Set(),
-    prerequisiteLockedIds = new Set()
+    prerequisiteLockedIds = new Set(),
+    theme
 }) => {
   // Sort topics by level to show hierarchy roughly
   const sortedTopics = [...topics].sort((a, b) => {
@@ -38,11 +40,11 @@ const ModuleList: React.FC<ModuleListProps> = ({
   };
 
   return (
-    <div className="w-full h-full overflow-y-auto bg-slate-950 p-6 lg:p-12">
+    <div className={`w-full h-full overflow-y-auto p-6 lg:p-12 transition-colors duration-300 ${theme === 'dark' ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'}`}>
         <div className="max-w-4xl mx-auto space-y-8">
             <header className="mb-8">
-                <h2 className="text-3xl font-bold text-white mb-2">My Curriculum Progress</h2>
-                <p className="text-slate-400">Track your completion status across all modules in the Recurrent Program.</p>
+                <h2 className={`text-3xl font-bold mb-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>My Curriculum Progress</h2>
+                <p className={`${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Track your completion status across all modules in the Recurrent Program.</p>
             </header>
 
             <div className="space-y-4">
@@ -58,18 +60,24 @@ const ModuleList: React.FC<ModuleListProps> = ({
                     return (
                         <div 
                             key={topic.id} 
-                            className={`bg-slate-900 border rounded-2xl overflow-hidden transition-all ${
-                                isLocked ? 'opacity-40 grayscale border-slate-800' : 
-                                isPrereqLocked ? 'opacity-[0.85] grayscale-[0.5] border-yellow-500/30' : 
-                                'border-slate-800 hover:border-slate-700'
+                            className={`border rounded-2xl overflow-hidden transition-all ${
+                                theme === 'dark' ? (
+                                    isLocked ? 'bg-slate-900 opacity-40 grayscale border-slate-800' : 
+                                    isPrereqLocked ? 'bg-slate-900 opacity-[0.85] grayscale-[0.5] border-yellow-500/30' : 
+                                    'bg-slate-900 border-slate-800 hover:border-slate-700'
+                                ) : (
+                                    isLocked ? 'bg-white opacity-40 grayscale border-slate-200' : 
+                                    isPrereqLocked ? 'bg-white opacity-[0.85] grayscale-[0.5] border-yellow-500/30' : 
+                                    'bg-white border-slate-200 hover:border-slate-300 shadow-sm'
+                                )
                             }`}
                         >
                             {/* Topic Header */}
                             <div 
                                 className={`p-6 transition-colors ${
                                     isLocked ? 'cursor-not-allowed' : 
-                                    isPrereqLocked ? 'cursor-not-allowed hover:bg-slate-800/30' : 
-                                    'cursor-pointer hover:bg-slate-800/50'
+                                    isPrereqLocked ? (theme === 'dark' ? 'cursor-not-allowed hover:bg-slate-800/30' : 'cursor-not-allowed hover:bg-slate-100/30') : 
+                                    (theme === 'dark' ? 'cursor-pointer hover:bg-slate-800/50' : 'cursor-pointer hover:bg-slate-100/50')
                                 }`}
                                 onClick={() => {
                                     const isMobile = window.innerWidth < 768;
@@ -88,13 +96,13 @@ const ModuleList: React.FC<ModuleListProps> = ({
                                     <div className="flex items-center gap-4">
                                         <button 
                                             onClick={(e) => toggleExpand(topic.id, e)}
-                                            className="p-1 rounded-md hover:bg-slate-700 text-slate-400"
+                                            className={`p-1 rounded-md transition-colors ${theme === 'dark' ? 'hover:bg-slate-800 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}
                                         >
                                             {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
                                         </button>
                                         
                                         <div className="w-12 h-12 rounded-lg shrink-0 overflow-hidden relative">
-                                            <img src={topic.imageUrl} alt={topic.title} className="w-full h-full object-cover" />
+                                            <img src={topic.imageUrl || undefined} alt={topic.title} className="w-full h-full object-cover" />
                                             <div className="absolute inset-0 bg-black/20"></div>
                                             {(isLocked || isPrereqLocked) && (
                                                 <div className="absolute inset-0 flex items-center justify-center bg-black/40">
@@ -105,7 +113,7 @@ const ModuleList: React.FC<ModuleListProps> = ({
 
                                         <div>
                                             <div className="flex items-center gap-2">
-                                                <h3 className="text-xl font-bold text-white hover:text-blue-400 transition-colors">{topic.title}</h3>
+                                                <h3 className={`text-xl font-bold transition-colors ${theme === 'dark' ? 'text-white hover:text-blue-400' : 'text-slate-900 hover:text-blue-600'}`}>{topic.title}</h3>
                                                 {isFullyComplete && <CheckCircle2 className="w-5 h-5 text-green-500" />}
                                                 <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded border ${
                                                     topic.level === 1 ? 'border-blue-500/30 text-blue-400 bg-blue-500/10' :
@@ -115,13 +123,13 @@ const ModuleList: React.FC<ModuleListProps> = ({
                                                     Level {topic.level}
                                                 </span>
                                             </div>
-                                            <p className="text-sm text-slate-400">{topic.shortDescription}</p>
+                                            <p className={`text-sm ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>{topic.shortDescription}</p>
                                             {previewTopicId === topic.id && window.innerWidth < 768 && (
                                                 <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-300">
                                                     <div className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center justify-center gap-2 shadow-lg shadow-blue-900/40">
                                                         START LEARNING <ArrowRight className="w-4 h-4" />
                                                     </div>
-                                                    <p className="text-[10px] text-slate-500 mt-1 text-center uppercase tracking-wider font-bold">Tap again to open module</p>
+                                                    <p className={`text-[10px] mt-1 text-center uppercase tracking-wider font-bold ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Tap again to open module</p>
                                                 </div>
                                             )}
                                         </div>
@@ -129,11 +137,11 @@ const ModuleList: React.FC<ModuleListProps> = ({
                                     
                                     <div className="hidden md:block text-right">
                                         {isLocked ? (
-                                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Permanently Locked</span>
+                                            <span className={`text-xs font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>Permanently Locked</span>
                                         ) : isPrereqLocked ? (
                                             <span className="text-xs font-bold text-yellow-500/70 uppercase tracking-wider">Prerequisites Missing</span>
                                         ) : (
-                                            <button className="text-sm font-medium text-blue-400 hover:text-white flex items-center gap-1">
+                                            <button className={`text-sm font-medium flex items-center gap-1 transition-colors ${theme === 'dark' ? 'text-blue-400 hover:text-white' : 'text-blue-600 hover:text-blue-800'}`}>
                                                 Go to Module <ArrowRight className="w-4 h-4" />
                                             </button>
                                         )}
@@ -141,13 +149,13 @@ const ModuleList: React.FC<ModuleListProps> = ({
                                 </div>
 
                                 {/* Progress Bar */}
-                                <div className="w-full bg-slate-800 h-2 rounded-full overflow-hidden flex items-center">
+                                <div className={`w-full h-2 rounded-full overflow-hidden flex items-center ${theme === 'dark' ? 'bg-slate-800' : 'bg-slate-200'}`}>
                                     <div 
                                         className={`h-full transition-all duration-700 ${isFullyComplete ? 'bg-green-500' : 'bg-blue-600'}`} 
                                         style={{ width: `${progress}%` }}
                                     ></div>
                                 </div>
-                                <div className="flex justify-between mt-2 text-xs text-slate-500">
+                                <div className={`flex justify-between mt-2 text-xs ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>
                                     <span>{progress}% Completed</span>
                                     <span>{completedCount}/{totalCount} Steps</span>
                                 </div>
@@ -155,25 +163,28 @@ const ModuleList: React.FC<ModuleListProps> = ({
 
                             {/* Subtopics List (Accordion) */}
                             {isExpanded && (
-                                <div className="border-t border-slate-800 bg-slate-950/50 p-4 space-y-1">
+                                <div className={`border-t p-4 space-y-1 ${theme === 'dark' ? 'border-slate-800 bg-slate-950/50' : 'border-slate-100 bg-slate-50/50'}`}>
                                     {topic.subTopics.map((sub, idx) => {
                                         const isSubComplete = completedSubTopics.has(sub.id);
                                         return (
                                             <div 
                                                 key={sub.id} 
                                                 onClick={(e) => { e.stopPropagation(); onSelectTopic(topic, sub.id); }}
-                                                className="flex items-center gap-4 p-3 rounded-lg hover:bg-slate-900 cursor-pointer transition-colors text-sm group"
+                                                className={`flex items-center gap-4 p-3 rounded-lg cursor-pointer transition-colors text-sm group ${theme === 'dark' ? 'hover:bg-slate-900' : 'hover:bg-white shadow-sm hover:shadow-md'}`}
                                             >
-                                                 <div className={`shrink-0 ${isSubComplete ? 'text-green-500' : 'text-slate-600'}`}>
+                                                 <div className={`shrink-0 ${isSubComplete ? 'text-green-500' : (theme === 'dark' ? 'text-slate-600' : 'text-slate-300')}`}>
                                                     {isSubComplete ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
                                                  </div>
-                                                 <div className="w-8 text-center text-slate-500 font-mono text-xs group-hover:text-white">{idx + 1}</div>
+                                                 <div className={`w-8 text-center font-mono text-xs transition-colors ${theme === 'dark' ? 'text-slate-500 group-hover:text-white' : 'text-slate-400 group-hover:text-slate-900'}`}>{idx + 1}</div>
                                                  <div className="flex-1">
-                                                     <div className={`font-medium group-hover:text-blue-400 transition-colors ${isSubComplete ? 'text-slate-400 line-through' : 'text-slate-200'}`}>
+                                                     <div className={`font-medium transition-colors ${
+                                                         isSubComplete ? (theme === 'dark' ? 'text-slate-400 line-through' : 'text-slate-400 line-through') : 
+                                                         (theme === 'dark' ? 'text-slate-200 group-hover:text-blue-400' : 'text-slate-700 group-hover:text-blue-600')
+                                                     }`}>
                                                         {sub.title}
                                                      </div>
                                                  </div>
-                                                 <div className="flex items-center gap-1 text-slate-600 text-xs">
+                                                 <div className={`flex items-center gap-1 text-xs ${theme === 'dark' ? 'text-slate-600' : 'text-slate-400'}`}>
                                                      <Clock className="w-3 h-3" /> {sub.duration}
                                                  </div>
                                             </div>
@@ -182,7 +193,7 @@ const ModuleList: React.FC<ModuleListProps> = ({
                                     <div className="pt-4 flex justify-center">
                                         <button 
                                             onClick={() => onSelectTopic(topic)}
-                                            className="text-sm text-slate-500 hover:text-white transition-colors"
+                                            className={`text-sm transition-colors ${theme === 'dark' ? 'text-slate-500 hover:text-white' : 'text-slate-400 hover:text-slate-900'}`}
                                         >
                                             View Full Module Details
                                         </button>
