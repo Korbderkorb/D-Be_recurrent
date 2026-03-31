@@ -451,8 +451,13 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
                           const overallProgress = ((filesCompleted * 100) + progress) / totalFiles;
                           setUploadProgress(overallProgress);
                       }, 
-                      (error) => {
+                      (error: any) => {
                           console.error(`Upload error for file ${file.name}:`, error);
+                          if (error.code === 'storage/retry-limit-exceeded') {
+                              setFileToast({ show: true, message: `Upload failed: Network timeout. Please check your connection and try again.` });
+                          } else {
+                              setFileToast({ show: true, message: `Upload failed: ${error.message || 'Unknown error'}` });
+                          }
                           reject(error);
                       }, 
                       () => {
@@ -485,8 +490,7 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
               timestamp: new Date().toISOString(),
               files: submissionFiles,
               status: 'pending',
-              feedback: currentSubmission?.feedback // Keep feedback for history if needed, or clear it? 
-              // Usually we might want to clear it or keep it until reviewed again.
+              feedback: currentSubmission?.feedback || '' 
           };
 
           await onSubmitExercise(activeSubTopic.id, undefined, submissionData);

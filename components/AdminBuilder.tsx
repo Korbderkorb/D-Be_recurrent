@@ -21,7 +21,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Download, Plus, Trash2, Edit2, GripVertical, ChevronRight, Video, Upload, HelpCircle, UploadCloud, RefreshCw, Copy, AlertCircle, Info, Settings, Save, CheckSquare, Square, X, Users, GraduationCap, Layers, UserPlus, Key, Eye, Shield, BarChart3, Search, Lock as LockIcon, Sparkles, CheckCircle2, Clock, History, XCircle, ChevronDown, ChevronUp, FileText, Printer, FileCode, FileUp, ExternalLink, Award, BellOff, AlertTriangle, MessageSquare, Send, Calendar, User as UserIcon } from 'lucide-react';
-import { ref, getBlob } from 'firebase/storage';
+import { ref, getBlob, getDownloadURL } from 'firebase/storage';
 import { storage } from '../firebase';
 import { 
   BarChart, 
@@ -626,13 +626,14 @@ interface AdminBuilderProps {
   onDeleteComment?: (id: string, commentId: string, isSubmission: boolean) => Promise<void>;
   onToggleNotificationCompleted?: (id: string, completed: boolean) => Promise<void>;
   onDeleteFile?: (fileUrl: string, submissionId: string, fileName: string) => Promise<void>;
+  isAdmin?: boolean;
   onApplyChanges: (newTopics: Topic[], newTeachers: Teacher[], newUsers: User[], newLandingConfig: LandingConfig, newTags: Tag[]) => Promise<void>;
   onExit: () => void;
   theme: 'light' | 'dark';
 }
 
 // --- User Performance View Component ---
-export function AnalyticsView({ users, topics, tags, landingConfig, notifications, submissions, onEvaluateSubmission, onRequestResubmission, onPostSubmissionComment, onDeleteComment, onDeleteFile, theme = 'dark' }: { 
+export function AnalyticsView({ users, topics, tags, landingConfig, notifications, submissions, onEvaluateSubmission, onRequestResubmission, onPostSubmissionComment, onDeleteComment, onDeleteFile, isAdmin = false, theme = 'dark' }: { 
   users: User[], 
   topics: Topic[], 
   tags: Tag[], 
@@ -644,6 +645,7 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
   onPostSubmissionComment?: (id: string, text: string, isSubmission?: boolean) => Promise<void>;
   onDeleteComment?: (id: string, commentId: string, isSubmission: boolean) => Promise<void>;
   onDeleteFile?: (fileUrl: string, submissionId: string, fileName: string) => Promise<void>;
+  isAdmin?: boolean;
   theme?: 'light' | 'dark';
 }) {
   const [analyticsTab, setAnalyticsTab] = useState<'STATS' | 'SUBMISSIONS'>('STATS');
@@ -3119,6 +3121,7 @@ export function AnalyticsView({ users, topics, tags, landingConfig, notification
           onPostComment={onPostSubmissionComment}
           onDeleteComment={onDeleteComment}
           onDeleteFile={onDeleteFile}
+          isAdmin={isAdmin}
           theme={theme}
         />
       )}
@@ -3238,6 +3241,7 @@ export interface NotificationsViewProps {
   onMarkRead: (id: string) => void;
   onDelete: (id: string) => void;
   onEvaluate: (submissionId: string, score: number, feedback: string) => Promise<void>;
+  onRequestResubmission?: (submissionId: string, feedback: string) => Promise<void>;
   onToggleCompleted?: (id: string, completed: boolean) => Promise<void>;
   onDeleteFile?: (fileUrl: string, submissionId: string, fileName: string) => Promise<void>;
   onPostSubmissionComment?: (id: string, text: string, isSubmission?: boolean) => Promise<void>;
@@ -3252,6 +3256,7 @@ export function NotificationsView({
   onMarkRead, 
   onDelete,
   onEvaluate, 
+  onRequestResubmission,
   onToggleCompleted, 
   onDeleteFile,
   onPostSubmissionComment,
@@ -3261,11 +3266,11 @@ export function NotificationsView({
   theme = 'dark'
 }: NotificationsViewProps) {
   const [evaluatingId, setEvaluatingId] = useState<string | null>(null);
-  const [showEvaluationId, setShowEvaluationId] = useState<string | null>(null);
   const [score, setScore] = useState<number>(0);
   const [feedback, setFeedback] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
+  const [isDownloading, setIsDownloading] = useState<string | null>(null);
   const [isTogglingCompleted, setIsTogglingCompleted] = useState<string | null>(null);
   const [isDeletingNotification, setIsDeletingNotification] = useState<string | null>(null);
   const [commentInputs, setCommentInputs] = useState<Record<string, string>>({});
@@ -3333,8 +3338,9 @@ export function NotificationsView({
 
   const handleStartEvaluate = (notif: AppNotification) => {
     setEvaluatingId(notif.id);
-    setScore(0);
-    setFeedback('');
+    const existingGrade = typeof notif.grade === 'number' ? notif.grade : parseInt(notif.grade as string) || 0;
+    setScore(existingGrade);
+    setFeedback(notif.feedback || '');
   };
 
   const handleSubmitEvaluation = async (submissionId: string) => {
@@ -3351,29 +3357,31 @@ export function NotificationsView({
   };
 
   const handleDownload = async (fileUrl: string, originalName: string, studentName: string, date: string, moduleName: string) => {
+    setIsDownloading(fileUrl);
     try {
-      // Use getBlob from Firebase Storage to handle CORS better
       const fileRef = ref(storage, fileUrl);
-      const blob = await getBlob(fileRef);
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
+      const url = await getDownloadURL(fileRef);
       
-      // Format date for filename
-      const formattedDate = new Date(date).toISOString().split('T')[0];
-      const cleanModuleName = (moduleName || 'module').replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      const cleanStudentName = (studentName || 'student').replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      const extension = originalName.split('.').pop() || 'file';
+      // Opening in a new tab is the fastest and most reliable method for all file sizes.
+      // It bypasses client-side blob processing which can cause timeouts and memory issues.
+      const newWindow = window.open(url, '_blank');
       
-      link.download = `${cleanStudentName}_${formattedDate}_${cleanModuleName}.${extension}`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-    } catch (error) {
+      // Fallback if popup is blocked
+      if (!newWindow || newWindow.closed || typeof newWindow.closed === 'undefined') {
+        const link = document.createElement('a');
+        link.href = url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    } catch (error: any) {
       console.error("Download failed:", error);
-      // Fallback to direct link if getBlob fails
+      // Final fallback to original URL
       window.open(fileUrl, '_blank');
+    } finally {
+      setIsDownloading(null);
     }
   };
 
@@ -3588,7 +3596,7 @@ export function NotificationsView({
                             {!notif.read && (
                                 <span className="px-2 py-0.5 bg-emerald-500 text-white text-[10px] font-bold rounded uppercase tracking-wider shadow-[0_0_10px_rgba(16,185,129,0.3)]">New</span>
                             )}
-                            {notif.hasNewComments && notif.read && (
+                            {notif.hasNewComments && !notif.read && (
                                 <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[10px] font-bold rounded uppercase tracking-wider border border-blue-500/20 animate-pulse">New Comments</span>
                             )}
                             {notif.type === 'DEADLINE_WARNING' ? (
@@ -3599,8 +3607,16 @@ export function NotificationsView({
                               </div>
                             ) : (
                               <div className="flex gap-2">
-                                {notif.type === 'EXERCISE_SUBMISSION' && !notif.evaluated && (
-                                  <span className="px-2 py-0.5 bg-orange-500/10 text-orange-400 text-[10px] font-bold rounded uppercase tracking-wider border border-orange-500/20">Pending</span>
+                                {(notif.type === 'EXERCISE_SUBMISSION' || notif.type === 'EXERCISE_RESUBMISSION' || notif.type === 'SUBMISSION_COMMENT') && (
+                                  <>
+                                    {(notif.status === 'evaluated' || notif.evaluated) ? (
+                                      <span className="px-2 py-0.5 bg-emerald-500/10 text-emerald-400 text-[10px] font-bold rounded uppercase tracking-wider border border-emerald-500/20">Evaluated</span>
+                                    ) : notif.status === 'resubmission_requested' ? (
+                                      <span className="px-2 py-0.5 bg-orange-500/10 text-orange-400 text-[10px] font-bold rounded uppercase tracking-wider border border-orange-500/20">Resubmission Requested</span>
+                                    ) : (
+                                      <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 text-[10px] font-bold rounded uppercase tracking-wider border border-blue-500/20">Pending</span>
+                                    )}
+                                  </>
                                 )}
                               </div>
                             )}
@@ -3652,8 +3668,8 @@ export function NotificationsView({
 
                     {(!notif.read || expandedReadIds.includes(notif.id)) && (
                         <>
-                    {/* Show Evaluation Details if evaluated and toggled */}
-                    {notif.evaluated && showEvaluationId === notif.id && (
+                    {/* Show Evaluation Details if evaluated */}
+                    {notif.evaluated && (
                       <div className={`mb-4 p-4 border rounded-xl animate-in fade-in slide-in-from-top-2 ${theme === 'dark' ? 'bg-emerald-500/5 border-emerald-500/10' : 'bg-emerald-50 border-emerald-100'}`}>
                         <div className="flex justify-between items-center mb-2">
                           <h4 className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Evaluation Result</h4>
@@ -3680,13 +3696,13 @@ export function NotificationsView({
                               >
                                 <div className="flex items-center gap-3 truncate">
                                   <div className="p-2 bg-blue-500/10 rounded text-blue-400 group-hover:bg-blue-500/20 transition-colors">
-                                    <Download size={16} />
+                                    {isDownloading === file.url ? <RefreshCw size={16} className="animate-spin" /> : <Download size={16} />}
                                   </div>
                                   <span className={`text-sm truncate ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>{file.name}</span>
                                 </div>
                                 <ExternalLink size={14} className="text-slate-600 group-hover:text-blue-400" />
                               </button>
-                              {onDeleteFile && (
+                              {onDeleteFile && isAdmin && (
                                 <button 
                                   onClick={(e) => {
                                     e.stopPropagation();
@@ -3798,18 +3814,7 @@ export function NotificationsView({
                     </div>
 
                     <div className="flex justify-end gap-3">
-                      {notif.evaluated && (
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowEvaluationId(showEvaluationId === notif.id ? null : notif.id);
-                          }}
-                          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold border transition-all ${theme === 'dark' ? 'border-slate-700 text-slate-400 hover:text-white hover:border-slate-600' : 'border-slate-200 text-slate-600 hover:text-slate-900 hover:border-slate-300'}`}
-                        >
-                          <Eye size={14} /> {showEvaluationId === notif.id ? 'Hide Evaluation' : 'Show Evaluation'}
-                        </button>
-                      )}
-                      {(notif.type === 'EXERCISE_SUBMISSION' || notif.type === 'EXERCISE_RESUBMISSION') && (
+                      {(notif.type === 'EXERCISE_SUBMISSION' || notif.type === 'EXERCISE_RESUBMISSION') && isAdmin && (
                         evaluatingId === notif.id ? (
                           <div className={`w-full p-4 rounded-lg border animate-in fade-in slide-in-from-top-2 ${theme === 'dark' ? 'bg-slate-800/50 border-blue-500/20' : 'bg-slate-50 border-blue-500/20'}`}>
                             <div className="flex justify-between items-center mb-4">
@@ -3895,6 +3900,7 @@ function AdminSubmissionsList({
   onPostComment, 
   onDeleteComment,
   onDeleteFile,
+  isAdmin,
   theme 
 }: { 
   submissions: ExerciseSubmission[], 
@@ -3903,6 +3909,7 @@ function AdminSubmissionsList({
   onPostComment?: (id: string, text: string, isSubmission?: boolean) => Promise<void>,
   onDeleteComment?: (id: string, commentId: string, isSubmission: boolean) => Promise<void>,
   onDeleteFile?: (fileUrl: string, submissionId: string, fileName: string) => Promise<void>,
+  isAdmin: boolean,
   theme: 'light' | 'dark' 
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -3911,6 +3918,8 @@ function AdminSubmissionsList({
   const [feedback, setFeedback] = useState<string>("");
   const [commentText, setCommentText] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDownloading, setIsDownloading] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
 
   const sortedSubmissions = [...submissions].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 
@@ -3927,6 +3936,7 @@ function AdminSubmissionsList({
   };
 
   const handleRequestResubmission = async (id: string) => {
+    if (!window.confirm('Are you sure you want to request a resubmission? The student will be notified to re-upload their files.')) return;
     setIsSubmitting(true);
     try {
       await onRequestResubmission(id, feedback);
@@ -3935,6 +3945,31 @@ function AdminSubmissionsList({
       setFeedback("");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleDownload = async (fileUrl: string, originalName: string, studentName: string, date: string, moduleName: string) => {
+    setIsDownloading(fileUrl);
+    try {
+      const fileRef = ref(storage, fileUrl);
+      const url = await getDownloadURL(fileRef);
+      
+      // Direct opening in a new tab for maximum speed and compatibility
+      const newWindow = window.open(url, '_blank');
+      if (!newWindow) {
+        const link = document.createElement('a');
+        link.href = url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    } catch (error: any) {
+      console.error("Download failed:", error);
+      window.open(fileUrl, '_blank');
+    } finally {
+      setIsDownloading(null);
     }
   };
 
@@ -4001,21 +4036,22 @@ function AdminSubmissionsList({
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {sub.files.map((file, idx) => (
                           <div key={idx} className="flex items-center gap-2 group/file">
-                            <a 
-                              href={file.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDownload(file.url, file.name, sub.userName, sub.timestamp, sub.subTopicTitle || 'module');
+                              }}
                               className={`flex-1 flex items-center gap-3 p-3 rounded-xl border transition-all ${theme === 'dark' ? 'bg-slate-900 border-slate-800 hover:bg-slate-800' : 'bg-white border-slate-200 hover:border-blue-300 hover:shadow-sm'}`}
                             >
                               <div className="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center shrink-0">
-                                <ExternalLink size={14} />
+                                {isDownloading === file.url ? <RefreshCw size={14} className="animate-spin" /> : <Download size={14} />}
                               </div>
-                              <div className="min-w-0">
+                              <div className="min-w-0 text-left">
                                 <div className="text-xs font-bold truncate">{file.name}</div>
-                                <div className="text-[10px] text-slate-500 uppercase">View File</div>
+                                <div className="text-[10px] text-slate-500 uppercase">Download File</div>
                               </div>
-                            </a>
-                            {onDeleteFile && (
+                            </button>
+                            {onDeleteFile && isAdmin && (
                               <button 
                                 onClick={(e) => {
                                   e.stopPropagation();
@@ -4043,28 +4079,30 @@ function AdminSubmissionsList({
                       </div>
                     )}
 
-                    <div className="pt-4 flex flex-wrap gap-3">
-                      <button 
-                        onClick={() => {
-                          setIsEvaluating(sub.id);
-                          setGrade(sub.grade || 0);
-                          setFeedback(sub.feedback || "");
-                        }}
-                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${sub.status === 'reviewed' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20' : 'bg-blue-600 text-white shadow-lg shadow-blue-900/20 hover:bg-blue-500'}`}
-                      >
-                        <Award size={16} /> {sub.status === 'reviewed' ? 'Update Evaluation' : 'Evaluate Now'}
-                      </button>
-                      <button 
-                        onClick={() => {
-                          setIsEvaluating(sub.id);
-                          setGrade(0);
-                          setFeedback(sub.feedback || "");
-                        }}
-                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold border transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-                      >
-                        <RefreshCw size={16} /> Request Resubmission
-                      </button>
-                    </div>
+                    {isAdmin && (
+                      <div className="pt-4 flex flex-wrap gap-3">
+                        <button 
+                          onClick={() => {
+                            setIsEvaluating(sub.id);
+                            setGrade(sub.grade || 0);
+                            setFeedback(sub.feedback || "");
+                          }}
+                          className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${sub.status === 'reviewed' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20' : 'bg-blue-600 text-white shadow-lg shadow-blue-900/20 hover:bg-blue-500'}`}
+                        >
+                          <Award size={16} /> {sub.status === 'reviewed' ? 'Update Evaluation' : 'Evaluate Now'}
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setIsEvaluating(sub.id);
+                            setGrade(0);
+                            setFeedback(sub.feedback || "");
+                          }}
+                          className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold border transition-all ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+                        >
+                          <RefreshCw size={16} /> Request Resubmission
+                        </button>
+                      </div>
+                    )}
 
                     {isEvaluating === sub.id && (
                       <div className={`p-6 rounded-3xl border animate-in fade-in slide-in-from-top-4 duration-300 ${theme === 'dark' ? 'bg-slate-900 border-blue-500/30' : 'bg-white border-blue-200 shadow-xl'}`}>
@@ -4212,6 +4250,7 @@ export default function AdminBuilder({
     onDeleteFile,
     onApplyChanges,
     onExit,
+    isAdmin = false,
     theme
 }: AdminBuilderProps) {
   const [activeTab, setActiveTab] = useState<'ANALYTICS' | 'CURRICULUM' | 'TEACHERS' | 'USERS_LIST' | 'TAGS' | 'USER_INTERFACE' | 'NOTIFICATIONS'>(initialTab);
@@ -5664,6 +5703,7 @@ export default function AdminBuilder({
               onMarkRead={onMarkNotificationRead}
               onDelete={onDeleteNotification}
               onEvaluate={onEvaluateSubmission}
+              onRequestResubmission={onRequestResubmission}
               onToggleCompleted={onToggleNotificationCompleted}
               onDeleteFile={onDeleteFile}
               onPostSubmissionComment={onPostSubmissionComment}
@@ -5685,6 +5725,8 @@ export default function AdminBuilder({
                           onRequestResubmission={onRequestResubmission}
                           onPostSubmissionComment={onPostSubmissionComment}
                           onDeleteComment={onDeleteComment}
+                          onDeleteFile={onDeleteFile}
+                          isAdmin={isAdmin}
                           theme={theme}
                       />
                   </div>

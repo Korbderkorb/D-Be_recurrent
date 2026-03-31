@@ -238,6 +238,7 @@ export interface Notification {
   targetUserId?: string; // 'admin' or a specific student userId
   deadlineNotificationSent?: boolean;
   type: 'EXERCISE_SUBMISSION' | 'DEADLINE_WARNING' | 'SUBMISSION_COMMENT' | 'EXERCISE_RESUBMISSION';
+  status?: 'pending' | 'evaluated' | 'resubmission_requested';
   files: {
     name: string;
     url: string;

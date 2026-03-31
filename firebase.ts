@@ -8,3 +8,4 @@ const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId || '(default)');
 export const storage = getStorage(app);
+storage.maxOperationRetryTime = 60000; // 1 minute

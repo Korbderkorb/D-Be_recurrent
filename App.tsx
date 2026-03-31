@@ -98,6 +98,21 @@ const tourSteps: Step[] = [
   },
 ];
 
+const cleanObject = (obj: any): any => {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(cleanObject);
+  
+  const newObj = { ...obj };
+  Object.keys(newObj).forEach(key => {
+    if (newObj[key] === undefined) {
+      delete newObj[key];
+    } else if (newObj[key] && typeof newObj[key] === 'object') {
+      newObj[key] = cleanObject(newObj[key]);
+    }
+  });
+  return newObj;
+};
+
 const TourTooltip = ({
   continuous,
   index,
@@ -808,9 +823,20 @@ const App: React.FC = () => {
           if (userDoc.exists()) {
             userData = userDoc.data() as User;
           } else {
-            // Only the bootstrap admin can auto-create their profile if it's missing
-            // Others must be pre-approved via the Admin Builder and use First Time Login
-            if (firebaseUser.email === BOOTSTRAP_ADMIN_EMAIL) {
+            // Check if there is a pending record with email as ID
+            const emailDoc = firebaseUser.email ? await getDoc(doc(db, 'users', firebaseUser.email)) : null;
+            
+            if (emailDoc?.exists() && (emailDoc.data() as User).status === 'pending') {
+              // Migrate pending record to active record with UID
+              const pendingData = emailDoc.data() as User;
+              userData = {
+                ...pendingData,
+                id: firebaseUser.uid,
+                status: 'active'
+              };
+              await setDoc(doc(db, 'users', firebaseUser.uid), userData);
+              await deleteDoc(doc(db, 'users', firebaseUser.email!));
+            } else if (firebaseUser.email === BOOTSTRAP_ADMIN_EMAIL) {
               userData = {
                 id: firebaseUser.uid,
                 email: firebaseUser.email || '',
@@ -1550,21 +1576,6 @@ const App: React.FC = () => {
   const handleApplyAdminChanges = async (newTopics: Topic[], newTeachers: Teacher[], newUsers: User[], newLandingConfig?: LandingConfig, newTags?: Tag[]) => {
       const batch = writeBatch(db);
       
-      // Helper to remove undefined values recursively
-      const cleanObject = (obj: any): any => {
-          if (Array.isArray(obj)) {
-              return obj.map(cleanObject);
-          } else if (obj !== null && typeof obj === 'object') {
-              return Object.entries(obj).reduce((acc, [key, value]) => {
-                  if (value !== undefined) {
-                      acc[key] = cleanObject(value);
-                  }
-                  return acc;
-              }, {} as any);
-          }
-          return obj;
-      };
-      
       // Persist tags
       if (newTags) {
           for (const tag of newTags) {
@@ -1664,7 +1675,7 @@ const App: React.FC = () => {
               // Check if this is a resubmission
               const isResubmission = studentSubmissions.some(s => s.id === submissionData.id && s.status === 'rejected');
               
-              await setDoc(doc(db, 'submissions', submissionData.id), submissionData);
+              await setDoc(doc(db, 'submissions', submissionData.id), cleanObject(submissionData));
               
               // Create Notification for Admin
               const topic = currentTopics.find(t => t.id === submissionData.topicId);
@@ -1683,6 +1694,7 @@ const App: React.FC = () => {
                   timestamp: new Date().toISOString(),
                   read: false,
                   evaluated: false,
+                  status: 'pending',
                   targetUserId: 'admin',
                   type: isResubmission ? 'EXERCISE_RESUBMISSION' : 'EXERCISE_SUBMISSION',
                   files: submissionData.files.map(f => ({ name: f.name, url: f.url }))
@@ -1882,13 +1894,15 @@ const App: React.FC = () => {
         let topicTitle = '';
         let subTopicTitle = '';
         let files: any[] = [];
+        let submissionRef: any = null;
+        let commentRef: any = null;
 
         if (isSubmission) {
-          const submissionDocRef = doc(db, 'submissions', id);
-          const submissionDoc = await transaction.get(submissionDocRef);
+          submissionRef = doc(db, 'submissions', id);
+          const submissionDoc = await transaction.get(submissionRef);
           
           if (!submissionDoc.exists()) return;
-          const submissionData = submissionDoc.data();
+          const submissionData = submissionDoc.data() as any;
 
           updatedComments = [...(submissionData.comments || []), newComment];
           topicId = submissionData.topicId || '';
@@ -1896,14 +1910,13 @@ const App: React.FC = () => {
           topicTitle = submissionData.topicTitle || '';
           subTopicTitle = submissionData.subTopicTitle || '';
           files = submissionData.files || [];
-
-          transaction.set(submissionDocRef, { comments: updatedComments }, { merge: true });
         } else {
           // Sub-topic comment
-          const commentDocRef = doc(db, 'comments', id);
-          const commentDoc = await transaction.get(commentDocRef);
+          commentRef = doc(db, 'comments', id);
+          const commentDoc = await transaction.get(commentRef);
+          const commentData = commentDoc.exists() ? commentDoc.data() as any : null;
           
-          updatedComments = commentDoc.exists() ? [...(commentDoc.data().comments || []), newComment] : [newComment];
+          updatedComments = commentData ? [...(commentData.comments || []), newComment] : [newComment];
           
           const topic = currentTopics.find(t => t.subTopics.some(st => st.id === id));
           const subTopic = topic?.subTopics.find(st => st.id === id);
@@ -1912,13 +1925,32 @@ const App: React.FC = () => {
           subTopicId = id;
           topicTitle = topic?.title || '';
           subTopicTitle = subTopic?.title || '';
-          
-          transaction.set(commentDocRef, { comments: updatedComments }, { merge: true });
         }
 
         // Update notifications for participants
         const participants: string[] = Array.from(new Set(updatedComments.map(c => c.userId))).filter(id => !!id) as string[];
         if (!participants.includes('admin')) participants.push('admin');
+
+        // PRE-FETCH all notifications before any writes
+        const notifRefs: Record<string, any> = {};
+        const notifSnaps: Record<string, any> = {};
+        
+        for (const targetUserId of participants) {
+          const notifId = isSubmission 
+            ? `notif_${id}_${targetUserId}`
+            : `notif_${subTopicId}_${targetUserId}`;
+          
+          const ref = doc(db, 'notifications', notifId);
+          notifRefs[targetUserId] = ref;
+          notifSnaps[targetUserId] = await transaction.get(ref);
+        }
+
+        // NOW perform all writes
+        if (isSubmission) {
+          transaction.set(submissionRef, { comments: updatedComments }, { merge: true });
+        } else {
+          transaction.set(commentRef, { comments: updatedComments }, { merge: true });
+        }
 
         for (const targetUserId of participants) {
           const notifId = isSubmission 
@@ -1926,6 +1958,8 @@ const App: React.FC = () => {
             : `notif_${subTopicId}_${targetUserId}`;
 
           const isCurrentUser = targetUserId === currentUser.id;
+          const notifSnap = notifSnaps[targetUserId];
+          const existingNotif = notifSnap.exists() ? notifSnap.data() as AppNotification : null;
 
           const notification: any = {
             id: notifId,
@@ -1936,16 +1970,22 @@ const App: React.FC = () => {
             topicTitle,
             subTopicTitle,
             submissionId: isSubmission ? id : '',
-            timestamp: new Date().toISOString(),
+            timestamp: existingNotif?.timestamp || new Date().toISOString(),
             read: isCurrentUser, // Mark as read for the person who just commented
             hasNewComments: !isCurrentUser, // Mark as having new comments for everyone else
             lastCommentTimestamp: new Date().toISOString(),
             targetUserId: targetUserId,
-            type: isSubmission ? 'EXERCISE_SUBMISSION' : 'SUBMISSION_COMMENT',
+            type: existingNotif?.type || (isSubmission ? 'EXERCISE_SUBMISSION' : 'SUBMISSION_COMMENT'),
             comments: updatedComments,
-            files
+            files: files.length > 0 ? files : (existingNotif?.files || [])
           };
-          transaction.set(doc(db, 'notifications', notifId), notification, { merge: true });
+
+          // If it's a submission, ensure we don't downgrade the type from RESUBMISSION to SUBMISSION
+          if (isSubmission && existingNotif?.type === 'EXERCISE_RESUBMISSION') {
+            notification.type = 'EXERCISE_RESUBMISSION';
+          }
+          
+          transaction.set(notifRefs[targetUserId], notification, { merge: true });
         }
       });
     } catch (error) {
@@ -1985,7 +2025,7 @@ const App: React.FC = () => {
 
             // Update submission
             transaction.set(submissionDocRef, { 
-                feedback, 
+                feedback: feedback || '', 
                 status: 'rejected' 
             }, { merge: true });
 
@@ -1993,7 +2033,8 @@ const App: React.FC = () => {
             const adminNotifId = `notif_${submissionId}_admin`;
             transaction.set(doc(db, 'notifications', adminNotifId), { 
                 evaluated: true,
-                feedback,
+                status: 'resubmission_requested',
+                feedback: feedback || '',
                 completed: false, // Not completed, needs resubmission
                 read: true
             }, { merge: true });
@@ -2004,7 +2045,8 @@ const App: React.FC = () => {
                 transaction.set(doc(db, 'notifications', studentNotifId), {
                     read: false,
                     evaluated: true,
-                    feedback,
+                    status: 'resubmission_requested',
+                    feedback: feedback || '',
                     timestamp: new Date().toISOString(),
                     type: 'EXERCISE_SUBMISSION',
                     topicId: submissionData.topicId || '',
@@ -2038,7 +2080,7 @@ const App: React.FC = () => {
               // Update submission
               transaction.set(submissionDocRef, { 
                   grade, 
-                  feedback, 
+                  feedback: feedback || '', 
                   status: 'reviewed' 
               }, { merge: true });
 
@@ -2046,8 +2088,9 @@ const App: React.FC = () => {
               const adminNotifId = `notif_${submissionId}_admin`;
               transaction.set(doc(db, 'notifications', adminNotifId), { 
                   evaluated: true,
+                  status: 'evaluated',
                   grade,
-                  feedback,
+                  feedback: feedback || '',
                   completed: true,
                   read: true // Admin just evaluated it, so mark as read
               }, { merge: true });
@@ -2058,8 +2101,9 @@ const App: React.FC = () => {
                   transaction.set(doc(db, 'notifications', studentNotifId), {
                       read: false,
                       evaluated: true,
+                      status: 'evaluated',
                       grade,
-                      feedback,
+                      feedback: feedback || '',
                       timestamp: new Date().toISOString(),
                       type: 'EXERCISE_SUBMISSION',
                       topicId: submissionData.topicId || '',
@@ -2088,6 +2132,7 @@ const App: React.FC = () => {
   };
 
   const handleDeleteFile = async (fileUrl: string, submissionId: string, fileName: string) => {
+      if (!currentUser || currentUser.role !== 'admin') return;
       try {
           // 1. Delete from Storage
           const fileRef = ref(storage, fileUrl);
@@ -2281,6 +2326,7 @@ const App: React.FC = () => {
             onRequestResubmission={handleRequestResubmission}
             onToggleNotificationCompleted={handleToggleNotificationCompleted}
             onDeleteFile={handleDeleteFile}
+            isAdmin={true}
             theme={theme}
         />
       );
@@ -2809,6 +2855,7 @@ const App: React.FC = () => {
                                     onPostSubmissionComment={handlePostSubmissionComment}
                                     onDeleteComment={handleDeleteComment}
                                     onDeleteFile={handleDeleteFile}
+                                    isAdmin={true}
                                     theme={theme}
                                 />
                             </div>
@@ -2838,6 +2885,7 @@ const App: React.FC = () => {
                                     onMarkRead={handleMarkNotificationRead}
                                     onDelete={handleDeleteNotification}
                                     onEvaluate={handleEvaluateSubmission}
+                                    onRequestResubmission={handleRequestResubmission}
                                     onPostSubmissionComment={handlePostSubmissionComment}
                                     onToggleCompleted={handleToggleNotificationCompleted}
                                     onDeleteFile={handleDeleteFile}

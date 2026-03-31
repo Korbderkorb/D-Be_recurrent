@@ -38,7 +38,14 @@ const Login: React.FC<LoginProps> = ({ onLogin, validUsers, bootstrapAdminEmail,
                 firebaseUser = userCredential.user;
             } catch (authErr: any) {
                 if (authErr.code === 'auth/email-already-in-use') {
-                    setError('This email is already registered. Please sign in.');
+                    // Check if they have a pending record
+                    const userDocRef = doc(db, 'users', email);
+                    const userDoc = await getDoc(userDocRef);
+                    if (userDoc.exists() && userDoc.data().status === 'pending') {
+                        setError('This email is already registered in our system. Please use the standard Login with your password to activate your account.');
+                    } else {
+                        setError('This email is already registered. Please sign in.');
+                    }
                 } else {
                     throw authErr;
                 }
