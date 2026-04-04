@@ -49,7 +49,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
   const uniqueTeachers = useMemo(() => {
     const map = new Map();
     topics.forEach(t => {
-        if(!map.has(t.teacher.email)) map.set(t.teacher.email, t.teacher);
+        if(t.teacher?.email && !map.has(t.teacher.email)) map.set(t.teacher.email, t.teacher);
     });
     return Array.from(map.values());
   }, [topics]);
@@ -338,8 +338,8 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
         .attr("stroke-width", d => d.active ? 4 : 2)
         .attr("stroke-dasharray", d => d.active ? "0" : "6,6")
         .attr("opacity", d => {
-            const sourceHidden = hiddenTeacherEmails.has(d.source.teacher.email);
-            const targetHidden = hiddenTeacherEmails.has(d.target.teacher.email);
+            const sourceHidden = d.source.teacher?.email ? hiddenTeacherEmails.has(d.source.teacher.email) : false;
+            const targetHidden = d.target.teacher?.email ? hiddenTeacherEmails.has(d.target.teacher.email) : false;
             const sourceLocked = d.source.locked;
             const targetLocked = d.target.locked;
             const sourcePrereqLocked = d.source.prerequisiteLocked;
@@ -371,7 +371,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
             return "#64748b";
         })
         .attr("stroke-width", 2)
-        .attr("opacity", d => (hiddenTeacherEmails.has(d.source.teacher.email) || d.source.locked) ? 0.1 : (d.source.prerequisiteLocked ? 0.4 : 1));
+        .attr("opacity", d => (d.source.teacher?.email && hiddenTeacherEmails.has(d.source.teacher.email) || d.source.locked) ? 0.1 : (d.source.prerequisiteLocked ? 0.4 : 1));
 
     zoomGroup.selectAll(".connector-target")
         .data(allLinks)
@@ -392,7 +392,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
             return "#64748b";
         })
         .attr("stroke-width", 2)
-        .attr("opacity", d => (hiddenTeacherEmails.has(d.target.teacher.email) || d.target.locked) ? 0.1 : (d.target.prerequisiteLocked ? 0.4 : 1));
+        .attr("opacity", d => (d.target.teacher?.email && hiddenTeacherEmails.has(d.target.teacher.email) || d.target.locked) ? 0.1 : (d.target.prerequisiteLocked ? 0.4 : 1));
 
     // Nodes
     const nodeGroups = zoomGroup.selectAll(".node")
@@ -403,19 +403,19 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
         .attr("transform", d => `translate(${d.x}, ${d.y})`)
         .attr("cursor", d => d.locked ? "not-allowed" : "pointer")
         .attr("opacity", d => {
-            if (hiddenTeacherEmails.has(d.teacher.email)) return 0.2;
+            if (d.teacher?.email && hiddenTeacherEmails.has(d.teacher.email)) return 0.2;
             if (d.locked) return 0.3; // Permanently locked is more faded
             if (d.prerequisiteLocked) return 0.85; // Prerequisite locked is less faded
             return 1;
         })
         .style("filter", d => {
-            if (hiddenTeacherEmails.has(d.teacher.email) || d.locked) return "grayscale(100%)";
+            if (d.teacher?.email && hiddenTeacherEmails.has(d.teacher.email) || d.locked) return "grayscale(100%)";
             if (d.prerequisiteLocked) return "grayscale(80%) brightness(0.8)"; // Slightly different grayscale for prereq
             return "none";
         })
         .on("click", (e, d) => {
             e.stopPropagation();
-            if (!hiddenTeacherEmails.has(d.teacher.email)) {
+            if (d.teacher?.email && !hiddenTeacherEmails.has(d.teacher.email)) {
                 // We allow clicking on prerequisite locked topics to show the alert
                 if (d.locked) return; 
                 
@@ -555,7 +555,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
     // --- Interaction Logic ---
     nodeGroups
         .on("mouseenter", function(event, d) {
-            if (hiddenTeacherEmails.has(d.teacher.email) || d.locked) return;
+            if (d.teacher?.email && hiddenTeacherEmails.has(d.teacher.email) || d.locked) return;
             
             // For prerequisite locked, we show the hover overlay but don't highlight links as much
             const hoveredId = d.id;
@@ -595,7 +595,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
             });
 
             zoomGroup.selectAll(".node")
-                .filter((n: any) => neighborIds.has(n.id) && !hiddenTeacherEmails.has(n.teacher.email) && !n.locked)
+                .filter((n: any) => neighborIds.has(n.id) && (!n.teacher?.email || !hiddenTeacherEmails.has(n.teacher.email)) && !n.locked)
                 .select(".node-body")
                 .transition().duration(200)
                 .attr("stroke", theme === 'dark' ? "#fff" : "#94a3b8")
@@ -603,7 +603,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
                 .attr("stroke-opacity", 0.5); 
         })
         .on("mouseleave", function(event, d) {
-            if (hiddenTeacherEmails.has(d.teacher.email) || d.locked) return;
+            if (d.teacher?.email && hiddenTeacherEmails.has(d.teacher.email) || d.locked) return;
 
             d3.select(this).select(".hover-overlay")
                 .transition().duration(200)
@@ -626,8 +626,8 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
                 .attr("stroke-width", (l: any) => l.active ? 4 : 2)
                 .attr("stroke-dasharray", (l: any) => l.active ? "0" : "6,6")
                 .attr("opacity", (l: any) => {
-                     const sourceHidden = hiddenTeacherEmails.has(l.source.teacher.email);
-                     const targetHidden = hiddenTeacherEmails.has(l.target.teacher.email);
+                     const sourceHidden = l.source.teacher?.email ? hiddenTeacherEmails.has(l.source.teacher.email) : false;
+                     const targetHidden = l.target.teacher?.email ? hiddenTeacherEmails.has(l.target.teacher.email) : false;
                      const sourceLocked = l.source.locked;
                      const targetLocked = l.target.locked;
                      if (sourceHidden || targetHidden) return 0.1;
@@ -636,7 +636,7 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
                 });
             
             zoomGroup.selectAll(".node")
-                .filter((n: any) => !hiddenTeacherEmails.has(n.teacher.email) && !n.locked)
+                .filter((n: any) => (!n.teacher?.email || !hiddenTeacherEmails.has(n.teacher.email)) && !n.locked)
                 .select(".node-body")
                 .transition().duration(200)
                 .attr("stroke", (n: any) => n.complete ? "#22c55e" : (n.level === 1 ? "#3b82f6" : (theme === 'dark' ? "#334155" : "#94a3b8")))

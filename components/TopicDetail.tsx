@@ -517,9 +517,11 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
   }
 
   const copyEmail = () => {
-      navigator.clipboard.writeText(topic.teacher.email);
-      setEmailCopied(true);
-      setTimeout(() => setEmailCopied(false), 2000);
+      if (topic.teacher?.email) {
+          navigator.clipboard.writeText(topic.teacher.email);
+          setEmailCopied(true);
+          setTimeout(() => setEmailCopied(false), 2000);
+      }
   };
 
   const handleDownload = (url?: string, type: 'Notes' | 'Files' = 'Notes') => {
@@ -1200,13 +1202,13 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
                             <h4 className={`font-bold mb-4 text-xs uppercase tracking-wider ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>Instructor</h4>
                             <div className="flex items-center gap-4">
                                 <img 
-                                    src={topic.teacher.avatar || undefined} 
-                                    alt={topic.teacher.name} 
+                                    src={topic.teacher?.avatar || undefined} 
+                                    alt={topic.teacher?.name || 'Teacher'} 
                                     className={`w-14 h-14 rounded-full border-2 object-cover shrink-0 ${theme === 'dark' ? 'border-slate-600' : 'border-slate-100'}`} 
                                 />
                                 <div className="min-w-0 flex-1">
-                                    <h3 className={`font-bold text-base truncate ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{topic.teacher.name}</h3>
-                                    <p className={`text-sm mb-1 truncate ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>{topic.teacher.role}</p>
+                                    <h3 className={`font-bold text-base truncate ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{topic.teacher?.name || 'Unknown Teacher'}</h3>
+                                    <p className={`text-sm mb-1 truncate ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>{topic.teacher?.role || 'Educator'}</p>
                                     
                                     <button 
                                         onClick={copyEmail}
@@ -1215,7 +1217,7 @@ const TopicDetail: React.FC<TopicDetailProps> = ({
                                     >
                                         {emailCopied ? <Check className="w-3 h-3 shrink-0 text-green-500" /> : <Mail className="w-3 h-3 shrink-0" />}
                                         <span className={`truncate ${emailCopied ? 'text-green-500 font-medium' : ''}`}>
-                                            {emailCopied ? 'Copied to clipboard!' : topic.teacher.email}
+                                            {emailCopied ? 'Copied to clipboard!' : (topic.teacher?.email || 'No email available')}
                                         </span>
                                         {!emailCopied && <Copy className="w-3 h-3 shrink-0 ml-auto opacity-0 group-hover:opacity-100" />}
                                     </button>

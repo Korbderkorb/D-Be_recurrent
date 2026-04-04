@@ -2792,7 +2792,7 @@ const App: React.FC = () => {
                                                 <div className={`w-full rounded-lg p-3 border mb-6 ${theme === 'dark' ? 'bg-slate-800/50 border-slate-700/50' : 'bg-white border-slate-100 shadow-sm'}`}>
                                                     <div className={`text-xs font-mono mb-1 uppercase tracking-wider p-1 rounded ${theme === 'dark' ? 'text-slate-500 bg-slate-950/50' : 'text-slate-400 bg-slate-50'}`}>Modules Taught</div>
                                                     <div className={`text-lg font-bold p-1 rounded ${theme === 'dark' ? 'text-white bg-slate-950/50' : 'text-slate-900 bg-slate-50'}`}>
-                                                        {currentTopics.filter(top => top.teacher.email === t.email).length}
+                                                        {currentTopics.filter(top => top.teacher?.email === t.email).length}
                                                     </div>
                                                 </div>
 
@@ -2826,7 +2826,7 @@ const App: React.FC = () => {
                                 </div>
                                 <div className="flex-1">
                                     <ModuleList 
-                                        topics={currentTopics.filter(t => t.teacher.email === selectedTeacherEmail)} 
+                                        topics={currentTopics.filter(t => t.teacher?.email === selectedTeacherEmail)} 
                                         completedSubTopics={completedSubTopics}
                                         onSelectTopic={handleTopicSelect}
                                         lockedTopicIds={lockedTopicIds}

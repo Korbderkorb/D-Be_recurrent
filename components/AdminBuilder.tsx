@@ -4302,7 +4302,7 @@ export default function AdminBuilder({
     // Hydrate topics with IDs and keys for internal use
     const hydratedTopics = initialTopics.map(t => {
         // Teacher mapping strategy: find by email
-        const teacherObj = initialTeachers.find(teacher => teacher.email === t.teacher.email);
+        const teacherObj = initialTeachers.find(teacher => teacher.email === t.teacher?.email);
         const teacherId = teacherObj ? teacherObj.id : 'unknown';
 
         return {
