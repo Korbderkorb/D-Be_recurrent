@@ -2,12 +2,13 @@
 
 ## Project Context
 
-**Learning Platform** is a React + Firebase educational application with 30 active users. It's hosted on Cloudflare Pages and deployed from GitHub.
+**Learning Platform** is a React + Firebase educational application with 30 active users. It's hosted on Cloudflare Pages (`d-be-recurrent` project) and deployed from GitHub (`D-Be_recurrent` repo).
 
 - **Status:** Production with active users
-- **Last major work:** Environment variable migration (Firebase credentials moved from JSON to .env)
+- **Last major work:** Folder restructure (app code moved to learning-platform/ subfolder)
 - **Users:** ~30 students using for learning
-- **Hosting:** Cloudflare Pages (auto-deploys from GitHub)
+- **Hosting:** Cloudflare Pages (`d-be-recurrent` project) → auto-deploys from GitHub (`D-Be_recurrent` repo)
+- **GitHub Repo**: `D-Be_recurrent` (D-Be_recurrent is one of multiple repos in this GitHub account)
 
 ---
 

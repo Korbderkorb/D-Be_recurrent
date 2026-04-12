@@ -406,11 +406,11 @@ Show "Submission Received" message
 6. Deploy and monitor
 
 ### Deploying Changes
-1. Test locally: `npm run dev`
-2. Build: `npm run build`
-3. Push to GitHub
-4. Cloudflare auto-deploys
-5. Monitor for errors (check browser console)
+1. Test locally: `cd learning-platform && npm run dev`
+2. Build: `cd learning-platform && npm run build`
+3. Push to GitHub (`D-Be_recurrent` repo)
+4. Cloudflare Pages (`d-be-recurrent` project) auto-deploys from the `learning-platform/` subfolder
+5. Monitor for errors (check Cloudflare build logs and browser console)
 
 ### Debugging
 - Check browser console for errors

@@ -147,13 +147,17 @@ All environment variables must start with `VITE_` to be exposed to the browser.
 
 ## Deployment
 
-The application is deployed on Cloudflare Pages and automatically deploys on every push to the main branch.
+The application is deployed on Cloudflare Pages (project: `d-be-recurrent`) and automatically deploys on every push to the main branch.
 
 ### Setting Up Production Environment
 
-1. Set the same environment variables in Cloudflare's dashboard under **Settings > Environment variables**
-2. Push code to GitHub
-3. Cloudflare automatically builds and deploys
+1. Go to Cloudflare Pages → `d-be-recurrent` project → **Settings**
+2. Set environment variables under **Settings > Environment variables** (same as `.env.local`)
+3. Set build configuration:
+   - **Build command**: `cd learning-platform && npm run build`
+   - **Output directory**: `learning-platform/dist`
+4. Push code to GitHub
+5. Cloudflare automatically builds and deploys
 
 ## Database Schema
 
