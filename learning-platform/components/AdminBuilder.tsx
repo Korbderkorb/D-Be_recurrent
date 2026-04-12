@@ -607,6 +607,64 @@ const SortableTopicItem = ({ topic, isSelected, onSelect, onDelete, theme }: Sor
     );
 };
 
+// --- SORTABLE MODULE ITEM COMPONENT ---
+
+interface SortableModuleItemProps {
+    module: SubTopic;
+    theme: 'light' | 'dark';
+    isExpanded: boolean;
+    onToggleExpand: () => void;
+}
+
+const SortableModuleItem = ({ module, theme, isExpanded, onToggleExpand }: SortableModuleItemProps) => {
+    const {
+        attributes,
+        listeners,
+        setNodeRef,
+        transform,
+        transition,
+        isDragging
+    } = useSortable({ id: module.id });
+
+    const style = {
+        transform: CSS.Transform.toString(transform),
+        transition,
+        zIndex: isDragging ? 10 : 1,
+    };
+
+    return (
+        <div
+            ref={setNodeRef}
+            style={style}
+            className={`${isDragging ? 'opacity-50 shadow-lg' : ''}`}
+        >
+            <div
+                className="flex items-center p-4 cursor-pointer group"
+                onClick={onToggleExpand}
+            >
+                <div
+                    {...attributes}
+                    {...listeners}
+                    className={`mr-3 cursor-grab active:cursor-grabbing ${theme === 'dark' ? 'text-slate-600 hover:text-slate-400' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                    <GripVertical size={16} />
+                </div>
+                <div className={`mr-3 p-2 rounded-md border ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-slate-100 border-slate-200'}`}>
+                    {module.type === 'VIDEO' ? <Video size={18} className="text-blue-400" /> :
+                    module.type === 'EXERCISE_UPLOAD' ? <Upload size={18} className="text-purple-400" /> :
+                    <HelpCircle size={18} className="text-orange-400" />}
+                </div>
+                <div className="flex-1">
+                    <div className={`font-semibold text-sm ${theme === 'dark' ? 'text-slate-200' : 'text-slate-900'}`}>{module.title || 'Untitled Module'}</div>
+                    <div className={`text-xs mt-0.5 truncate ${theme === 'dark' ? 'text-slate-500' : 'text-slate-500'}`}>{module.description || 'No description'}</div>
+                </div>
+                <div className={`text-xs font-mono mr-4 ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'}`}>{module.duration}</div>
+                <div className={`transform transition-transform ${theme === 'dark' ? 'text-slate-500' : 'text-slate-400'} ${isExpanded ? 'rotate-90' : ''}`}><ChevronRight size={18} /></div>
+            </div>
+        </div>
+    );
+};
+
 // --- MAIN ADMIN BUILDER COMPONENT ---
 
 interface AdminBuilderProps {
@@ -4267,6 +4325,7 @@ export default function AdminBuilder({
   const [selectedTopicId, setSelectedTopicId] = useState<string>('');
   const [editingTeacherId, setEditingTeacherId] = useState<string | null>(null);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [expandedModuleId, setExpandedModuleId] = useState<string | null>(null);
 
   const [confirmationOpen, setConfirmationOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -4287,6 +4346,18 @@ export default function AdminBuilder({
         const newIndex = items.findIndex((t) => t.id === over.id);
         return arrayMove(items, oldIndex, newIndex);
       });
+    }
+  };
+
+  const handleModuleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id && selectedTopic) {
+      const oldIndex = selectedTopic.subTopics.findIndex((m) => m.id === active.id);
+      const newIndex = selectedTopic.subTopics.findIndex((m) => m.id === over.id);
+
+      const newSubTopics = arrayMove(selectedTopic.subTopics, oldIndex, newIndex);
+      handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics });
     }
   };
 
@@ -4816,30 +4887,113 @@ export default function AdminBuilder({
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between">
                                     <h3 className={`text-lg font-bold ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Modules ({selectedTopic.subTopics.length})</h3>
-                                    <button 
-                                        onClick={() => handleAddModule(selectedTopicId)} 
+                                    <button
+                                        onClick={() => handleAddModule(selectedTopicId)}
                                         className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-lg font-medium border transition-colors ${theme === 'dark' ? 'bg-blue-500/10 text-blue-400 border-blue-500/20 hover:bg-blue-500/20' : 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'}`}
                                     >
                                         <Plus size={16}/> Add Module
                                     </button>
                                 </div>
-                                {selectedTopic.subTopics.map(mod => (
-                                    <ModuleEditor 
-                                        key={mod._key || mod.id}
-                                        topicId={selectedTopicId}
-                                        module={mod}
-                                        theme={theme}
-                                        existingSubIds={selectedTopic.subTopics.filter(m => m.id !== mod.id).map(m => m._subId)}
-                                        onUpdate={(updated) => {
-                                            const newSubTopics = selectedTopic.subTopics.map(m => m.id === mod.id ? updated : m);
-                                            handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics });
-                                        }}
-                                        onDelete={() => {
-                                            const newSubTopics = selectedTopic.subTopics.filter(m => m.id !== mod.id);
-                                            handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics });
-                                        }}
-                                    />
-                                ))}
+                                <DndContext
+                                    sensors={sensors}
+                                    collisionDetection={closestCenter}
+                                    onDragEnd={handleModuleDragEnd}
+                                >
+                                    <SortableContext
+                                        items={selectedTopic.subTopics.map(m => m.id)}
+                                        strategy={verticalListSortingStrategy}
+                                    >
+                                        {selectedTopic.subTopics.map(mod => (
+                                            <div key={mod._key || mod.id} className={`border rounded-lg transition-all ${expandedModuleId === mod.id ? 'shadow-md border-blue-500/50 ring-1 ring-blue-500/20' : (theme === 'dark' ? 'border-slate-800 hover:border-slate-700' : 'border-slate-200 hover:border-slate-300')} ${theme === 'dark' ? 'bg-slate-900' : 'bg-white'}`}>
+                                                <SortableModuleItem
+                                                    module={mod}
+                                                    theme={theme}
+                                                    isExpanded={expandedModuleId === mod.id}
+                                                    onToggleExpand={() => setExpandedModuleId(expandedModuleId === mod.id ? null : mod.id)}
+                                                />
+                                                {expandedModuleId === mod.id && (
+                                                    <div className={`p-4 border-t ${theme === 'dark' ? 'border-slate-800 bg-slate-900/50' : 'border-slate-200 bg-slate-50/50'}`}>
+                                                        <div className="grid grid-cols-12 gap-4">
+                                                            <div className="col-span-12 md:col-span-8">
+                                                                <label className="block text-xs font-medium text-slate-500 mb-1">Title</label>
+                                                                <input type="text" value={mod.title} onChange={e => {
+                                                                    const newTitle = e.target.value;
+                                                                    const updates: Partial<SubTopic> = { title: newTitle };
+                                                                    if (!mod._isManualId) {
+                                                                      const slug = generateSlug(newTitle);
+                                                                      const otherIds = selectedTopic.subTopics.filter(m => m.id !== mod.id).map(m => m._subId);
+                                                                      updates._subId = getUniqueId(slug || 'module', otherIds as string[]);
+                                                                      updates.id = `${selectedTopicId}-${updates._subId}`;
+                                                                    }
+                                                                    const newSubTopics = selectedTopic.subTopics.map(m => m.id === mod.id ? { ...mod, ...updates } : m);
+                                                                    handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics });
+                                                                }} className={`w-full p-2 text-sm border rounded focus:border-blue-500 outline-none font-medium ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`} />
+                                                            </div>
+                                                            <div className="col-span-12 md:col-span-4">
+                                                                <label className="block text-xs font-medium text-slate-500 mb-1">Type</label>
+                                                                <select value={mod.type} onChange={e => {
+                                                                    const newSubTopics = selectedTopic.subTopics.map(m => m.id === mod.id ? { ...mod, type: e.target.value as SubTopicType } : m);
+                                                                    handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics });
+                                                                }} className={`w-full p-2 text-sm border rounded focus:border-blue-500 outline-none ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}>
+                                                                    {MODULE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                                                                </select>
+                                                            </div>
+
+                                                            <div className="col-span-12">
+                                                                <div className="flex items-center justify-between mb-1">
+                                                                    <label className="block text-xs font-medium text-slate-500">Module ID</label>
+                                                                    <label className="flex items-center gap-1.5 text-[10px] text-slate-500 cursor-pointer select-none">
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={!!mod._isManualId}
+                                                                            onChange={e => {
+                                                                                const newSubTopics = selectedTopic.subTopics.map(m => m.id === mod.id ? { ...mod, _isManualId: e.target.checked } : m);
+                                                                                handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics });
+                                                                            }}
+                                                                            className={`w-3 h-3 rounded border-slate-600 focus:ring-blue-500 ${theme === 'dark' ? 'bg-slate-700 text-blue-600' : 'bg-white text-blue-600'}`}
+                                                                        />
+                                                                        Manual Edit
+                                                                    </label>
+                                                                </div>
+                                                                <input
+                                                                    type="text"
+                                                                    value={mod._subId || ''}
+                                                                    onChange={e => {
+                                                                        const slug = generateSlug(e.target.value);
+                                                                        const newSubTopics = selectedTopic.subTopics.map(m => m.id === mod.id ? { ...mod, _subId: slug, id: `${selectedTopicId}-${slug}` } : m);
+                                                                        handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics });
+                                                                    }}
+                                                                    disabled={!mod._isManualId}
+                                                                    className={`w-full p-2 text-xs font-mono border rounded outline-none transition-colors ${mod._isManualId ? (theme === 'dark' ? 'bg-slate-800 border-blue-500/50 text-blue-400' : 'bg-white border-blue-500 text-blue-600') : (theme === 'dark' ? 'bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed' : 'bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed')}`}
+                                                                />
+                                                            </div>
+                                                            <div className="col-span-8">
+                                                                 <label className="block text-xs font-medium text-slate-500 mb-1">Description</label>
+                                                                 <input type="text" value={mod.description} onChange={e => {
+                                                                    const newSubTopics = selectedTopic.subTopics.map(m => m.id === mod.id ? { ...mod, description: e.target.value } : m);
+                                                                    handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics });
+                                                                 }} className={`w-full p-2 text-sm border rounded focus:border-blue-500 outline-none ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`} />
+                                                            </div>
+                                                             <div className="col-span-4">
+                                                                <label className="block text-xs font-medium text-slate-500 mb-1">Duration</label>
+                                                                 <input type="text" value={mod.duration} onChange={e => {
+                                                                    const newSubTopics = selectedTopic.subTopics.map(m => m.id === mod.id ? { ...mod, duration: e.target.value } : m);
+                                                                    handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics });
+                                                                 }} placeholder="MM:SS" className={`w-full p-2 text-sm border rounded focus:border-blue-500 outline-none ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`} />
+                                                            </div>
+                                                            <div className="col-span-12 flex justify-end pt-2">
+                                                                <button onClick={() => {
+                                                                    const newSubTopics = selectedTopic.subTopics.filter(m => m.id !== mod.id);
+                                                                    handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics });
+                                                                }} className="text-red-500 text-xs hover:underline flex items-center gap-1"><Trash2 size={12}/> Delete Module</button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </SortableContext>
+                                </DndContext>
                             </div>
                          </div>
                      ) : (
