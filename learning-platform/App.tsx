@@ -1626,8 +1626,12 @@ const App: React.FC = () => {
 
       try {
           await batch.commit();
+
+          // Update local state to match Firestore
+          setCurrentTopics(newTopics);
+          setCurrentTeachers(newTeachers);
           setCurrentUsers(newUsers);
-          
+
           // If current user was updated, refresh session
           if (currentUser) {
               const freshUser = newUsers.find(u => u.id === currentUser.id);
