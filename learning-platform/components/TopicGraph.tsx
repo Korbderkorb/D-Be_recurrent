@@ -415,35 +415,37 @@ const TopicGraph: React.FC<TopicGraphProps> = ({
         })
         .on("click", (e, d) => {
             e.stopPropagation();
-            if (d.teacher?.email && !hiddenTeacherEmails.has(d.teacher.email)) {
-                // We allow clicking on prerequisite locked topics to show the alert
-                if (d.locked) return; 
-                
-                // Mobile double-click logic: first click shows preview, second click opens
-                const isMobile = window.innerWidth < 768;
-                if (isMobile) {
-                    if (previewTopicIdRef.current === d.id) {
-                        onSelectTopic(d);
-                    } else {
-                        previewTopicIdRef.current = d.id;
-                        setPreviewTopicId(d.id);
-                        // Show hover overlay manually for mobile
-                        zoomGroup.selectAll(".hover-overlay").attr("opacity", 0);
-                        d3.select(e.currentTarget).select(".hover-overlay").attr("opacity", 1);
 
-                        // Smooth zoom logic
-                        const targetScale = (width * 0.4) / NODE_WIDTH;
-                        const targetX = width / 2 - targetScale * (d.x + NODE_WIDTH / 2);
-                        const targetY = height / 2 - targetScale * (d.y + NODE_HEIGHT / 2);
-                        
-                        svg.transition()
-                            .duration(750)
-                            .ease(d3.easeCubicInOut)
-                            .call(zoom.transform, d3.zoomIdentity.translate(targetX, targetY).scale(targetScale));
-                    }
-                } else {
+            // Block clicks on completely locked topics (user permission locked)
+            if (d.locked) return;
+
+            // Block clicks on topics from hidden teachers
+            if (d.teacher?.email && hiddenTeacherEmails.has(d.teacher.email)) return;
+
+            // Mobile double-click logic: first click shows preview, second click opens
+            const isMobile = window.innerWidth < 768;
+            if (isMobile) {
+                if (previewTopicIdRef.current === d.id) {
                     onSelectTopic(d);
+                } else {
+                    previewTopicIdRef.current = d.id;
+                    setPreviewTopicId(d.id);
+                    // Show hover overlay manually for mobile
+                    zoomGroup.selectAll(".hover-overlay").attr("opacity", 0);
+                    d3.select(e.currentTarget).select(".hover-overlay").attr("opacity", 1);
+
+                    // Smooth zoom logic
+                    const targetScale = (width * 0.4) / NODE_WIDTH;
+                    const targetX = width / 2 - targetScale * (d.x + NODE_WIDTH / 2);
+                    const targetY = height / 2 - targetScale * (d.y + NODE_HEIGHT / 2);
+
+                    svg.transition()
+                        .duration(750)
+                        .ease(d3.easeCubicInOut)
+                        .call(zoom.transform, d3.zoomIdentity.translate(targetX, targetY).scale(targetScale));
                 }
+            } else {
+                onSelectTopic(d);
             }
         });
 

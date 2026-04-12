@@ -104,14 +104,27 @@ Before committing:
 □ Test with different user roles (student/admin)
 ```
 
-### 5. **Deploy Carefully**
+### 5. **Commit to Dev Branch (Testing)**
 ```
-When deploying:
+Always commit to dev branch first:
 □ Create descriptive commit message
-□ Push to GitHub
-□ Verify Cloudflare build succeeds
-□ Check production for errors
-□ Monitor for user-facing issues
+□ In GitHub Desktop: Ensure you're on 'dev' branch
+□ Commit changes
+□ Push to GitHub (origin dev)
+□ Verify Cloudflare preview build succeeds
+□ Test on preview: https://dev.d-be-recurrent.pages.dev
+□ Verify changes work correctly with active users unaffected
+□ Check browser console for errors
+```
+
+### 6. **Merge to Main (Production Only)**
+```
+When dev is tested and ready:
+□ Create Pull Request: dev → main (in GitHub)
+□ Add description of changes
+□ Merge PR in GitHub
+□ Cloudflare auto-builds main branch
+□ Monitor production for issues
 □ Be ready to rollback if needed
 ```
 
@@ -158,39 +171,147 @@ For detailed reference → Check `docs/ARCHITECTURE.md`
 
 ---
 
+## Git Workflow & Branching Strategy
+
+### 🔄 Branch Structure
+
+```
+main          ← Production (30 active users, stable code only)
+  ↑
+  └─ Pull Request (manual merge after testing)
+  
+dev           ← Testing/Staging (auto-deploys to preview)
+  ↑
+  └─ Commits (all feature work happens here)
+```
+
+### ✅ Commit Flow (Always Dev First)
+
+**Step 1: Make Changes Locally**
+```bash
+cd C:\Users\korbi\Documents\GitHub\D-Be_recurrent
+# Edit files in learning-platform/
+```
+
+**Step 2: Verify You're on Dev Branch**
+```
+In GitHub Desktop:
+- Top left shows current branch
+- Click "Current Branch" tab
+- Make sure "dev" is selected
+- If on main, click "dev" to switch
+```
+
+**Step 3: Commit to Dev**
+```
+In GitHub Desktop:
+□ Review changes
+□ Write descriptive commit message
+□ Click "Commit to dev" (not main!)
+□ Click "Push origin"
+```
+
+**Step 4: Test on Preview**
+```
+Preview URL (no need to visit Cloudflare):
+https://dev.d-be-recurrent.pages.dev
+
+Wait ~2-3 minutes for Cloudflare to build, then visit this URL
+Test your changes with the live app
+```
+
+**Step 5: Merge to Main (Manual)**
+```
+When confident everything works:
+1. Go to GitHub.com → D-Be_recurrent repo
+2. Click "Pull requests"
+3. Click "New Pull Request"
+4. Base: main, Compare: dev
+5. Add description of changes
+6. Click "Create Pull Request"
+7. Click "Merge pull request"
+8. Cloudflare auto-deploys to production
+9. Monitor users for issues
+```
+
+### 🚨 Critical Rules
+
+- ❌ **NEVER commit directly to main**
+- ❌ **NEVER force push** to any branch
+- ✅ **Always commit to dev first**
+- ✅ **Always test on preview URL before merging**
+- ✅ **Only merge to main after confirming changes work**
+
+### 🔗 Quick Preview URL
+
+**Format:**
+```
+https://dev.d-be-recurrent.pages.dev
+```
+
+**No need to visit Cloudflare!** This is predictable:
+- Branch: `dev`
+- Project: `d-be-recurrent`
+- URL: `https://{branch}.{project}.pages.dev`
+
+**If you push to dev and wait 2-3 minutes, visit this URL directly to test.**
+
+### 📋 Verify Branch Before Committing
+
+Quick check in GitHub Desktop:
+```
+Top left: "Current Branch"
+  ↓
+Shows "dev" ✅
+OR
+Shows "main" ❌ (SWITCH TO DEV!)
+```
+
+---
+
 ## Common Workflows
 
 ### 🐛 Fixing a Bug
-1. Reproduce locally if possible
-2. Identify exact file/function causing issue
-3. Make minimal fix
-4. Test that fix doesn't break related features
-5. Commit with clear message
-6. Deploy and monitor
+1. Ensure you're on **dev** branch
+2. Reproduce locally if possible
+3. Identify exact file/function causing issue
+4. Make minimal fix
+5. Test locally: `cd learning-platform && npm run dev`
+6. Commit to dev with clear message
+7. Test on preview: `https://dev.d-be-recurrent.pages.dev`
+8. If verified, create PR to merge dev → main
+9. Monitor production after merge
 
 ### ✨ Adding a Feature
-1. Use EnterPlanMode to design
-2. Update types.ts if new data needed
-3. Create/modify components
-4. Add Firestore rules if data storage needed
-5. Test all code paths
-6. Document in ARCHITECTURE.md if complex
-7. Commit and deploy
+1. Ensure you're on **dev** branch
+2. Use EnterPlanMode to design
+3. Update types.ts if new data needed
+4. Create/modify components
+5. Add Firestore rules if data storage needed
+6. Test all code paths locally
+7. Document in ARCHITECTURE.md if complex
+8. Commit to dev with descriptive message
+9. Test on preview: `https://dev.d-be-recurrent.pages.dev`
+10. Create PR to merge dev → main when confident
 
 ### 🔐 Improving Security
-1. Identify vulnerability
-2. Plan fix that won't break existing functionality
-3. Update firestore.rules or code
-4. Test permissions still work correctly
-5. Commit with security detail
-6. Deploy carefully with monitoring
+1. Ensure you're on **dev** branch
+2. Identify vulnerability
+3. Plan fix that won't break existing functionality
+4. Update firestore.rules or code
+5. Test permissions still work correctly
+6. Commit to dev with security detail
+7. Test thoroughly on preview before merging
+8. Merge to main with caution and monitoring
 
 ### ♻️ Refactoring Code
-1. Plan scope (which files affected)
-2. Keep functionality identical
-3. Run full test of feature after
-4. Commit separately from other changes
-5. Deploy during low-traffic time
+1. Ensure you're on **dev** branch
+2. Plan scope (which files affected)
+3. Keep functionality identical
+4. Run full test of feature after
+5. Commit separately from other changes
+6. Test on preview thoroughly
+7. Merge to main during low-traffic time
 
 ---
 

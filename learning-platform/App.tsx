@@ -908,6 +908,8 @@ const App: React.FC = () => {
         return;
     }
 
+    console.log(`[DATA] Loading progress for user ${currentUser.id}...`);
+
     // Reset loading state when user changes
     setIsProgressLoaded(false);
     setCompletionRecords([]);
@@ -917,11 +919,16 @@ const App: React.FC = () => {
     const unsubscribe = onSnapshot(doc(db, 'progress', currentUser.id), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        setCompletionRecords(data.completedSubTopics || []);
-        setExerciseRecords(data.submittedExercises || []);
-        
-        // Convert flat array back to Record<string, QuizAttempt[]> for local state
+        const completed = data.completedSubTopics || [];
+        const submitted = data.submittedExercises || [];
         const attempts = data.quizAttempts || [];
+
+        setCompletionRecords(completed);
+        setExerciseRecords(submitted);
+
+        console.log(`[DATA] Progress loaded: ${completed.length} completed, ${submitted.length} submitted, ${attempts.length} quiz attempts`);
+
+        // Convert flat array back to Record<string, QuizAttempt[]> for local state
         const grouped: Record<string, QuizAttempt[]> = {};
         attempts.forEach((a: QuizAttempt) => {
             if (!grouped[a.subTopicId]) grouped[a.subTopicId] = [];
@@ -929,6 +936,7 @@ const App: React.FC = () => {
         });
         setQuizProgress(grouped);
       } else {
+        console.log(`[DATA] No progress document for user ${currentUser.id}`);
         // Clear state for new user
         setCompletionRecords([]);
         setExerciseRecords([]);
@@ -936,6 +944,7 @@ const App: React.FC = () => {
       }
       setIsProgressLoaded(true);
     }, (error) => {
+      console.error(`[DATA] Error loading progress:`, error);
       handleFirestoreError(error, OperationType.GET, `progress/${currentUser.id}`);
       setIsProgressLoaded(true); // Still mark as loaded to allow usage
     });
@@ -981,13 +990,15 @@ const App: React.FC = () => {
       return;
     }
 
+    console.log(`[DATA] Loading submissions for student ${currentUser.id}...`);
+
     const q = query(collection(db, 'submissions'), where('userId', '==', currentUser.id));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const subs: ExerciseSubmission[] = [];
       snapshot.forEach(docSnap => {
         const data = docSnap.data();
         let subTopicTitle = "Unknown Exercise";
-        
+
         // Find title from currentTopics
         const topic = currentTopics.find(t => t.id === data.topicId);
         if (topic) {
@@ -997,16 +1008,18 @@ const App: React.FC = () => {
           }
         }
 
-        subs.push({ 
-          id: docSnap.id, 
+        subs.push({
+          id: docSnap.id,
           ...data,
-          subTopicTitle 
+          subTopicTitle
         } as ExerciseSubmission);
       });
       // Sort by timestamp descending
       subs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      console.log(`[DATA] Student submissions loaded: ${subs.length} submissions`, subs);
       setStudentSubmissions(subs);
     }, (error) => {
+      console.error(`[DATA] Error loading submissions:`, error);
       handleFirestoreError(error, OperationType.GET, 'submissions');
     });
 
@@ -1020,13 +1033,15 @@ const App: React.FC = () => {
       return;
     }
 
+    console.log(`[DATA] Loading all submissions for admin...`);
+
     const q = query(collection(db, 'submissions'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const subs: ExerciseSubmission[] = [];
       snapshot.forEach(docSnap => {
         const data = docSnap.data();
         let subTopicTitle = "Unknown Exercise";
-        
+
         // Find title from currentTopics
         const topic = currentTopics.find(t => t.id === data.topicId);
         if (topic) {
@@ -1036,16 +1051,18 @@ const App: React.FC = () => {
           }
         }
 
-        subs.push({ 
-          id: docSnap.id, 
+        subs.push({
+          id: docSnap.id,
           ...data,
-          subTopicTitle 
+          subTopicTitle
         } as ExerciseSubmission);
       });
       // Sort by timestamp descending
       subs.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+      console.log(`[DATA] Admin submissions loaded: ${subs.length} submissions`, subs);
       setAllSubmissions(subs);
     }, (error) => {
+      console.error(`[DATA] Error loading submissions:`, error);
       handleFirestoreError(error, OperationType.GET, 'submissions');
     });
 
@@ -1274,6 +1291,8 @@ const App: React.FC = () => {
       return;
     }
 
+    console.log(`[DATA] Setting up notifications listener for ${currentUser.role}...`);
+
     // Admins see all notifications targeted to 'admin', their own ID, or legacy notifications (no targetUserId)
     // Students only see notifications targeted to them
     let q;
@@ -1289,7 +1308,7 @@ const App: React.FC = () => {
         const data = doc.data();
         notifs.push({ id: doc.id, ...data } as AppNotification);
       });
-      
+
       if (currentUser.role === 'admin') {
           // For admins, filter out notifications that are explicitly targeted to a specific student (not the admin)
           notifs = notifs.filter(n => !n.targetUserId || n.targetUserId === 'admin' || n.targetUserId === currentUser.id);
@@ -1301,10 +1320,12 @@ const App: React.FC = () => {
         const timeB = new Date(b.lastCommentTimestamp || b.timestamp).getTime();
         return timeB - timeA;
       });
-      
+
+      console.log(`[DATA] Notifications loaded: ${sortedNotifs.length} notifications`, sortedNotifs);
       setNotifications(sortedNotifs);
       setIsNotificationsLoaded(true);
     }, (error) => {
+      console.error(`[DATA] Error loading notifications:`, error);
       handleFirestoreError(error, OperationType.LIST, 'notifications');
     });
 
@@ -1315,23 +1336,30 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!isAuthReady || !currentUser) return;
 
+    console.log("[DATA] Setting up topics listener...");
+
     const unsubscribe = onSnapshot(collection(db, 'topics'), (snapshot) => {
       const topics: Topic[] = [];
       snapshot.forEach((doc) => {
         topics.push(doc.data() as Topic);
       });
+      console.log(`[DATA] Retrieved ${topics.length} topics from Firestore`);
       if (topics.length > 0) {
-        setCurrentTopics(topics.sort((a, b) => (a.order ?? 0) - (b.order ?? 0)));
+        const sorted = topics.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+        setCurrentTopics(sorted);
         setIsCurriculumLoaded(true);
       } else if (currentUser?.email === BOOTSTRAP_ADMIN_EMAIL) {
         // Bootstrap admin will trigger initialization if empty
+        console.log("[DATA] No topics found, bootstrap admin will initialize...");
         setIsCurriculumLoaded(false);
       } else {
         // If empty and not admin, we show empty state or wait for admin to bootstrap
+        console.log("[DATA] No topics found for non-admin user");
         setCurrentTopics([]);
         setIsCurriculumLoaded(true);
       }
     }, (error) => {
+      console.error("[DATA] Error loading topics:", error);
       handleFirestoreError(error, OperationType.LIST, 'topics');
     });
 
@@ -1342,22 +1370,22 @@ const App: React.FC = () => {
   useEffect(() => {
     if (!isAuthReady || !currentUser) return;
 
+    console.log("[DATA] Setting up teachers listener...");
+
     const unsubscribe = onSnapshot(collection(db, 'teachers'), (snapshot) => {
       const teachers: Teacher[] = [];
       snapshot.forEach((doc) => {
         teachers.push(doc.data() as Teacher);
       });
-      if (teachers.length > 0) {
-        setCurrentTeachers(teachers);
-      } else {
-        setCurrentTeachers([]);
-      }
+      console.log(`[DATA] Retrieved ${teachers.length} teachers from Firestore:`, teachers);
+      setCurrentTeachers(teachers);
     }, (error) => {
+      console.error("[DATA] Error loading teachers:", error);
       handleFirestoreError(error, OperationType.LIST, 'teachers');
     });
 
     return () => unsubscribe();
-  }, [isAuthReady]);
+  }, [isAuthReady, currentUser]); // Add currentUser to dependencies
 
   // Tags Sync from Firestore
   useEffect(() => {
@@ -1626,8 +1654,12 @@ const App: React.FC = () => {
 
       try {
           await batch.commit();
+
+          // Update local state to match Firestore
+          setCurrentTopics(newTopics);
+          setCurrentTeachers(newTeachers);
           setCurrentUsers(newUsers);
-          
+
           // If current user was updated, refresh session
           if (currentUser) {
               const freshUser = newUsers.find(u => u.id === currentUser.id);
