@@ -4981,6 +4981,301 @@ export default function AdminBuilder({
                                                                     handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics });
                                                                  }} placeholder="MM:SS" className={`w-full p-2 text-sm border rounded focus:border-blue-500 outline-none ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`} />
                                                             </div>
+
+                                                            {/* VIDEO SPECIFIC */}
+                                                            {mod.type === 'VIDEO' && (
+                                                                 <div className={`col-span-12 space-y-3 pb-2 border-b mb-2 ${theme === 'dark' ? 'border-slate-800' : 'border-slate-200'}`}>
+                                                                     <div>
+                                                                         <label className="block text-xs font-medium text-slate-500 mb-1">Embed Link (Vimeo/YouTube)</label>
+                                                                         <input
+                                                                             type="text"
+                                                                             value={mod.videoUrl || ''}
+                                                                             onChange={e => {
+                                                                                const newSubTopics = selectedTopic.subTopics.map(m => m.id === mod.id ? { ...mod, videoUrl: e.target.value } : m);
+                                                                                handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics });
+                                                                             }}
+                                                                             placeholder="https://player.vimeo.com/video/..."
+                                                                             className={`w-full p-2 text-sm border rounded focus:border-blue-500 outline-none font-mono ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-400' : 'bg-white border-slate-200 text-slate-600'}`}
+                                                                         />
+                                                                     </div>
+
+                                                                     <div>
+                                                                         <label className="block text-xs font-medium text-slate-500 mb-1">Poster Image URL (Thumbnail)</label>
+                                                                         <input
+                                                                             type="text"
+                                                                             value={mod.posterUrl || ''}
+                                                                             onChange={e => {
+                                                                                const newSubTopics = selectedTopic.subTopics.map(m => m.id === mod.id ? { ...mod, posterUrl: e.target.value } : m);
+                                                                                handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics });
+                                                                             }}
+                                                                             placeholder={getGeneratedPath(selectedTopicId, mod._subId, 'thumb')}
+                                                                             className={`w-full p-2 text-sm border rounded focus:border-blue-500 outline-none font-mono ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-400' : 'bg-white border-slate-200 text-slate-600'}`}
+                                                                         />
+                                                                     </div>
+
+                                                                     <label className={`flex items-center gap-2 cursor-pointer text-sm select-none font-bold mt-2 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>
+                                                                        <input
+                                                                            type="checkbox"
+                                                                            checked={mod.hasResources !== false}
+                                                                            onChange={e => {
+                                                                                const newSubTopics = selectedTopic.subTopics.map(m => m.id === mod.id ? { ...mod, hasResources: e.target.checked } : m);
+                                                                                handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics });
+                                                                            }}
+                                                                            className={`w-4 h-4 rounded border-slate-600 focus:ring-blue-500 ${theme === 'dark' ? 'bg-slate-700 text-blue-600' : 'bg-white text-blue-600'}`}
+                                                                        />
+                                                                        Has Resources (Notes/Zip)
+                                                                     </label>
+
+                                                                     {(mod.hasResources !== false) && (
+                                                                         <div className="grid grid-cols-2 gap-4 pl-6 animate-in slide-in-from-top-2 fade-in">
+                                                                             <div>
+                                                                                 <label className="block text-xs font-medium text-slate-500 mb-1">Lecture Notes Link (PDF)</label>
+                                                                                 <input
+                                                                                    type="text"
+                                                                                    value={mod.resources?.notesUrl || ''}
+                                                                                    onChange={e => {
+                                                                                        const newSubTopics = selectedTopic.subTopics.map(m => m.id === mod.id ? { ...mod, resources: { ...mod.resources, notesUrl: e.target.value } } : m);
+                                                                                        handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics });
+                                                                                    }}
+                                                                                    placeholder={getGeneratedPath(selectedTopicId, mod._subId, 'pdf')}
+                                                                                    className={`w-full p-2 text-sm border rounded focus:border-blue-500 outline-none font-mono ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-400' : 'bg-white border-slate-200 text-slate-600'}`}
+                                                                                 />
+                                                                             </div>
+                                                                             <div>
+                                                                                 <label className="block text-xs font-medium text-slate-500 mb-1">Source Files Link (Zip)</label>
+                                                                                 <input
+                                                                                    type="text"
+                                                                                    value={mod.resources?.sourceUrl || ''}
+                                                                                    onChange={e => {
+                                                                                        const newSubTopics = selectedTopic.subTopics.map(m => m.id === mod.id ? { ...mod, resources: { ...mod.resources, sourceUrl: e.target.value } } : m);
+                                                                                        handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics });
+                                                                                    }}
+                                                                                    placeholder={getGeneratedPath(selectedTopicId, mod._subId, 'zip')}
+                                                                                    className={`w-full p-2 text-sm border rounded focus:border-blue-500 outline-none font-mono ${theme === 'dark' ? 'bg-slate-800 border-slate-700 text-slate-400' : 'bg-white border-slate-200 text-slate-600'}`}
+                                                                                 />
+                                                                             </div>
+                                                                         </div>
+                                                                     )}
+                                                                 </div>
+                                                            )}
+
+                                                            {/* UPLOAD EXERCISE SPECIFIC */}
+                                                            {mod.type === 'EXERCISE_UPLOAD' && (
+                                                                <div className={`col-span-12 p-4 rounded-xl border space-y-4 ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                                                                     <div>
+                                                                         <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Upload Requirements</label>
+                                                                         <div className="space-y-2 mb-3">
+                                                                             {(mod.uploadRequirements || []).map((req, idx) => (
+                                                                                 <div key={idx} className="flex items-center gap-2">
+                                                                                     <span className={`text-sm font-medium px-3 py-1.5 rounded-lg flex-1 border ${theme === 'dark' ? 'text-slate-300 bg-slate-900 border-slate-700' : 'text-slate-700 bg-white border-slate-200'}`}>{req}</span>
+                                                                                     <button
+                                                                                        onClick={() => {
+                                                                                            const newSubTopics = selectedTopic.subTopics.map(m => m.id === mod.id ? { ...mod, uploadRequirements: (mod.uploadRequirements || []).filter((_, i) => i !== idx) } : m);
+                                                                                            handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics });
+                                                                                        }}
+                                                                                        className="text-slate-500 hover:text-red-500 transition-colors"
+                                                                                     >
+                                                                                         <X size={16} />
+                                                                                     </button>
+                                                                                 </div>
+                                                                             ))}
+                                                                             {(mod.uploadRequirements || []).length === 0 && (
+                                                                                 <div className="text-xs text-slate-500 italic">No specific requirements (Single file upload default).</div>
+                                                                             )}
+                                                                         </div>
+                                                                         <div className="flex gap-2">
+                                                                             <input
+                                                                                type="text"
+                                                                                placeholder="E.g. Rhino Model, Render Image..."
+                                                                                className={`flex-1 p-2 text-sm rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition-all border ${theme === 'dark' ? 'bg-slate-900 text-white border-slate-700' : 'bg-white text-slate-900 border-slate-200'}`}
+                                                                                onKeyDown={(e) => {
+                                                                                    if (e.key === 'Enter' && e.currentTarget.value.trim()) {
+                                                                                        const current = mod.uploadRequirements || [];
+                                                                                        if (mod.exerciseConfig?.maxFiles && current.length >= mod.exerciseConfig.maxFiles) {
+                                                                                            alert(`Maximum of ${mod.exerciseConfig.maxFiles} files allowed.`);
+                                                                                            return;
+                                                                                        }
+                                                                                        const newSubTopics = selectedTopic.subTopics.map(m => m.id === mod.id ? { ...mod, uploadRequirements: [...current, e.currentTarget.value.trim()] } : m);
+                                                                                        handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics });
+                                                                                        e.currentTarget.value = '';
+                                                                                    }
+                                                                                }}
+                                                                                id={`upload-req-${mod.id}`}
+                                                                             />
+                                                                             <button
+                                                                                onClick={() => {
+                                                                                    const input = document.getElementById(`upload-req-${mod.id}`) as HTMLInputElement;
+                                                                                    if (input && input.value.trim()) {
+                                                                                        const current = mod.uploadRequirements || [];
+                                                                                        if (mod.exerciseConfig?.maxFiles && current.length >= mod.exerciseConfig.maxFiles) {
+                                                                                            alert(`Maximum of ${mod.exerciseConfig.maxFiles} files allowed.`);
+                                                                                            return;
+                                                                                        }
+                                                                                        const newSubTopics = selectedTopic.subTopics.map(m => m.id === mod.id ? { ...mod, uploadRequirements: [...current, input.value.trim()] } : m);
+                                                                                        handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics });
+                                                                                        input.value = '';
+                                                                                    }
+                                                                                }}
+                                                                                className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-500 transition-colors shadow-lg shadow-blue-900/20"
+                                                                             >
+                                                                                 Add
+                                                                             </button>
+                                                                         </div>
+                                                                     </div>
+
+                                                                     <div className={`pt-4 border-t ${theme === 'dark' ? 'border-slate-700' : 'border-slate-200'}`}>
+                                                                         <label className="block text-xs font-bold text-slate-500 uppercase mb-3">Upload Constraints</label>
+                                                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                                             <div className="space-y-1.5">
+                                                                                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Allowed Extensions</label>
+                                                                                 <input
+                                                                                    type="text"
+                                                                                    value={mod.exerciseConfig?.allowedFileTypes?.join(', ') || ''}
+                                                                                    onChange={(e) => {
+                                                                                        const types = e.target.value.split(',').map(t => t.trim()).filter(t => t.startsWith('.'));
+                                                                                        const newSubTopics = selectedTopic.subTopics.map(m => m.id === mod.id ? { ...mod, exerciseConfig: { ...(mod.exerciseConfig || { maxFiles: 1, maxFileSizeMB: 10 }), allowedFileTypes: types } } : m);
+                                                                                        handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics });
+                                                                                    }}
+                                                                                    placeholder=".pdf, .zip, .jpg"
+                                                                                    className={`w-full p-2 text-xs border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none font-mono ${theme === 'dark' ? 'bg-slate-900 text-white border-slate-700' : 'bg-white text-slate-900 border-slate-200'}`}
+                                                                                 />
+                                                                                 <p className="text-[9px] text-slate-500">Comma separated, include dot (e.g. .pdf, .zip)</p>
+                                                                             </div>
+                                                                             <div className="space-y-1.5">
+                                                                                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Max Files</label>
+                                                                                 <input
+                                                                                    type="number"
+                                                                                    min={1}
+                                                                                    max={10}
+                                                                                    value={mod.exerciseConfig?.maxFiles || 1}
+                                                                                    onChange={(e) => {
+                                                                                        const newSubTopics = selectedTopic.subTopics.map(m => m.id === mod.id ? { ...mod, exerciseConfig: { ...(mod.exerciseConfig || { allowedFileTypes: ['.pdf'], maxFileSizeMB: 10 }), maxFiles: parseInt(e.target.value) || 1 } } : m);
+                                                                                        handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics });
+                                                                                    }}
+                                                                                    className={`w-full p-2 text-xs border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${theme === 'dark' ? 'bg-slate-900 text-white border-slate-700' : 'bg-white text-slate-900 border-slate-200'}`}
+                                                                                 />
+                                                                             </div>
+                                                                             <div className="space-y-1.5">
+                                                                                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Max Size (MB) / File</label>
+                                                                                 <input
+                                                                                    type="number"
+                                                                                    min={1}
+                                                                                    max={100}
+                                                                                    value={mod.exerciseConfig?.maxFileSizeMB || 10}
+                                                                                    onChange={(e) => {
+                                                                                        const newSubTopics = selectedTopic.subTopics.map(m => m.id === mod.id ? { ...mod, exerciseConfig: { ...(mod.exerciseConfig || { allowedFileTypes: ['.pdf'], maxFiles: 1 }), maxFileSizeMB: parseInt(e.target.value) || 10 } } : m);
+                                                                                        handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics });
+                                                                                    }}
+                                                                                    className={`w-full p-2 text-xs border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${theme === 'dark' ? 'bg-slate-900 text-white border-slate-700' : 'bg-white text-slate-900 border-slate-200'}`}
+                                                                                 />
+                                                                             </div>
+                                                                         </div>
+                                                                     </div>
+                                                                </div>
+                                                            )}
+
+                                                            {/* QUIZ SPECIFIC */}
+                                                            {mod.type === 'EXERCISE_QUIZ' && (
+                                                                <div className={`col-span-12 mt-2 pt-4 border-t ${theme === 'dark' ? 'border-slate-800' : 'border-slate-200'}`}>
+                                                                    <div className="flex justify-between items-center mb-2">
+                                                                        <label className="block text-xs font-bold text-slate-400 uppercase">Quiz Questions</label>
+                                                                        <button onClick={() => { const newQ: QuizQuestion = { id: `q${Date.now()}`, question: 'New Question?', options: ['Option 1', 'Option 2'], correctAnswers: [0], multiSelect: false }; const newSubTopics = selectedTopic.subTopics.map(m => m.id === mod.id ? { ...mod, quizQuestions: [...(mod.quizQuestions || []), newQ] } : m); handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics }); }} className="text-xs text-blue-600 hover:text-blue-500 font-medium">+ Add Question</button>
+                                                                    </div>
+                                                                    <div className="space-y-4">
+                                                                        {mod.quizQuestions?.map((q, qIdx) => (
+                                                                            <div key={q.id} className={`p-4 border rounded shadow-sm ${theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                                                                                <div className="flex gap-2 mb-3">
+                                                                                    <span className="text-xs font-mono text-slate-400 pt-2">Q{qIdx+1}</span>
+                                                                                    <input className={`flex-1 p-1.5 text-sm border-b focus:border-blue-400 outline-none font-medium ${theme === 'dark' ? 'bg-slate-900 text-white border-slate-700' : 'bg-white text-slate-900 border-slate-200'}`} value={q.question} onChange={(e) => { const newQs = [...(mod.quizQuestions || [])]; newQs[qIdx] = { ...q, question: e.target.value }; const newSubTopics = selectedTopic.subTopics.map(m => m.id === mod.id ? { ...mod, quizQuestions: newQs } : m); handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics }); }} placeholder="Enter question..." />
+                                                                                    <button onClick={() => { const newQs = (mod.quizQuestions || []).filter((_, i) => i !== qIdx); const newSubTopics = selectedTopic.subTopics.map(m => m.id === mod.id ? { ...mod, quizQuestions: newQs } : m); handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics }); }} className="text-slate-400 hover:text-red-400"><Trash2 size={14}/></button>
+                                                                                </div>
+
+                                                                                <div className="mb-3 ml-6 flex gap-4">
+                                                                                    <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
+                                                                                        <input
+                                                                                            type="checkbox"
+                                                                                            checked={q.multiSelect}
+                                                                                            onChange={(e) => {
+                                                                                                const newQs = [...(mod.quizQuestions || [])];
+                                                                                                const newCorrect = e.target.checked ? q.correctAnswers : [q.correctAnswers[0] || 0];
+                                                                                                newQs[qIdx] = { ...q, multiSelect: e.target.checked, correctAnswers: newCorrect };
+                                                                                                const newSubTopics = selectedTopic.subTopics.map(m => m.id === mod.id ? { ...mod, quizQuestions: newQs } : m);
+                                                                                                handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics });
+                                                                                            }}
+                                                                                            className={`w-3.5 h-3.5 rounded border-slate-600 focus:ring-blue-500 ${theme === 'dark' ? 'bg-slate-700 text-blue-600' : 'bg-white text-blue-600'}`}
+                                                                                        />
+                                                                                        Allow Multiple Answers
+                                                                                    </label>
+                                                                                </div>
+
+                                                                                <div className="pl-6 space-y-2">
+                                                                                    {q.options.map((opt, oIdx) => {
+                                                                                        const isCorrect = q.correctAnswers.includes(oIdx);
+                                                                                        return (
+                                                                                            <div key={oIdx} className="flex items-center gap-2">
+                                                                                                <div
+                                                                                                    className={`cursor-pointer ${isCorrect ? 'text-green-500' : 'text-slate-300 hover:text-slate-400'}`}
+                                                                                                    onClick={() => {
+                                                                                                        let newCorrect;
+                                                                                                        if (q.multiSelect) {
+                                                                                                            newCorrect = isCorrect
+                                                                                                                ? q.correctAnswers.filter(c => c !== oIdx)
+                                                                                                                : [...q.correctAnswers, oIdx];
+                                                                                                        } else {
+                                                                                                            newCorrect = [oIdx];
+                                                                                                        }
+                                                                                                        const newQs = [...(mod.quizQuestions || [])];
+                                                                                                        newQs[qIdx] = { ...q, correctAnswers: newCorrect };
+                                                                                                        const newSubTopics = selectedTopic.subTopics.map(m => m.id === mod.id ? { ...mod, quizQuestions: newQs } : m);
+                                                                                                        handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics });
+                                                                                                    }}
+                                                                                                >
+                                                                                                    {q.multiSelect
+                                                                                                        ? (isCorrect ? <CheckSquare size={16} /> : <Square size={16} />)
+                                                                                                        : (isCorrect ? <div className="w-4 h-4 rounded-full border-4 border-green-500" /> : <div className={`w-4 h-4 rounded-full border ${theme === 'dark' ? 'border-slate-600' : 'border-slate-300'}`} />)
+                                                                                                    }
+                                                                                                </div>
+                                                                                                <input
+                                                                                                    className={`flex-1 text-xs p-1.5 border focus:border-blue-400 rounded outline-none transition-colors ${theme === 'dark' ? 'bg-slate-900 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900'}`}
+                                                                                                    value={opt}
+                                                                                                    onChange={(e) => { const newQs = [...(mod.quizQuestions || [])]; const newOpts = [...q.options]; newOpts[oIdx] = e.target.value; newQs[qIdx] = { ...q, options: newOpts }; const newSubTopics = selectedTopic.subTopics.map(m => m.id === mod.id ? { ...mod, quizQuestions: newQs } : m); handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics }); }}
+                                                                                                />
+                                                                                                <button
+                                                                                                    onClick={() => {
+                                                                                                        const newQs = [...(mod.quizQuestions || [])];
+                                                                                                        const newOpts = q.options.filter((_, i) => i !== oIdx);
+                                                                                                        const newCorrect = q.correctAnswers.filter(idx => idx !== oIdx).map(idx => idx > oIdx ? idx - 1 : idx);
+                                                                                                        newQs[qIdx] = { ...q, options: newOpts, correctAnswers: newCorrect };
+                                                                                                        const newSubTopics = selectedTopic.subTopics.map(m => m.id === mod.id ? { ...mod, quizQuestions: newQs } : m);
+                                                                                                        handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics });
+                                                                                                    }}
+                                                                                                    className="text-slate-300 hover:text-red-400 opacity-0 group-hover:opacity-100"
+                                                                                                    disabled={q.options.length <= 2}
+                                                                                                >
+                                                                                                    <Trash2 size={12} />
+                                                                                                </button>
+                                                                                            </div>
+                                                                                        );
+                                                                                    })}
+                                                                                    <button
+                                                                                        onClick={() => {
+                                                                                            const newQs = [...(mod.quizQuestions || [])];
+                                                                                            const newOpts = [...q.options, `Option ${q.options.length + 1}`];
+                                                                                            newQs[qIdx] = { ...q, options: newOpts };
+                                                                                            const newSubTopics = selectedTopic.subTopics.map(m => m.id === mod.id ? { ...mod, quizQuestions: newQs } : m);
+                                                                                            handleUpdateTopic(selectedTopicId, { ...selectedTopic, subTopics: newSubTopics });
+                                                                                        }}
+                                                                                        className="text-xs text-blue-500 hover:text-blue-600 font-medium ml-6 mt-1 flex items-center gap-1"
+                                                                                    >
+                                                                                        <Plus size={12} /> Add Answer
+                                                                                    </button>
+                                                                                </div>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+
                                                             <div className="col-span-12 flex justify-end pt-2">
                                                                 <button onClick={() => {
                                                                     const newSubTopics = selectedTopic.subTopics.filter(m => m.id !== mod.id);
